@@ -31,7 +31,7 @@ public:
 	virtual double E() = 0;
 	//! @brief Returns the global chemical potential of the ensemble
 	virtual double mu() = 0;
-	//! @brief Returns the global presure of the ensemble.
+	//! @brief Returns the global pressure of the ensemble.
 	virtual double p() = 0;
 	//! @brief Returns the global Temperature of the ensemble.
 	virtual double T() = 0;

@@ -35,9 +35,10 @@ else
 endif
 
 SOURCES_COMMON = $(shell find ./ -name "*.cpp" | grep -v "parallel/" | grep -v "/tests/" | grep -v "/vtk/")
+SOURCES_CUDA = $(shell find ./ -name "*.cu" | grep -v "parallel/" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_SEQ = $(shell find parallel/ -name "*.cpp" | grep "Dummy" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_PAR = $(shell find parallel/ -name "*.cpp" | grep -v "Dummy" | grep -v "/tests/" | grep -v "/vtk/")
-SOURCES = $(SOURCES_COMMON) $(SOURCES_$(PARTYPE)) 
+SOURCES = $(SOURCES_COMMON) $(SOURCES_CUDA) $(SOURCES_$(PARTYPE)) 
 
 
 OBJECTS = $(SOURCES:.cpp=.o)
