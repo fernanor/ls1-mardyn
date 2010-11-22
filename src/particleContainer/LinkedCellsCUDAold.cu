@@ -287,29 +287,9 @@ void LinkedCellsOpenCL::traversePairs() {
 						Fsite[2]=(double)forces[index*8+2];
 						uPot=uPot+(double)forces[index*8+3];
 						virial+=forces[index*8+4];
-//						cout  << "uPot " <<  uPot << " " << forces[index*8+3] <<endl;
-//						if(uPot != uPot) {
-//							exit(1);
-//						}
 						index++;
 					}
 	}
-//	index=0;
-//	for(unsigned i = 0; i < _cells.size(); i++ ){
-//					Cell& currentCell = _cells[i];
-//					cout << "cell "  <<  i  << endl;
-//					for( molIter1 = currentCell.getParticlePointers().begin(); molIter1 != currentCell.getParticlePointers().end(); molIter1++ ) {
-//						Molecule& molecule1 = **molIter1;
-//						double* Fsite=&(molecule1.m_ljcenters_F[0]);
-//						//if(index < 1000) {
-//						cout << index  << "Fsite[0]" <<  Fsite[0] << endl;
-//						cout << index << " Fsite[1]" <<  Fsite[1] << endl;
-//						cout << index << " Fsite[2]" <<  Fsite[2] << endl;
-//						//}
-//						index++;
-//					}
-//	}
-//	exit(0);
 
 	cout << "LinkedCellsOpenCL::finish" << endl;
 	traversePairsFinish();
