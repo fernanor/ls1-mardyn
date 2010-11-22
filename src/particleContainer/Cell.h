@@ -75,6 +75,11 @@ public:
 	//! return the number of molecules contained in this cell
 	int getMoleculeCount() const;
 
+	// TODOAK: remove this again
+	//! gets the Id of this Cell, which is used and set by LindedCellOpenCL
+	unsigned long id() { return _id; }
+	void setId(unsigned long id) { _id=id; }
+
 private:
 	//! each cell contains a list of pointers to the molecules in the cell
 	std::list<Molecule*> _particlePointers;
@@ -85,6 +90,8 @@ private:
 	bool _boundaryCellState;
 	//! true when the cell is in the inner region
 	bool _innerCellState;
+
+	unsigned long _id;
 };
 
 #endif /*CELL_H_*/

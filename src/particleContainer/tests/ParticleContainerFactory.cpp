@@ -8,6 +8,7 @@
 #include "particleContainer/tests/ParticleContainerFactory.h"
 #include "particleContainer/ParticleContainer.h"
 #include "particleContainer/LinkedCells.h"
+#include "particleContainer/LinkedCellsCUDA.h"
 
 #include "utils/Logger.h"
 
@@ -22,8 +23,13 @@ ParticleContainer* ParticleContainerFactory::createEmptyParticleContainer(type t
 		double tersoffCutoffRadius = 1.0;
 		double cellsInCutoffRadius = 1.0;
 
+#if 0
 		LinkedCells* container = new LinkedCells(bBoxMin, bBoxMax, cutoffRadius, LJCutoffRadius,
 		                                        tersoffCutoffRadius, cellsInCutoffRadius, NULL);
+#else
+		LinkedCells* container = new LinkedCellsOpenCL(bBoxMin, bBoxMax, cutoffRadius, LJCutoffRadius,
+		                                        tersoffCutoffRadius, cellsInCutoffRadius, NULL);
+#endif
 		return container;
 
 	} else {

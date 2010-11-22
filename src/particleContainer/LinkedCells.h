@@ -223,6 +223,8 @@ public:
 	friend class VTKGridWriter;
 #endif
 
+	// TODO: hack to make orend's code work for now
+	friend class LinkedCellsOpenCL;
 private:
 	//####################################
 	//######### PRIVATE METHODS ##########
