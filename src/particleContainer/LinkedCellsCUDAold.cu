@@ -1,6 +1,6 @@
 // Andreas Kirsch <kirschan@tum.de>
 
-#include "LinkedCellsCUDA.h"
+#include "LinkedCellsCUDAold.h"
 #include "LinkedCells.h"
 #include "molecules/potforce.h"
 #include "handlerInterfaces/ParticlePairsHandler.h"

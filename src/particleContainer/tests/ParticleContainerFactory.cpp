@@ -27,8 +27,7 @@ ParticleContainer* ParticleContainerFactory::createEmptyParticleContainer(type t
 		LinkedCells* container = new LinkedCells(bBoxMin, bBoxMax, cutoffRadius, LJCutoffRadius,
 		                                        tersoffCutoffRadius, cellsInCutoffRadius, NULL);
 #else
-		LinkedCells* container = new LinkedCellsOpenCL(bBoxMin, bBoxMax, cutoffRadius, LJCutoffRadius,
-		                                        tersoffCutoffRadius, cellsInCutoffRadius, NULL);
+		LinkedCellsCUDA* container = new LinkedCellsCUDA(bBoxMin, bBoxMax, cutoffRadius, NULL);
 #endif
 		return container;
 
