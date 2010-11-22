@@ -71,6 +71,12 @@ public:
 	//! and stored in the molecules. For original pairs(pairType 0), the contributions
 	//! to the macroscopic values have to be collected
 	double processPair(Molecule& particle1, Molecule& particle2, double distanceVector[3], int pairType, double dd, bool calculateLJ) {
+		// dummy variables used for pairs which don't contribute to the macroscopic values
+		double _dummy1;
+		double _dummy2;
+		double _dummy3;
+		double _dummy4;
+
 		ParaStrm& params = _domain.getComp2Params()(particle1.componentid(), particle2.componentid());
 		params.reset_read();
 		if (pairType == 0) {
@@ -129,15 +135,6 @@ private:
 	double _upotTersoff;
 	//! @brief variable used to sum the MyRF contribution of all pairs
 	double _myRF;
-
-	//! @brief dummy variable used for pairs which don't contribute to the macroscopic values
-	double _dummy1;
-	//! @brief dummy variable used for pairs which don't contribute to the macroscopic values
-	double _dummy2;
-	//! @brief dummy variable used for pairs which don't contribute to the macroscopic values
-	double _dummy3;
-	//! @brief dummy variable used for pairs which don't contribute to the macroscopic values
-	double _dummy4;
 
 	bool _doRecordRDF;
 };
