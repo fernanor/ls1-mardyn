@@ -223,8 +223,45 @@ public:
 	friend class VTKGridWriter;
 #endif
 
-	// TODO: hack to make orend's code work for now
+	// TODO: remove this hack that is needed to make orend's code work for now
 	friend class LinkedCellsOpenCL;
+
+	// cell access functions
+	const std::vector<Cell> & getCells() const {
+		return _cells;
+	}
+
+	const std::vector<unsigned long> & getInnerCellIndices() const {
+		return _innerCellIndices;
+	}
+
+	const std::vector<unsigned long> & getBoundaryCellIndices() const {
+		return _boundaryCellIndices;
+	}
+
+	const std::vector<unsigned long> & getHaloCellIndices() const {
+		return _haloCellIndices;
+	}
+
+	const std::vector<unsigned long> & getForwardNeighbourOffsets() const {
+		return _forwardNeighbourOffsets;
+	}
+
+	const std::vector<unsigned long> & getBackwardNeighbourOffsets() const {
+		return _backwardNeighbourOffsets;
+	}
+
+	// TODO: this used to be private but Im making it public to be able to access the cell data
+	//! @brief given the 3D index of a cell, return the index in the cell vector.
+	//!
+	//! A cell can be identified by a 3D index. \n
+	//! This method determines for a given 3D index the corresponding cell
+	//! and returns the index of that cell in the cell vector. \n
+	//! The method can also be used to get the offset between two cells in the cell
+	//! vector when called with the 3D cell index offets (e.g. x: one cell to the left,
+	//! y: two cells back, z: one cell up,...)
+	unsigned long cellIndexOf3DIndex(int xIndex, int yIndex, int zIndex) const;
+
 private:
 	//####################################
 	//######### PRIVATE METHODS ##########
@@ -265,16 +302,6 @@ private:
 	//! and returns the index of that cell in the cell vector. \n
 	//! If the molecule is not inside the bounding box, an error is printed
 	unsigned long getCellIndexOfMolecule(Molecule* molecule) const;
-
-	//! @brief given the 3D index of a cell, return the index in the cell vector.
-	//!
-	//! A cell can be identified by a 3D index. \n
-	//! This method determines for a given 3D index the corresponding cell
-	//! and returns the index of that cell in the cell vector. \n
-	//! The method can also be used to get the offset between two cells in the cell
-	//! vector when called with the 3D cell index offets (e.g. x: one cell to the left,
-	//! y: two cells back, z: one cell up,...)
-	unsigned long cellIndexOf3DIndex(int xIndex, int yIndex, int zIndex) const;
 
 	//####################################
 	//##### PRIVATE MEMBER VARIABLES #####
