@@ -2,15 +2,15 @@
 
 CFG_INFO = "nvcc configuration"
 
-CXX_SEQ = /usr/local/cuda/bin/nvcc
+CXX_SEQ = nvcc
 
 # SEQ
 #########################################
 # DEBUG
-CXXFLAGS_SEQ_DEBUG  = $(INCLUDES) --compiler-options -Wall --compiler-options -Wextra --compiler-options -Weffc++ -g 
+CXXFLAGS_SEQ_DEBUG  = $(INCLUDES) -Xcompiler -Wall -Xcompiler -Wextra -Xcompiler -Weffc++ -g 
 LINKFLAGS_SEQ_DEBUG = --linker-options -O0 -g
 # RELEASE
-CXXFLAGS_SEQ_RELEASE  = $(INCLUDES) --compiler-options -O2 -compiler-options -DNDEBUG
+CXXFLAGS_SEQ_RELEASE  = $(INCLUDES) -Xcompiler -O2 -Xcompiler -DNDEBUG
 LINKFLAGS_SEQ_RELEASE =
 
 # PAR
