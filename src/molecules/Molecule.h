@@ -143,6 +143,7 @@ public:
 	 * @param F force vector (x,y,z)
 	 */
 	void setF(double F[3]) { for(int d = 0; d < 3; d++ ) { _F[d] = F[d]; } }
+	void setF(float F[3]) { for(int d = 0; d < 3; d++ ) { _F[d] = F[d]; } }
 
 	/** set momentum acting on molecule 
 	 * @param M force vector (x,y,z)

@@ -226,6 +226,16 @@ public:
 	// TODO: remove this hack that is needed to make orend's code work for now
 	friend class LinkedCellsOpenCL;
 
+	// TODO: consider adding a pure LinkedCells data container class
+	// that only manages the cells and doesn't contain too much additional functionality!
+	const int* getCellDimensions() const {
+		return _cellsPerDimension;
+	}
+
+	const std::list<Molecule> & getParticles() const {
+		return _particles;
+	}
+
 	// cell access functions
 	const std::vector<Cell> & getCells() const {
 		return _cells;

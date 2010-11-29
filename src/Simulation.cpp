@@ -26,6 +26,7 @@
 #include "molecules/Molecule.h"
 #include "particleContainer/LinkedCells.h"
 #include "particleContainer/LinkedCellsCUDA.h"
+//#include "particleContainer/LinkedCellsCUDAold.h"
 #include "particleContainer/AdaptiveSubCells.h"
 #include "parallel/DomainDecompBase.h"
 
@@ -354,14 +355,12 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				}
 				if (this->_LJCutoffRadius == 0.0)
 					_LJCutoffRadius = this->_cutoffRadius;
-#if 0
+#if 1
 				_moleculeContainer = new LinkedCells(bBoxMin, bBoxMax,
 				                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
 				                                     cellsInCutoffRadius, _particlePairsHandler);
 #else
-				_moleculeContainer = new LinkedCellsOpenCL(bBoxMin, bBoxMax,
-								                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
-								                                     cellsInCutoffRadius, _particlePairsHandler);
+				_moleculeContainer = new LinkedCellsCUDA(bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
 #endif
 			}
 			else if (token == "AdaptiveSubCells") {

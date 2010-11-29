@@ -2,14 +2,72 @@
 
 #ifndef LINKEDCELLSCUDA_H_
 #define LINKEDCELLSCUDA_H_
-#define __NO_STD_VECTOR
-#define __CL_ENABLE_EXCEPTIONS
 
 #include "ParticleContainer.h"
 #include "LinkedCells.h"
 #include "Cell.h"
 
 #include <malloc.h>
+#include <vector>
+#include <cuda_runtime.h>
+#include <assert.h>
+
+// assumptions:
+
+class LinkedCellsCUDA_Internal {
+private:
+	LinkedCells &_linkedCells;
+
+	float3 *_positions, *_devicePositions;
+
+	float3 *_forces, *_deviceForces;
+
+	// start length for each cell inside the _positions and _forces arrays
+	int2 *_cellInfos, *_deviceCellInfos;
+
+	int _numParticles, _maxParticles;
+	int _numCells, _maxCells;
+
+public:
+	LinkedCellsCUDA_Internal( LinkedCells &linkedCells )
+	: _linkedCells( linkedCells ),
+	  _positions( 0 ), _devicePositions( 0 ), _forces( 0 ), _deviceForces( 0 ),
+	  _cellInfos( 0 ), _deviceCellInfos( 0 ),
+	  _numParticles( 0 ), _maxParticles( 0 ),
+	  _numCells( 0 ), _maxCells( 0 )
+		{}
+
+	~LinkedCellsCUDA_Internal() {
+		freeAllocations();
+	}
+
+	void calculateForces();
+
+protected:
+	void manageAllocations();
+	void freeAllocations();
+
+	void initGlobalAllocs();
+	void destroyGlobalAllocs();
+
+	void initCellInfosAndCopyPositions();
+
+	void prepareDeviceMemory();
+	void extractResultsFromDeviceMemory();
+
+	void updateMoleculeForces();
+
+	void calculateAllLJFoces();
+
+private:
+	int getDirectionOffset( const int3 &direction ) {
+		return _linkedCells.cellIndexOf3DIndex( direction.x, direction.y, direction.z );
+	}
+
+	int getCellOffset( const int3 &cell ) {
+		return getDirectionOffset( cell );
+	}
+};
 
 class LinkedCellsCUDA : public ParticleContainer {
 public:
@@ -19,10 +77,14 @@ public:
 	//! @param bBoxMax coordinates of the highest (in all coordinates) corner of the bounding box
 	LinkedCellsCUDA(double bBoxMin[3], double bBoxMax[3], double cutoffRadius,
 			 ParticlePairsHandler* partPairsHandler)
-	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax), _linkedCells(bBoxMin, bBoxMax, cutoffRadius, cutoffRadius, cutoffRadius, 1.0, partPairsHandler) {}
+	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax),
+	  _linkedCells(bBoxMin, bBoxMax, cutoffRadius, cutoffRadius, cutoffRadius, 1.0, partPairsHandler),
+	  _cudaInternal( _linkedCells )
+	{}
 
 	//! @brief The destructor
-	virtual ~LinkedCellsCUDA() {}
+	virtual ~LinkedCellsCUDA() {
+	}
 
 	//! @brief rebuild the datastructure
 	//!
@@ -34,6 +96,7 @@ public:
 	virtual void rebuild(double bBoxMin[3], double bBoxMax[3]) {
 		ParticleContainer::rebuild( bBoxMin, bBoxMax );
 		_linkedCells.rebuild(bBoxMin, bBoxMax);
+		assert( false );
 	}
 
 	//! @brief do necessary updates resulting from changed particle positions
@@ -75,7 +138,7 @@ public:
 	//! original and duplicated pairs. Details about how to handle pairs can be found
 	//! in the documentation for the class ParticlePairsHandler
 	virtual void traversePairs() {
-		_linkedCells.traversePairs();
+		_cudaInternal.calculateForces();
 	}
 
 	//! @return the number of particles stored in this container
@@ -207,6 +270,7 @@ public:
 private:
 	// internal particle container
 	LinkedCells _linkedCells;
+	LinkedCellsCUDA_Internal _cudaInternal;
 };
 
 #endif

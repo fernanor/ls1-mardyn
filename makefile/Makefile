@@ -43,7 +43,7 @@ SOURCES = $(SOURCES_COMMON) $(SOURCES_CUDA) $(SOURCES_$(PARTYPE))
 
 OBJECTS = $(SOURCES:.cpp=.o)
 
-INCLUDES = -I$(CURDIR) -I$(CURDIR)/External $(CPPUNIT_INCLUDES)
+INCLUDES = -I$(CURDIR) -I$(CURDIR)/External $(CPPUNIT_INCLUDES) -I../dependencies-external/nvidia
 
 
 BINARYbasename = MarDyn

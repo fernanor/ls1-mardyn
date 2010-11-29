@@ -51,6 +51,7 @@ public:
 
 	//! return a reference to the list of molecules (molecule pointers) in this cell
 	std::list<Molecule*>& getParticlePointers();
+	const std::list<Molecule*>& getParticlePointers() const;
 
 	bool deleteMolecule(unsigned long molid);
 

@@ -21,6 +21,10 @@ list<Molecule*>& Cell::getParticlePointers() {
 	return this->_particlePointers;
 }
 
+const list<Molecule*>& Cell::getParticlePointers() const {
+	return this->_particlePointers;
+}
+
 void Cell::assingCellToHaloRegion() {
 	this->_haloCellState = true;
 }
