@@ -83,7 +83,7 @@ public:
 			_size = count * sizeof( type );
 
 			_hostBuffer = new type[count];
-			CUDA_THROW_ON_ERROR( cudaMalloc( &_deviceBuffer, size ) );
+			CUDA_THROW_ON_ERROR( cudaMalloc( &_deviceBuffer, _size ) );
 		}
 		else {
 			_hostBuffer = 0;
@@ -97,12 +97,16 @@ public:
 		CUDA_THROW_ON_ERROR( cudaMemset( _deviceBuffer, 0, _size ) );
 	}
 
-	void toDevice() {
+	void copyToDevice() {
 		CUDA_THROW_ON_ERROR( cudaMemcpy( _deviceBuffer, _hostBuffer, _size, cudaMemcpyHostToDevice ) );
 	}
 
-	void toHost() {
+	void copyToHost() {
 		CUDA_THROW_ON_ERROR( cudaMemcpy( _hostBuffer, _deviceBuffer, _size, cudaMemcpyDeviceToHost ) );
+	}
+
+	type *devicePtr() {
+		return _deviceBuffer;
 	}
 };
 
@@ -110,12 +114,9 @@ class LinkedCellsCUDA_Internal {
 private:
 	LinkedCells &_linkedCells;
 
-	float3 *_positions, *_devicePositions;
-
-	float3 *_forces, *_deviceForces;
-
+	CUDABuffer<float3> _positions, _forces;
 	// start length for each cell inside the _positions and _forces arrays
-	int2 *_cellInfos, *_deviceCellInfos;
+	CUDABuffer<int2> _cellInfos;
 
 	int _numParticles, _maxParticles;
 	int _numCells, _maxCells;
@@ -126,8 +127,6 @@ public:
 	LinkedCellsCUDA_Internal( LinkedCells &linkedCells, float cutOffRadius )
 	: _linkedCells( linkedCells ),
 	  _cutOffRadius( cutOffRadius ),
-	  _positions( 0 ), _devicePositions( 0 ), _forces( 0 ), _deviceForces( 0 ),
-	  _cellInfos( 0 ), _deviceCellInfos( 0 ),
 	  _numParticles( 0 ), _maxParticles( 0 ),
 	  _numCells( 0 ), _maxCells( 0 )
 		{}

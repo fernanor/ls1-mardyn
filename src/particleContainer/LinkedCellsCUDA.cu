@@ -4,30 +4,6 @@
 #include "molecules/Molecule.h"
 #include "cutil_math.h"
 
-struct CUDAException : public std::exception {
-	const cudaError_t errorCode;
-	const std::string errorSource;
-
-	CUDAException( cudaError_t errorCode, const std::string &errorSource = "" )
-	: errorCode( errorCode ), errorSource( errorSource ) {}
-
-	~CUDAException() throw() {}
-
-    /** Returns a C-style character string describing the general cause
-     *  of the current error.  */
-    virtual const char* what() const throw() {
-    	return errorSource.c_str();
-    }
-};
-
-#define CUDA_THROW_ON_ERROR( expr ) \
-	do { \
-		cudaError_t errorCode = (expr); \
-		if( errorCode != cudaSuccess ) { \
-			throw CUDAException( errorCode, #expr ); \
-		} \
-	} while( 0 )
-
 #define OUT
 
 __device__ void calculateLennardJones( const float3 distance, const float distanceSquared, float epsilon, float sigmaSquared,
@@ -136,42 +112,24 @@ void LinkedCellsCUDA_Internal::manageAllocations()
 
 	// TODO: use memalign like the old code?
 	if( _numParticles > _maxParticles ) {
-		delete[] _positions;
-		delete[] _forces;
-
-		CUDA_THROW_ON_ERROR( cudaFree( _devicePositions ) );
-		CUDA_THROW_ON_ERROR( cudaFree( _deviceForces ) );
+		_positions.resize( _numParticles );
+		_forces.resize( _numParticles );
 
 		_maxParticles = _numParticles;
-
-		_positions = new float3[_numParticles];
-		_forces = new float3[_numParticles];
-
-		CUDA_THROW_ON_ERROR( cudaMalloc( &_devicePositions, _numParticles * sizeof(*_devicePositions) ) );
-		CUDA_THROW_ON_ERROR( cudaMalloc( &_deviceForces, _numParticles * sizeof(*_deviceForces) ) );
 	}
 
 	if( _numCells > _maxCells ) {
-		delete[] _cellInfos;
-		CUDA_THROW_ON_ERROR( cudaFree( _deviceCellInfos ) );
+		_cellInfos.resize( _numCells );
 
 		_maxCells = _numCells;
-
-		_cellInfos = new int2[_numCells];
-		CUDA_THROW_ON_ERROR( cudaMalloc( &_deviceCellInfos, _numCells * sizeof(*_deviceCellInfos) ) );
 	}
 }
 
 void LinkedCellsCUDA_Internal::freeAllocations()
 {
-	delete[] _positions;
-	delete[] _forces;
-
-	CUDA_THROW_ON_ERROR( cudaFree( _devicePositions ) );
-	CUDA_THROW_ON_ERROR( cudaFree( _deviceForces ) );
-
-	delete[] _cellInfos;
-	CUDA_THROW_ON_ERROR( cudaFree( _deviceCellInfos ) );
+	_positions.resize( 0 );
+	_forces.resize( 0 );
+	_cellInfos.resize( 0 );
 }
 
 void LinkedCellsCUDA_Internal::initCellInfosAndCopyPositions()
@@ -199,15 +157,15 @@ void LinkedCellsCUDA_Internal::prepareDeviceMemory()
 	// TODO: use page-locked/mapped memory
 	printf( "%i\n", _numParticles );
 
-	CUDA_THROW_ON_ERROR( cudaMemcpy( _devicePositions, _positions, _numParticles * sizeof(*_devicePositions), cudaMemcpyHostToDevice ) );
-	CUDA_THROW_ON_ERROR( cudaMemcpy( _deviceCellInfos, _cellInfos, _numCells * sizeof(*_deviceCellInfos), cudaMemcpyHostToDevice ) );
+	_positions.copyToDevice();
+	_cellInfos.copyToDevice();
 
 	// init device forces to 0
-	CUDA_THROW_ON_ERROR( cudaMemset( _deviceForces, 0, _numParticles * sizeof(*_deviceForces) ) );
+	_forces.zeroDevice();
 }
 
 void LinkedCellsCUDA_Internal::extractResultsFromDeviceMemory() {
-	CUDA_THROW_ON_ERROR( cudaMemcpy( _forces, _deviceForces, _numParticles * sizeof(*_deviceForces), cudaMemcpyDeviceToHost ) );
+	_forces.copyToHost();
 }
 
 void LinkedCellsCUDA_Internal::updateMoleculeForces() {
@@ -263,7 +221,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 	const float cutOffRadiusSquared = _cutOffRadius * _cutOffRadius;
 
 	// inner forces first
-	Kernel_calculateInnerLJForces<<<_numCells, 1>>>( _devicePositions, _deviceForces,_deviceCellInfos, epsilon, sigmaSquared, cutOffRadiusSquared );
+	Kernel_calculateInnerLJForces<<<_numCells, 1>>>( _positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(), epsilon, sigmaSquared, cutOffRadiusSquared );
 
 	// pair forces
 	const int *dimensions = _linkedCells.getCellDimensions();
@@ -353,7 +311,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 		// do all even slices
 		Kernel_calculatePairLJForces<<<numEvenSlices * numCellsInSlice,1>>>(
-				_devicePositions, _deviceForces, _deviceCellInfos,
+				_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(),
 				evenSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
 				neighborOffset,
 				epsilon, sigmaSquared, cutOffRadiusSquared
@@ -361,7 +319,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 		// do all odd slices
 		Kernel_calculatePairLJForces<<<numOddSlices * numCellsInSlice,1>>>(
-				_devicePositions, _deviceForces, _deviceCellInfos,
+				_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(),
 				oddSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
 				neighborOffset,
 				epsilon, sigmaSquared, cutOffRadiusSquared
