@@ -355,7 +355,7 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				}
 				if (this->_LJCutoffRadius == 0.0)
 					_LJCutoffRadius = this->_cutoffRadius;
-#if 1
+#if 0
 				_moleculeContainer = new LinkedCells(bBoxMin, bBoxMax,
 				                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
 				                                     cellsInCutoffRadius, _particlePairsHandler);
@@ -821,7 +821,7 @@ void Simulation::simulate() {
 
 	/***************************************************************************/
 	/* BEGIN MAIN LOOP                                                         */
-	/***************************************************************************/
+	/***********************************************#if ****************************/
 	// all timers except the ioTimer messure inside the main loop
 	Timer loopTimer; // Timer for computation
 	Timer perStepIoTimer; // Timer for IO during simulation steps

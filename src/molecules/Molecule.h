@@ -179,6 +179,10 @@ public:
 		_r[1] = fixedy;
 	}
 
+	// TODO: access function (maybe this is better than calling setF >_>
+	void Fljcenterset(unsigned int i, float a[])
+	{ double* Fsite=&(_ljcenters_F[3*i]); for(unsigned short d=0;d<3;++d) Fsite[d]=a[d]; }
+
 	void Fsiteadd(unsigned int i, double a[])
 	{ double* Fsite=&(_sites_F[3*i]); for(unsigned short d=0;d<3;++d) Fsite[d]+=a[d]; }
 	void Fsitesub(unsigned int i, double a[])

@@ -12,7 +12,99 @@
 #include <cuda_runtime.h>
 #include <assert.h>
 
-// assumptions:
+struct CUDAException : public std::exception {
+	const cudaError_t errorCode;
+	const std::string errorSource;
+
+	CUDAException( cudaError_t errorCode, const std::string &errorSource = "" )
+	: errorCode( errorCode ), errorSource( errorSource ) {}
+
+	~CUDAException() throw() {}
+
+    /** Returns a C-style character string describing the general cause
+     *  of the current error.  */
+    virtual const char* what() const throw() {
+    	return errorSource.c_str();
+    }
+};
+
+#define CUDA_THROW_ON_ERROR( expr ) \
+	do { \
+		cudaError_t errorCode = (expr); \
+		if( errorCode != cudaSuccess ) { \
+			throw CUDAException( errorCode, #expr ); \
+		} \
+	} while( 0 )
+
+template<typename type>
+class CUDABuffer {
+protected:
+	type *_hostBuffer;
+	type *_deviceBuffer;
+
+	int _size;
+
+public:
+	CUDABuffer() : _hostBuffer( 0 ), _deviceBuffer( 0 ), _size( 0 ) {}
+	~CUDABuffer() {
+		delete[] _hostBuffer;
+		CUDA_THROW_ON_ERROR( cudaFree( _deviceBuffer ) );
+	}
+
+	type & operator []( int index ) {
+		return _hostBuffer[ index ];
+	}
+
+	const type & operator []( int index ) const {
+		return _hostBuffer[ index ];
+	}
+
+	type & operator *() {
+		return *_hostBuffer;
+	}
+
+	const type & operator *() const {
+		return *_hostBuffer;
+	}
+
+	operator type *() {
+		return _hostBuffer;
+	}
+
+	operator const type *() const {
+		return _hostBuffer;
+	}
+
+	void resize(int count) {
+		delete[] _hostBuffer;
+		CUDA_THROW_ON_ERROR( cudaFree( _deviceBuffer ) );
+
+		if( count > 0 ) {
+			_size = count * sizeof( type );
+
+			_hostBuffer = new type[count];
+			CUDA_THROW_ON_ERROR( cudaMalloc( &_deviceBuffer, size ) );
+		}
+		else {
+			_hostBuffer = 0;
+			_deviceBuffer = 0;
+
+			_size = 0;
+		}
+	}
+
+	void zeroDevice() {
+		CUDA_THROW_ON_ERROR( cudaMemset( _deviceBuffer, 0, _size ) );
+	}
+
+	void toDevice() {
+		CUDA_THROW_ON_ERROR( cudaMemcpy( _deviceBuffer, _hostBuffer, _size, cudaMemcpyHostToDevice ) );
+	}
+
+	void toHost() {
+		CUDA_THROW_ON_ERROR( cudaMemcpy( _hostBuffer, _deviceBuffer, _size, cudaMemcpyDeviceToHost ) );
+	}
+};
 
 class LinkedCellsCUDA_Internal {
 private:
@@ -28,9 +120,12 @@ private:
 	int _numParticles, _maxParticles;
 	int _numCells, _maxCells;
 
+	float _cutOffRadius;
+
 public:
-	LinkedCellsCUDA_Internal( LinkedCells &linkedCells )
+	LinkedCellsCUDA_Internal( LinkedCells &linkedCells, float cutOffRadius )
 	: _linkedCells( linkedCells ),
+	  _cutOffRadius( cutOffRadius ),
 	  _positions( 0 ), _devicePositions( 0 ), _forces( 0 ), _deviceForces( 0 ),
 	  _cellInfos( 0 ), _deviceCellInfos( 0 ),
 	  _numParticles( 0 ), _maxParticles( 0 ),
@@ -58,6 +153,7 @@ protected:
 	void updateMoleculeForces();
 
 	void calculateAllLJFoces();
+	void determineForceError();
 
 private:
 	int getDirectionOffset( const int3 &direction ) {
@@ -79,7 +175,7 @@ public:
 			 ParticlePairsHandler* partPairsHandler)
 	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax),
 	  _linkedCells(bBoxMin, bBoxMax, cutoffRadius, cutoffRadius, cutoffRadius, 1.0, partPairsHandler),
-	  _cudaInternal( _linkedCells )
+	  _cudaInternal( _linkedCells, cutoffRadius )
 	{}
 
 	//! @brief The destructor
@@ -138,6 +234,7 @@ public:
 	//! original and duplicated pairs. Details about how to handle pairs can be found
 	//! in the documentation for the class ParticlePairsHandler
 	virtual void traversePairs() {
+		_linkedCells.traversePairs();
 		_cudaInternal.calculateForces();
 	}
 

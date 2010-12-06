@@ -121,6 +121,15 @@ public:
 		this->_doRecordRDF = true;
 	}
 
+	// TODO: another hack
+	void setStats( float upot, float virial ) {
+		_upot6LJ = 6.0f * upot;
+		_virial = virial;
+		_upotTersoff = 0.0;
+		_upotXpoles = 0.0;
+		_myRF = 0.0;
+	}
+
 private:
 	//! @brief reference to the domain is needed to store the calculated macroscopic values
 	Domain& _domain;
