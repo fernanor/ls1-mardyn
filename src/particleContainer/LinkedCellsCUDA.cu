@@ -6,6 +6,63 @@
 
 #define OUT
 
+#define CUDA_TIMING
+
+#ifdef CUDA_TIMING
+class CUDATimer {
+private:
+	cudaEvent_t _startEvent, _endEvent;
+
+public:
+	CUDATimer() {
+		CUDA_THROW_ON_ERROR( cudaEventCreate( &_startEvent ) );
+		CUDA_THROW_ON_ERROR( cudaEventCreate( &_endEvent ) );
+	}
+
+	~CUDATimer() {
+		CUDA_THROW_ON_ERROR( cudaEventDestroy( _startEvent ) );
+		CUDA_THROW_ON_ERROR( cudaEventDestroy( _endEvent ) );
+	}
+
+	void begin() {
+		CUDA_THROW_ON_ERROR( cudaEventRecord( _startEvent ) );
+	}
+
+	void end() {
+		CUDA_THROW_ON_ERROR( cudaEventRecord( _endEvent ) );
+	}
+
+	float getElapsedTime() {
+		CUDA_THROW_ON_ERROR( cudaEventSynchronize( _endEvent ) );
+
+		float elapsedTime;
+		CUDA_THROW_ON_ERROR( cudaEventElapsedTime( &elapsedTime, _startEvent, _endEvent ) );
+
+		return elapsedTime;
+	}
+
+	void printElapsedTime( const char *format ) {
+		printf( format, getElapsedTime() );
+	}
+};
+#else
+class CUDATimer {
+public:
+	void begin() {
+	}
+
+	void end() {
+	}
+
+	float getElapsedTime() {
+		return 0.0f;
+	}
+
+	void printElapsedTime( const char *format ) {
+	}
+};
+#endif
+
 __device__ void calculateLennardJones( const float3 distance, const float distanceSquared, float epsilon, float sigmaSquared,
 		OUT float3 &force, OUT float &potential) {
 	float invdr2 = 1.f / distanceSquared;
@@ -190,12 +247,19 @@ void LinkedCellsCUDA_Internal::prepareDeviceMemory()
 	// TODO: use page-locked/mapped memory
 	printf( "%i\n", _numParticles );
 
+	CUDATimer copyTimer;
+
+	copyTimer.begin();
+
 	_positions.copyToDevice();
 	_cellInfos.copyToDevice();
 
 	// init device forces to 0
 	_forces.zeroDevice();
 	// not needed: _domainValues.zeroDevice();
+
+	copyTimer.end();
+	copyTimer.printElapsedTime( "hsot to device copying: %f ms\n" );
 }
 
 void LinkedCellsCUDA_Internal::extractResultsFromDeviceMemory() {
@@ -250,16 +314,22 @@ void LinkedCellsCUDA_Internal::determineForceError() {
 }
 
 void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
+	CUDATimer singleCells, cellPairs;
+
 	// TODO: wtf? this is from the old code
 	const float epsilon = 1.0f;
 	const float sigmaSquared = 1.0f;
 	const float cutOffRadiusSquared = _cutOffRadius * _cutOffRadius;
+
+	singleCells.begin();
 
 	// inner forces first
 	Kernel_calculateInnerLJForces<<<_numCells, 1>>>(
 			_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(), _domainValues.devicePtr(),
 			epsilon, sigmaSquared, cutOffRadiusSquared
 		);
+
+	singleCells.end();
 
 	// pair forces
 	const int *dimensions = _linkedCells.getCellDimensions();
@@ -277,6 +347,8 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 			{-1,1,1},{1,-1,1},{1,1,-1},
 			{1,1,1}
 	};
+
+	cellPairs.begin();
 
 	for( int i = 0 ; i < sizeof( directions ) / sizeof( directions[0] ) ; i++ ) {
 		const int3 &direction = directions[i];
@@ -363,6 +435,11 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 				epsilon, sigmaSquared, cutOffRadiusSquared
 			);
 	}
+
+	cellPairs.end();
+
+	singleCells.printElapsedTime( "intra cell LJ forces: %f ms " );
+	cellPairs.printElapsedTime( "inter cell LJ forces: %f ms\n" );
 }
 
 void LinkedCellsCUDA_Internal::reducePotentialAndVirial( OUT float &potential, OUT float &virial ) {
