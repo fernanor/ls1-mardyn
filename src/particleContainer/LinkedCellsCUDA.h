@@ -6,6 +6,8 @@
 #include "ParticleContainer.h"
 #include "LinkedCells.h"
 #include "Cell.h"
+#include "handlerInterfaces/ParticlePairsHandler.h"
+#include "Domain.h"
 
 #include <malloc.h>
 #include <vector>
@@ -115,6 +117,8 @@ private:
 	LinkedCells &_linkedCells;
 
 	CUDABuffer<float3> _positions, _forces;
+	// stores UPotential and Virial (per cell)
+	CUDABuffer<float2> _domainValues;
 	// start length for each cell inside the _positions and _forces arrays
 	CUDABuffer<int2> _cellInfos;
 
@@ -124,7 +128,7 @@ private:
 	float _cutOffRadius;
 
 public:
-	LinkedCellsCUDA_Internal( LinkedCells &linkedCells, float cutOffRadius )
+	LinkedCellsCUDA_Internal( Domain &domain, LinkedCells &linkedCells, float cutOffRadius )
 	: _linkedCells( linkedCells ),
 	  _cutOffRadius( cutOffRadius ),
 	  _numParticles( 0 ), _maxParticles( 0 ),
@@ -135,7 +139,11 @@ public:
 		freeAllocations();
 	}
 
-	void calculateForces();
+	struct DomainValues {
+		float potential, virial;
+	};
+
+	DomainValues calculateForces();
 
 protected:
 	void manageAllocations();
@@ -154,6 +162,8 @@ protected:
 	void calculateAllLJFoces();
 	void determineForceError();
 
+	void reducePotentialAndVirial( float &potential, float &virial );
+
 private:
 	int getDirectionOffset( const int3 &direction ) {
 		return _linkedCells.cellIndexOf3DIndex( direction.x, direction.y, direction.z );
@@ -165,16 +175,49 @@ private:
 };
 
 class LinkedCellsCUDA : public ParticleContainer {
+	// null handler
+	class Handler : public ParticlePairsHandler {
+	public:
+		//! @brief things to be done before particle pairs are processed
+		virtual void init() {}
+
+		//! @brief things to be done after particle pairs are processed
+		virtual void finish() {}
+
+		//! @brief things to be done for each particle pair
+		//!
+		//! @param particle1 first particle
+		//! @param particle2 second particle
+		//! @param distanceVector[3] distance between the two particles
+		//! @param pairType describes whether the pair is a original pair(0) or a duplicated pair(1)
+		//!                 for details about pair types see comments on traversePairs() in ParticleContainer
+		virtual double processPair(Molecule& particle1, Molecule& particle2, double distanceVector[3], int pairType, double dd, bool calculateLJ) {
+			assert( false );
+			return 0.0f;
+		}
+		virtual void preprocessTersoffPair(Molecule& particle1, Molecule& particle2, bool pairType) {
+			assert( false );
+		}
+		virtual void processTersoffAtom(Molecule& particle1, double params[15], double delta_r) {
+			assert( false );
+		}
+
+		virtual void recordRDF() {
+			//assert( false );
+		}
+	};
+
 public:
 	//! @brief The constructor
 	//! @param partPairsHandler specified concrete action to be done for each pair
 	//! @param bBoxMin coordinates of the lowest (in all coordinates) corner of the bounding box
 	//! @param bBoxMax coordinates of the highest (in all coordinates) corner of the bounding box
-	LinkedCellsCUDA(double bBoxMin[3], double bBoxMax[3], double cutoffRadius,
+	LinkedCellsCUDA(Domain &domain, double bBoxMin[3], double bBoxMax[3], double cutoffRadius,
 			 ParticlePairsHandler* partPairsHandler)
 	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax),
+	  _domain( domain ),
 	  _linkedCells(bBoxMin, bBoxMax, cutoffRadius, cutoffRadius, cutoffRadius, 1.0, partPairsHandler),
-	  _cudaInternal( _linkedCells, cutoffRadius )
+	  _cudaInternal( domain, _linkedCells, cutoffRadius )
 	{}
 
 	//! @brief The destructor
@@ -191,7 +234,6 @@ public:
 	virtual void rebuild(double bBoxMin[3], double bBoxMax[3]) {
 		ParticleContainer::rebuild( bBoxMin, bBoxMax );
 		_linkedCells.rebuild(bBoxMin, bBoxMax);
-		assert( false );
 	}
 
 	//! @brief do necessary updates resulting from changed particle positions
@@ -234,7 +276,15 @@ public:
 	//! in the documentation for the class ParticlePairsHandler
 	virtual void traversePairs() {
 		_linkedCells.traversePairs();
-		_cudaInternal.calculateForces();
+
+		float cpuPotential = _domain.getLocalUpot();
+		float cpuVirial = _domain.getLocalVirial();
+		printf( "CPU Avg Potential: %f CPU Avg Virial: %f\n", cpuPotential, cpuVirial );
+
+		LinkedCellsCUDA_Internal::DomainValues domainValues = _cudaInternal.calculateForces();
+		// update the domain values
+		_domain.setLocalUpot( domainValues.potential );
+		_domain.setLocalVirial( domainValues.virial );
 	}
 
 	//! @return the number of particles stored in this container
@@ -364,6 +414,8 @@ public:
 	}
 
 private:
+	Domain &_domain;
+
 	// internal particle container
 	LinkedCells _linkedCells;
 	LinkedCellsCUDA_Internal _cudaInternal;

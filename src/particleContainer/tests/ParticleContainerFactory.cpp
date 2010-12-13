@@ -23,12 +23,8 @@ ParticleContainer* ParticleContainerFactory::createEmptyParticleContainer(type t
 		double tersoffCutoffRadius = 1.0;
 		double cellsInCutoffRadius = 1.0;
 
-#if 0
 		LinkedCells* container = new LinkedCells(bBoxMin, bBoxMax, cutoffRadius, LJCutoffRadius,
 		                                        tersoffCutoffRadius, cellsInCutoffRadius, NULL);
-#else
-		LinkedCellsCUDA* container = new LinkedCellsCUDA(bBoxMin, bBoxMax, cutoffRadius, NULL);
-#endif
 		return container;
 
 	} else {

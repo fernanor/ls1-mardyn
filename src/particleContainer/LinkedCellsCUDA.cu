@@ -7,13 +7,13 @@
 #define OUT
 
 __device__ void calculateLennardJones( const float3 distance, const float distanceSquared, float epsilon, float sigmaSquared,
-		OUT float3 &force /*, OUT float &potential*/) {
+		OUT float3 &force, OUT float &potential) {
 	float invdr2 = 1.f / distanceSquared;
 	float lj6 = sigmaSquared * invdr2; lj6 = lj6 * lj6 * lj6;
 	float lj12 = lj6 * lj6;
 	float lj12m6 = lj12 - lj6;
-	//potential = 4.0f * epsilon * lj12m6;
-	// force = fac * distance = fac * |distance| * norm(distance)
+	potential = 4.0f * epsilon * lj12m6;
+	// result: force = fac * distance = fac * |distance| * normalized(distance)
 	float fac = -24.0f * epsilon * (lj12 + lj12m6) * invdr2;
 	force = fac * distance;
 }
@@ -30,12 +30,15 @@ __device__ int getCellIndex( int startIndex, int2 dimension, int3 gridOffsets ) 
 	return cellIndex;
 }
 
-__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos,
+__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
 		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
 	const int cellIndex = blockIdx.x;
 
 	const int cellStart = cellInfos[cellIndex].x;
 	const int cellLength = cellInfos[cellIndex].y;
+
+	float totalPotential = 0.0f;
+	float totalVirial = 0.0f;
 
 	// start with 1 because aIndex = 1 will result in an empty loop cycle
 	for( int aIndex = 1 ; aIndex < cellLength ; aIndex++ ) {
@@ -50,15 +53,22 @@ __global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *fo
 			}
 
 			float3 force;
-			calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force );
+			float potential;
+			calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force, potential );
+
+			totalPotential += potential;
+			float virial = dot( force, distance );
+			totalVirial += virial;
 
 			forces[cellStart + aIndex] += force;
 			forces[cellStart + bIndex] -= force;
 		}
 	}
+	domainValues[cellIndex].x = totalPotential * 2;
+	domainValues[cellIndex].y = totalVirial * 2;
 }
 
-__global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos,
+__global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
 		int startIndex, int2 dimension, int3 gridOffsets,
 		int neighborOffset,
 		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
@@ -69,6 +79,9 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	const int cellA_length = cellInfos[cellIndex].y;
 	const int cellB_start = cellInfos[neighborIndex].x;
 	const int cellB_length = cellInfos[neighborIndex].y;
+
+	float totalPotential = 0.0f;
+	float totalVirial = 0.0f;
 
 	for( int aIndex = 0 ; aIndex < cellA_length ; aIndex++ ) {
 		for( int bIndex = 0 ; bIndex < cellB_length ; bIndex++ ) {
@@ -82,15 +95,25 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 			}
 
 			float3 force;
-			calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force );
+			float potential;
+			calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force, potential );
+
+			totalPotential += potential;
+			float virial = dot( force, distance );
+			totalVirial += virial;
 
 			forces[cellA_start + aIndex] += force;
 			forces[cellB_start + bIndex] -= force;
 		}
 	}
+
+	domainValues[cellIndex].x += totalPotential;
+	domainValues[cellIndex].y += totalVirial;
+	domainValues[neighborIndex].x += totalPotential;
+	domainValues[neighborIndex].y += totalVirial;
 }
 
-void LinkedCellsCUDA_Internal::calculateForces() {
+LinkedCellsCUDA_Internal::DomainValues LinkedCellsCUDA_Internal::calculateForces() {
 	manageAllocations();
 
 	initCellInfosAndCopyPositions();
@@ -98,11 +121,18 @@ void LinkedCellsCUDA_Internal::calculateForces() {
 
 	calculateAllLJFoces();
 
+	DomainValues domainValues;
 	extractResultsFromDeviceMemory();
+	reducePotentialAndVirial( domainValues.potential, domainValues.virial );
+
+	printf( "Potential: %f Virial: %f\n", domainValues.potential, domainValues.virial );
+	printf( "Average Potential: %f Average Virial: %f\n", domainValues.potential / _numParticles, domainValues.virial / _numParticles );
 
 	determineForceError();
 
 	updateMoleculeForces();
+
+	return domainValues;
 }
 
 void LinkedCellsCUDA_Internal::manageAllocations()
@@ -120,6 +150,7 @@ void LinkedCellsCUDA_Internal::manageAllocations()
 
 	if( _numCells > _maxCells ) {
 		_cellInfos.resize( _numCells );
+		_domainValues.resize( _numCells );
 
 		_maxCells = _numCells;
 	}
@@ -129,7 +160,9 @@ void LinkedCellsCUDA_Internal::freeAllocations()
 {
 	_positions.resize( 0 );
 	_forces.resize( 0 );
+
 	_cellInfos.resize( 0 );
+	_domainValues.resize( 0 );
 }
 
 void LinkedCellsCUDA_Internal::initCellInfosAndCopyPositions()
@@ -162,10 +195,12 @@ void LinkedCellsCUDA_Internal::prepareDeviceMemory()
 
 	// init device forces to 0
 	_forces.zeroDevice();
+	// not needed: _domainValues.zeroDevice();
 }
 
 void LinkedCellsCUDA_Internal::extractResultsFromDeviceMemory() {
 	_forces.copyToHost();
+	_domainValues.copyToHost();
 }
 
 void LinkedCellsCUDA_Internal::updateMoleculeForces() {
@@ -185,7 +220,7 @@ void LinkedCellsCUDA_Internal::updateMoleculeForces() {
 void LinkedCellsCUDA_Internal::determineForceError() {
 	double totalError = 0.0;
 	double totalRelativeError = 0.0;
-	float epsilon = 5.96e-07f;
+	float epsilon = 5.96e-06f;
 
 	int currentIndex = 0;
 	for( int i = 0 ; i < _numCells ; i++ ) {
@@ -221,7 +256,10 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 	const float cutOffRadiusSquared = _cutOffRadius * _cutOffRadius;
 
 	// inner forces first
-	Kernel_calculateInnerLJForces<<<_numCells, 1>>>( _positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(), epsilon, sigmaSquared, cutOffRadiusSquared );
+	Kernel_calculateInnerLJForces<<<_numCells, 1>>>(
+			_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(), _domainValues.devicePtr(),
+			epsilon, sigmaSquared, cutOffRadiusSquared
+		);
 
 	// pair forces
 	const int *dimensions = _linkedCells.getCellDimensions();
@@ -311,7 +349,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 		// do all even slices
 		Kernel_calculatePairLJForces<<<numEvenSlices * numCellsInSlice,1>>>(
-				_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(),
+				_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(), _domainValues.devicePtr(),
 				evenSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
 				neighborOffset,
 				epsilon, sigmaSquared, cutOffRadiusSquared
@@ -319,10 +357,32 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 		// do all odd slices
 		Kernel_calculatePairLJForces<<<numOddSlices * numCellsInSlice,1>>>(
-				_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(),
+				_positions.devicePtr(), _forces.devicePtr(),_cellInfos.devicePtr(), _domainValues.devicePtr(),
 				oddSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
 				neighborOffset,
 				epsilon, sigmaSquared, cutOffRadiusSquared
 			);
 	}
+}
+
+void LinkedCellsCUDA_Internal::reducePotentialAndVirial( OUT float &potential, OUT float &virial ) {
+	const std::vector<unsigned long> &innerCellIndices = _linkedCells.getInnerCellIndices();
+	const std::vector<unsigned long> &boundaryCellIndices = _linkedCells.getBoundaryCellIndices();
+
+	potential = 0.0f;
+	for( int i = 0 ; i < innerCellIndices.size() ; i++ ) {
+		potential += _domainValues[ i ].x;
+		virial += _domainValues[ i ].y;
+	}
+	for( int i = 0 ; i < boundaryCellIndices.size() ; i++ ) {
+		potential += _domainValues[ i ].x;
+		virial += _domainValues[ i ].y;
+	}
+
+	// every contribution is added twice so divide by 2
+	potential /= 2.0f;
+	virial /= 2.0f;
+
+	// TODO: I have no idea why the sign is different in the GPU code...
+	virial = -virial;
 }

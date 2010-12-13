@@ -360,7 +360,7 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
 				                                     cellsInCutoffRadius, _particlePairsHandler);
 #else
-				_moleculeContainer = new LinkedCellsCUDA(bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
+				_moleculeContainer = new LinkedCellsCUDA(*_domain, bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
 #endif
 			}
 			else if (token == "AdaptiveSubCells") {
