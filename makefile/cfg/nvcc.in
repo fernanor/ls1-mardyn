@@ -7,7 +7,7 @@ CXX_SEQ = nvcc
 # SEQ
 #########################################
 # DEBUG
-CXXFLAGS_SEQ_DEBUG  = $(INCLUDES) -Xcompiler -Wall -Xcompiler -Wextra -Xcompiler -Weffc++ -g 
+CXXFLAGS_SEQ_DEBUG  = $(INCLUDES) -Xcompiler -Wall -Xcompiler -Wextra -Xcompiler -Weffc++ -g --ptxas-options=-v
 LINKFLAGS_SEQ_DEBUG = --linker-options -O0 -g
 # RELEASE
 CXXFLAGS_SEQ_RELEASE  = $(INCLUDES) -Xcompiler -O2 -Xcompiler -DNDEBUG
