@@ -259,7 +259,7 @@ void LinkedCellsCUDA_Internal::prepareDeviceMemory()
 	// not needed: _domainValues.zeroDevice();
 
 	copyTimer.end();
-	copyTimer.printElapsedTime( "hsot to device copying: %f ms\n" );
+	copyTimer.printElapsedTime( "host to device copying: %f ms\n" );
 }
 
 void LinkedCellsCUDA_Internal::extractResultsFromDeviceMemory() {
@@ -314,14 +314,14 @@ void LinkedCellsCUDA_Internal::determineForceError() {
 }
 
 void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
-	CUDATimer singleCells, cellPairs;
+	CUDATimer singleCellsTimer, cellPairsTimer;
 
 	// TODO: wtf? this is from the old code
 	const float epsilon = 1.0f;
 	const float sigmaSquared = 1.0f;
 	const float cutOffRadiusSquared = _cutOffRadius * _cutOffRadius;
 
-	singleCells.begin();
+	singleCellsTimer.begin();
 
 	// inner forces first
 	Kernel_calculateInnerLJForces<<<_numCells, 1>>>(
@@ -329,7 +329,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 			epsilon, sigmaSquared, cutOffRadiusSquared
 		);
 
-	singleCells.end();
+	singleCellsTimer.end();
 
 	// pair forces
 	const int *dimensions = _linkedCells.getCellDimensions();
@@ -348,7 +348,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 			{1,1,1}
 	};
 
-	cellPairs.begin();
+	cellPairsTimer.begin();
 
 	for( int i = 0 ; i < sizeof( directions ) / sizeof( directions[0] ) ; i++ ) {
 		const int3 &direction = directions[i];
@@ -436,10 +436,10 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 			);
 	}
 
-	cellPairs.end();
+	cellPairsTimer.end();
 
-	singleCells.printElapsedTime( "intra cell LJ forces: %f ms " );
-	cellPairs.printElapsedTime( "inter cell LJ forces: %f ms\n" );
+	singleCellsTimer.printElapsedTime( "intra cell LJ forces: %f ms " );
+	cellPairsTimer.printElapsedTime( "inter cell LJ forces: %f ms\n" );
 }
 
 void LinkedCellsCUDA_Internal::reducePotentialAndVirial( OUT float &potential, OUT float &virial ) {
