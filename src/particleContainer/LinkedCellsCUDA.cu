@@ -89,9 +89,11 @@ __device__ int getCellIndex( int startIndex, int2 dimension, int3 gridOffsets ) 
 
 
 #define MAX_BLOCK_SIZE 512
-#define WARP_SIZE 32
-#define NUM_WARPS 8
+#define WARP_SIZE 1
+#define NUM_WARPS 1
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
+#define TRANSFER_SIZE BLOCK_SIZE
+// threadIdx.xy = intraWarpIndex | warpIndex
 
 // = ceil( a / b )
 __device__ inline int iceil(int a, int b) {
@@ -104,146 +106,7 @@ __device__ inline int shiftedMod( int a, int b ) {
 	return (r > 0) ? r : b;
 }
 
-__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
-		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
-	const int cellIndex = blockIdx.x;
-
-	const int cellStart = cellInfos[cellIndex].x;
-	const int cellLength = cellInfos[cellIndex].y;
-
-	__shared__ float totalThreadPotential[NUM_WARPS][WARP_SIZE];
-	__shared__ float totalThreadVirial[NUM_WARPS][WARP_SIZE];
-
-	totalThreadPotential[threadIdx.y][threadIdx.x] = 0.0f;
-	totalThreadVirial[threadIdx.y][threadIdx.x] = 0.0f;
-
-	__shared__ float3 cachedBForces[NUM_WARPS][WARP_SIZE];
-	__shared__ float3 cachedBPositions[NUM_WARPS][WARP_SIZE];
-
-	const int transferSize = BLOCK_SIZE;
-	const int numTransfers = iceil( cellLength, transferSize );
-
-	for( int transferIndex = 0 ; transferIndex < numTransfers ; transferIndex++ ) {
-		const int transferCellIndex = cellStart + transferIndex * transferSize + WARP_SIZE * threadIdx.y + threadIdx.x;
-		bool validCell = false;
-
-		// load data into cache
-		if( transferCellIndex < cellLength ) {
-			validCell = true;
-			cachedBForces[threadIdx.y][threadIdx.x] = forces[transferCellIndex];
-			cachedBPositions[threadIdx.y][threadIdx.x] = positions[transferCellIndex];
-		}
-
-		// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
-		// TODO: remove this __syncthreads maybe?
-		__syncthreads();
-
-		if( validCell ) {
-			const int aIndex = WARP_SIZE * threadIdx.y + threadIdx.x;
-			const float3 &aPosition = ((float3*)cachedBPositions)[aIndex];
-
-			for( int bIndex = 0; bIndex < aIndex ; bIndex++ ) {
-				const float3 &bPosition = ((float3*)cachedBPositions)[bIndex];
-
-				const float3 distance = bPosition - aPosition;
-				const float distanceSquared = dot( distance, distance );
-				if( distanceSquared > cutOffRadiusSquared ) {
-					continue;
-				}
-
-				float3 force;
-				float potential;
-				calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force, potential );
-
-				totalThreadPotential[threadIdx.y][threadIdx.x] += potential;
-				float virial = dot( force, distance );
-				totalThreadVirial[threadIdx.y][threadIdx.x] += virial;
-
-				((float3*)cachedBForces)[aIndex] += force;
-				((float3*)cachedBForces)[bIndex] -= force;
-			}
-		}
-
-		// push data back
-		if( transferCellIndex < cellLength ) {
-			forces[transferCellIndex] = cachedBForces[threadIdx.y][threadIdx.x];
-		}
-	}
-
-	__syncthreads();
-
-	for( int transferIndexA = 1 ; transferIndexA < numTransfers ; transferIndexA++ ) {
-		const int aTransferCellIndex = cellStart + transferIndexA * transferSize + WARP_SIZE * threadIdx.y + threadIdx.x;
-
-		bool validACell = false;
-		float3 cachedAForce;
-		float3 cachedAPosition;
-
-		// load A data into (register) cache
-		if( aTransferCellIndex < cellLength ) {
-			validACell = true;
-			cachedAForce = forces[aTransferCellIndex];
-			cachedAPosition = positions[aTransferCellIndex];
-		}
-
-		for( int transferIndexB = 0 ; transferIndexB < transferIndexA ; transferIndexB++ ) {
-			const int bTransferCellIndex = cellStart + transferIndexB * transferSize + WARP_SIZE * threadIdx.y + threadIdx.x;
-
-			// load B data into cache
-			if( bTransferCellIndex < cellLength ) {
-				cachedBForces[threadIdx.y][threadIdx.x] = forces[bTransferCellIndex];
-				cachedBPositions[threadIdx.y][threadIdx.x] = positions[bTransferCellIndex];
-			}
-
-			// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
-			// TODO: remove this __syncthreads maybe?
-			__syncthreads();
-
-			// process block
-			if( validACell ) {
-				const int numBWarps = (transferIndexB < numTransfers - 1) ? NUM_WARPS : iceil( shiftedMod( cellLength, transferSize ), WARP_SIZE );
-				for( int warpShiftIndex = 0 ; warpShiftIndex < numBWarps ; warpShiftIndex++ ) {
-					const int bWarpIndex = (threadIdx.y + warpShiftIndex) % numBWarps;
-
-					const int numBCells = (bWarpIndex < numBWarps - 1) ? WARP_SIZE : shiftedMod(cellLength, WARP_SIZE);
-					for( int cellShiftIndex = 0 ; cellShiftIndex < numBCells ; cellShiftIndex++ ) {
-						const int bThreadIndex = (threadIdx.x + cellShiftIndex) % numBCells;
-
-						const float3 &bPosition = cachedBPositions[bWarpIndex][bThreadIndex];
-
-						const float3 distance = bPosition - cachedAPosition;
-						const float distanceSquared = dot( distance, distance );
-						if( distanceSquared > cutOffRadiusSquared ) {
-							continue;
-						}
-
-						float3 force;
-						float potential;
-						calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force, potential );
-
-						totalThreadPotential[threadIdx.y][threadIdx.x] += potential;
-						float virial = dot( force, distance );
-						totalThreadVirial[threadIdx.y][threadIdx.x] += virial;
-
-						cachedAForce += force;
-						cachedBForces[bWarpIndex][bThreadIndex] -= force;
-					}
-				}
-			}
-
-			// push B data back
-			if( bTransferCellIndex < cellLength ) {
-				forces[bTransferCellIndex] = cachedBForces[threadIdx.y][threadIdx.x];
-			}
-		}
-
-		// push A data back
-		if( aTransferCellIndex < cellLength ) {
-			forces[aTransferCellIndex] = cachedAForce;
-		}
-	}
-
-	// reduce the potential and the virial
+__device__ inline void reducePotentialAndVirial( float *potential, float *virial ) {
 	// ASSERT: BLOCK_SIZE is power of 2
 	for( int power = 2 ; power <= BLOCK_SIZE ; power <<= 1 ) {
 		__syncthreads();
@@ -252,28 +115,159 @@ __global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *fo
 		if( (index & (power-1)) == 0 ) {
 			const int neighborIndex = index + (power >> 1);
 
-			((float*)totalThreadPotential)[index] += ((float*)totalThreadPotential)[neighborIndex];
-			((float*)totalThreadVirial)[index] += ((float*)totalThreadVirial)[neighborIndex];
+			potential[index] += potential[neighborIndex];
+			virial[index] += virial[neighborIndex];
 		}
-	}
-
-	if( threadIdx.x == 0 && threadIdx.y == 0 ) {
-		domainValues[cellIndex].x = totalThreadPotential[0][0] * 2;
-		domainValues[cellIndex].y = totalThreadVirial[0][0] * 2;
 	}
 }
 
+struct InteractionParameters {
+	float cutOffRadiusSquared;
+	float epsilon;
+	float sigmaSquared;
+};
 
-// threadIdx.xy = intraWarpIndex | warpIndex
+__device__ inline void calculateInteraction(
+		const InteractionParameters &parameters,
+		const float3 &positionA, const float3 &positionB,
+		float3 &forceA, float3 &forceB,
+		float &totalPotential, float &totalVirial
+	) {
+	const float3 distance = positionB - positionA;
+	const float distanceSquared = dot( distance, distance );
+
+	if( distanceSquared > parameters.cutOffRadiusSquared ) {
+		return;
+	}
+
+	float3 force;
+	float potential;
+	calculateLennardJones( distance, distanceSquared, parameters.epsilon, parameters.sigmaSquared, force, potential );
+
+	totalPotential += potential;
+	float virial = dot( force, distance );
+	totalVirial += virial;
+
+	forceA += force;
+	forceB -= force;
+}
+
+// if we're processing pairs from the same warp, we only have to process half the pairs
+template< bool intraWarp >
+__device__ inline void processWarp(
+		const int numBCellsInWarp,
+		const InteractionParameters &interactionParameters,
+		const float3 &positionA, const float3 *positionsB,
+		float3 &forceA, float3 *forcesB,
+		float &totalPotential, float &totalVirial
+		) {
+	for( int cellShiftIndex = 0 ; cellShiftIndex < numBCellsInWarp ; cellShiftIndex++ ) {
+		const int bThreadIndex = (threadIdx.x + cellShiftIndex) % numBCellsInWarp;
+		// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside a warp
+		// otherwise only process the lower half
+		if( !intraWarp || bThreadIndex < threadIdx.x ) {
+			calculateInteraction( interactionParameters,
+					positionA, positionsB[bThreadIndex],
+					forceA, forcesB[bThreadIndex],
+					totalPotential, totalVirial
+				  );
+		}
+	}
+}
+
+template< bool intraTransferBlock >
+__device__ inline void processWarps(
+		bool validACell,
+		const int numBCellsInTransferBlock,
+		const InteractionParameters &interactionParameters,
+		const float3 &positionA, const float3 (*positionsB)[WARP_SIZE],
+		float3 &forceA, float3 (*forcesB)[WARP_SIZE],
+		float &totalPotential, float &totalVirial
+		) {
+	const int numBWarps = iceil( numBCellsInTransferBlock, WARP_SIZE );
+	for( int warpShiftIndex = 0 ; warpShiftIndex < numBWarps ; warpShiftIndex++ ) {
+		const int bWarpIndex = (threadIdx.y + warpShiftIndex) % numBWarps;
+
+		if( validACell ) {
+			const int numBCellsInWarp = (bWarpIndex < numBWarps - 1) ? WARP_SIZE : shiftedMod(numBCellsInTransferBlock, WARP_SIZE);
+			// if we're not inside the same warp, process all NUM_WARPS * NUM_WARPS pairs inside a transfer block
+			// otherwise only process the 'semi'lower half
+			if( !intraTransferBlock || bWarpIndex < threadIdx.y ) {
+				processWarp<false>( numBCellsInWarp, interactionParameters,
+						positionA, positionsB[bWarpIndex],
+						forceA, forcesB[bWarpIndex],
+						totalPotential, totalVirial
+					);
+			}
+			else if( bWarpIndex == threadIdx.y ) {
+				processWarp<true>( numBCellsInWarp, interactionParameters,
+						positionA, positionsB[bWarpIndex],
+						forceA, forcesB[bWarpIndex],
+						totalPotential, totalVirial
+					);
+			}
+		}
+
+		// sync all warps, so that no two different warps will try to access the same warp data block
+		__syncthreads();
+	}
+}
+
+template< bool intraTransferBlock >
+__device__ inline void processTransferBlock(
+		bool validACell,
+		const int numBCellsInTransferBlock,
+		const InteractionParameters &interactionParameters,
+		const float3 &positionA, float3 *positionsB,
+		float3 &forceA, float3 *forcesB,
+		float &totalPotential, float &totalVirial
+		) {
+	__shared__ float3 cachedBForces[NUM_WARPS][WARP_SIZE];
+	__shared__ float3 cachedBPositions[NUM_WARPS][WARP_SIZE];
+
+	bool validBCell = false;
+	const int bTransferCellIndex = WARP_SIZE * threadIdx.y + threadIdx.x;
+	// load B data into cache
+	if( bTransferCellIndex < numBCellsInTransferBlock ) {
+		validBCell = true;
+		cachedBForces[threadIdx.y][threadIdx.x] = forcesB[bTransferCellIndex];
+		cachedBPositions[threadIdx.y][threadIdx.x] = positionsB[bTransferCellIndex];
+	}
+
+	// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
+	// TODO: remove this __syncthreads maybe?
+	__syncthreads();
+
+	// process block
+	processWarps<intraTransferBlock>(
+			validACell,
+			numBCellsInTransferBlock,
+			interactionParameters,
+			positionA, cachedBPositions,
+			forceA, cachedBForces,
+			totalPotential, totalVirial
+	   );
+
+	// push B data back
+	if( validBCell ) {
+		forcesB[bTransferCellIndex] = cachedBForces[threadIdx.y][threadIdx.x];
+	}
+}
+
 __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
 		int startIndex, int2 dimension, int3 gridOffsets,
 		int neighborOffset,
 		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
+	InteractionParameters parameters;
+	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
+	parameters.epsilon = epsilon;
+	parameters.sigmaSquared = sigmaSquared;
+
 	int cellIndex = getCellIndex( startIndex, dimension, gridOffsets );
 	int neighborIndex = cellIndex + neighborOffset;
 
 	// ensure that cellA_length <= cellB_length (which will use fewer data transfers)
-	// (numTransfersA + numTransfersA * numTransfersB) * transferSize
+	// (numTransfersA + numTransfersA * numTransfersB) * TRANSFER_SIZE
 	if( cellInfos[cellIndex].y > cellInfos[neighborIndex].y ) {
 		// swap cellIndex and neighborIndex
 		cellIndex = neighborIndex;
@@ -291,104 +285,124 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	totalThreadPotential[threadIdx.y][threadIdx.x] = 0.0f;
 	totalThreadVirial[threadIdx.y][threadIdx.x] = 0.0f;
 
-	__shared__ float3 cachedBForces[NUM_WARPS][WARP_SIZE];
-	__shared__ float3 cachedBPositions[NUM_WARPS][WARP_SIZE];
-
-	const int transferSize = BLOCK_SIZE;
-	const int numTransfersA = iceil( cellA_length, transferSize );
-	const int numTransfersB = iceil( cellB_length, transferSize );
-
+	const int numTransfersA = iceil( cellA_length, TRANSFER_SIZE );
 	for( int transferIndexA = 0 ; transferIndexA < numTransfersA ; transferIndexA++ ) {
-		const int numAWarps = (transferIndexA < numTransfersA - 1) ? NUM_WARPS : iceil( shiftedMod( cellA_length, transferSize ), WARP_SIZE );
-		const int aTransferCellIndex = cellA_start + transferIndexA * transferSize + WARP_SIZE * threadIdx.y + threadIdx.x;
-
 		bool validACell = false;
 		float3 cachedAForce;
 		float3 cachedAPosition;
 
 		// load A data into (register) cache
+		const int aTransferCellIndex = cellA_start + transferIndexA * TRANSFER_SIZE + WARP_SIZE * threadIdx.y + threadIdx.x;
 		if( aTransferCellIndex < cellA_length ) {
 			validACell = true;
 			cachedAForce = forces[aTransferCellIndex];
 			cachedAPosition = positions[aTransferCellIndex];
 		}
 
+		const int numTransfersB = iceil( cellB_length, TRANSFER_SIZE );
 		for( int transferIndexB = 0 ; transferIndexB < numTransfersB ; transferIndexB++ ) {
-			const int bTransferCellIndex = cellB_start + transferIndexB * transferSize + WARP_SIZE * threadIdx.y + threadIdx.x;
+			const int numBCellsInTransferBlock = (transferIndexB < numTransfersB - 1) ? TRANSFER_SIZE : shiftedMod( cellB_length, TRANSFER_SIZE );
+			const int bBlockStartIndex = cellB_start + transferIndexB * TRANSFER_SIZE;
 
-			// load B data into cache
-			if( bTransferCellIndex < cellB_length ) {
-				cachedBForces[threadIdx.y][threadIdx.x] = forces[bTransferCellIndex];
-				cachedBPositions[threadIdx.y][threadIdx.x] = positions[bTransferCellIndex];
-			}
-
-			// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
-			// TODO: remove this __syncthreads maybe?
-			__syncthreads();
-
-			// process block
-			if( validACell ) {
-				const int numBWarps = (transferIndexB < numTransfersB - 1) ? NUM_WARPS : iceil( shiftedMod( cellB_length, transferSize ), WARP_SIZE );
-				for( int warpShiftIndex = 0 ; warpShiftIndex < numBWarps ; warpShiftIndex++ ) {
-					const int bWarpIndex = (threadIdx.y + warpShiftIndex) % numBWarps;
-
-					const int numBCells = (bWarpIndex < numBWarps - 1) ? WARP_SIZE : shiftedMod(cellB_length, WARP_SIZE);
-					for( int cellShiftIndex = 0 ; cellShiftIndex < numBCells ; cellShiftIndex++ ) {
-						const int bThreadIndex = (threadIdx.x + cellShiftIndex) % numBCells;
-
-						const float3 &bPosition = cachedBPositions[bWarpIndex][bThreadIndex];
-
-						const float3 distance = bPosition - cachedAPosition;
-						const float distanceSquared = dot( distance, distance );
-						if( distanceSquared > cutOffRadiusSquared ) {
-							continue;
-						}
-
-						float3 force;
-						float potential;
-						calculateLennardJones( distance, distanceSquared, epsilon, sigmaSquared, force, potential );
-
-						totalThreadPotential[threadIdx.y][threadIdx.x] += potential;
-						float virial = dot( force, distance );
-						totalThreadVirial[threadIdx.y][threadIdx.x] += virial;
-
-						cachedAForce += force;
-						cachedBForces[bWarpIndex][bThreadIndex] -= force;
-					}
-				}
-			}
-
-			// push B data back
-			if( bTransferCellIndex < cellB_length ) {
-				forces[bTransferCellIndex] = cachedBForces[threadIdx.y][threadIdx.x];
-			}
+			processTransferBlock<false>(
+					validACell,
+					numBCellsInTransferBlock,
+					parameters,
+					cachedAPosition, positions + bBlockStartIndex,
+					cachedAForce, forces + bBlockStartIndex,
+					totalThreadPotential[threadIdx.y][threadIdx.x], totalThreadVirial[threadIdx.y][threadIdx.x]
+				);
 		}
 
 		// push A data back
-		if( aTransferCellIndex < cellA_length ) {
+		if( validACell ) {
 			forces[aTransferCellIndex] = cachedAForce;
 		}
 	}
 
 	// reduce the potential and the virial
 	// ASSERT: BLOCK_SIZE is power of 2
-	for( int power = 2 ; power <= BLOCK_SIZE ; power <<= 1 ) {
-		__syncthreads();
-
-		const int index = WARP_SIZE * threadIdx.y + threadIdx.x;
-		if( (index & (power-1)) == 0 ) {
-			const int neighborIndex = index + (power >> 1);
-
-			((float*)totalThreadPotential)[index] += ((float*)totalThreadPotential)[neighborIndex];
-			((float*)totalThreadVirial)[index] += ((float*)totalThreadVirial)[neighborIndex];
-		}
-	}
+	reducePotentialAndVirial( (float*) totalThreadPotential, (float*) totalThreadVirial );
 
 	if( threadIdx.x == 0 && threadIdx.y == 0 ) {
 		domainValues[cellIndex].x += totalThreadPotential[0][0];
 		domainValues[cellIndex].y += totalThreadVirial[0][0];
 		domainValues[neighborIndex].x += totalThreadPotential[0][0];
 		domainValues[neighborIndex].y += totalThreadVirial[0][0];
+	}
+}
+
+__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
+		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
+	InteractionParameters parameters;
+	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
+	parameters.epsilon = epsilon;
+	parameters.sigmaSquared = sigmaSquared;
+
+	const int cellIndex = blockIdx.x;
+
+	const int cellStart = cellInfos[cellIndex].x;
+	const int cellLength = cellInfos[cellIndex].y;
+
+	__shared__ float totalThreadPotential[NUM_WARPS][WARP_SIZE];
+	__shared__ float totalThreadVirial[NUM_WARPS][WARP_SIZE];
+
+	totalThreadPotential[threadIdx.y][threadIdx.x] = 0.0f;
+	totalThreadVirial[threadIdx.y][threadIdx.x] = 0.0f;
+
+	const int numTransfers = iceil( cellLength, TRANSFER_SIZE );
+	for( int transferIndexA = 0 ; transferIndexA < numTransfers ; transferIndexA++ ) {
+		bool validACell = false;
+		float3 cachedAForce;
+		float3 cachedAPosition;
+
+		// load A data into (register) cache
+		const int aBlockStartIndex = cellStart + transferIndexA * TRANSFER_SIZE;
+		const int aTransferCellIndex = aBlockStartIndex + WARP_SIZE * threadIdx.y + threadIdx.x;
+		if( aTransferCellIndex < cellLength ) {
+			validACell = true;
+			cachedAForce = make_float3( 0.0f );
+			cachedAPosition = positions[aTransferCellIndex];
+		}
+
+		// process the cells inside the transferblock itself
+		const int numACellsInTransferBlock = (transferIndexA < numTransfers - 1) ? TRANSFER_SIZE : shiftedMod( cellLength, TRANSFER_SIZE );
+		processTransferBlock<true>(
+				validACell,
+				numACellsInTransferBlock,
+				parameters,
+				cachedAPosition, positions + aBlockStartIndex,
+				cachedAForce, forces + aBlockStartIndex,
+				totalThreadPotential[threadIdx.y][threadIdx.x], totalThreadVirial[threadIdx.y][threadIdx.x]
+			);
+
+		for( int transferIndexB = 1 ; transferIndexB < transferIndexA ; transferIndexB++ ) {
+			const int numBCellsInTransferBlock = (transferIndexB < numTransfers - 1) ? TRANSFER_SIZE : shiftedMod( cellLength, TRANSFER_SIZE );
+			const int bBlockStartIndex = cellStart + transferIndexB * TRANSFER_SIZE;
+
+			processTransferBlock<false>(
+					validACell,
+					numBCellsInTransferBlock,
+					parameters,
+					cachedAPosition, positions + bBlockStartIndex,
+					cachedAForce, forces + bBlockStartIndex,
+					totalThreadPotential[threadIdx.y][threadIdx.x], totalThreadVirial[threadIdx.y][threadIdx.x]
+				);
+		}
+
+		// push A data back
+		if( validACell ) {
+			forces[aTransferCellIndex] += cachedAForce;
+		}
+	}
+
+	/// reduce the potential and the virial
+	// ASSERT: BLOCK_SIZE is power of 2
+	reducePotentialAndVirial( (float*) totalThreadPotential, (float*) totalThreadVirial );
+
+	if( threadIdx.x == 0 && threadIdx.y == 0 ) {
+		domainValues[cellIndex].x = totalThreadPotential[0][0] * 2;
+		domainValues[cellIndex].y = totalThreadVirial[0][0] * 2;
 	}
 }
 
