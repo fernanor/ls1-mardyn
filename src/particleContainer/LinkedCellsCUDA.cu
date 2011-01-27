@@ -153,8 +153,8 @@ __device__ inline void calculateInteraction(
 }
 
 template< bool sameBlock >
-__device__ inline void processTransferBlock(
-		const int aIndex,
+__device__ inline void processBlock(
+		const int indexA,
 		const int numCellsInBlockA,
 		const int numCellsInBlockB,
 		const InteractionParameters &interactionParameters,
@@ -166,9 +166,9 @@ __device__ inline void processTransferBlock(
 	__shared__ float3 cachedBPositions[BLOCK_SIZE];
 
 	// load B data into cache
-	if( aIndex < numCellsInBlockB ) {
-		cachedBForces[aIndex] = forcesB[aIndex];
-		cachedBPositions[aIndex] = positionsB[aIndex];
+	if( indexA < numCellsInBlockB ) {
+		cachedBForces[indexA] = forcesB[indexA];
+		cachedBPositions[indexA] = positionsB[indexA];
 	}
 
 	// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
@@ -185,24 +185,24 @@ __device__ inline void processTransferBlock(
 			numCellShifts = numShifts - warpShiftIndex * WARP_SIZE;
 		}
 		for( int cellShiftIndex = 0 ; cellShiftIndex < numCellShifts ; cellShiftIndex++ ) {
-			if( aIndex >= numCellsInBlockA ) {
+			if( indexA >= numCellsInBlockA ) {
 				continue;
 			}
 
-			const int bIndex = ((threadIdx.y + warpShiftIndex) % numWarps) * WARP_SIZE + ((threadIdx.x + cellShiftIndex) % WARP_SIZE);
-			if( bIndex >= numCellsInBlockB ) {
+			const int indexB = ((threadIdx.y + warpShiftIndex) % numWarps) * WARP_SIZE + ((threadIdx.x + cellShiftIndex) % WARP_SIZE);
+			if( indexB >= numCellsInBlockB ) {
 				continue;
 			}
 
 			// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside a warp
 			// otherwise only process the lower half
-			if( sameBlock && aIndex >= bIndex ) {
+			if( sameBlock && indexA >= indexB ) {
 				continue;
 			}
 
 			calculateInteraction( interactionParameters,
-					positionA, cachedBPositions[bIndex],
-					forceA, cachedBForces[bIndex],
+					positionA, cachedBPositions[indexB],
+					forceA, cachedBForces[indexB],
 					totalPotential, totalVirial
 				);
 		}
@@ -211,8 +211,8 @@ __device__ inline void processTransferBlock(
 	}
 
 	// push B data back
-	if( aIndex < numCellsInBlockB ) {
-		forcesB[aIndex] = cachedBForces[aIndex];
+	if( indexA < numCellsInBlockB ) {
+		forcesB[indexA] = cachedBForces[indexA];
 	}
 }
 
@@ -236,53 +236,53 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 		neighborIndex -= neighborOffset;
 	}
 
-	const int cellA_start = cellInfos[cellIndex].x;
-	const int cellA_length = cellInfos[cellIndex].y;
-	const int cellB_start = cellInfos[neighborIndex].x;
-	const int cellB_length = cellInfos[neighborIndex].y;
+	const int cellAStart = cellInfos[cellIndex].x;
+	const int cellALength = cellInfos[cellIndex].y;
+	const int cellBStart = cellInfos[neighborIndex].x;
+	const int cellBLength = cellInfos[neighborIndex].y;
 
 	__shared__ float totalThreadPotential[BLOCK_SIZE];
 	__shared__ float totalThreadVirial[BLOCK_SIZE];
 
-	const int aIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int indexA = threadIdx.y * WARP_SIZE + threadIdx.x;
 
-	totalThreadPotential[aIndex] = 0.0f;
-	totalThreadVirial[aIndex] = 0.0f;
+	totalThreadPotential[indexA] = 0.0f;
+	totalThreadVirial[indexA] = 0.0f;
 
-	const int numBlocksA = iceil( cellA_length, BLOCK_SIZE );
-	const int numBlocksB = iceil( cellB_length, BLOCK_SIZE );
-	for( int transferIndexA = 0 ; transferIndexA < numBlocksA ; transferIndexA++ ) {
+	const int numBlocksA = iceil( cellALength, BLOCK_SIZE );
+	const int numBlocksB = iceil( cellBLength, BLOCK_SIZE );
+	for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
 		float3 cachedAForce;
 		float3 cachedAPosition;
 
-		const int numCellsInBlockA = (transferIndexA < numBlocksA - 1) ? BLOCK_SIZE : shiftedMod( cellA_length, BLOCK_SIZE );
-		const int aBlockIndex = cellA_start + transferIndexA * BLOCK_SIZE;
+		const int numCellsInBlockA = (blockIndexA < numBlocksA - 1) ? BLOCK_SIZE : shiftedMod( cellALength, BLOCK_SIZE );
+		const int blockOffsetA = cellAStart + blockIndexA * BLOCK_SIZE;
 
 		// load A data into (register) cache
-		if( aIndex < numCellsInBlockA ) {
-			cachedAForce = forces[aBlockIndex + aIndex];
-			cachedAPosition = positions[aBlockIndex + aIndex];
+		if( indexA < numCellsInBlockA ) {
+			cachedAForce = forces[blockOffsetA + indexA];
+			cachedAPosition = positions[blockOffsetA + indexA];
 		}
 
-		for( int transferIndexB = 0 ; transferIndexB < numBlocksB ; transferIndexB++ ) {
-			const int numCellsInBlockB = (transferIndexB < numBlocksB - 1) ? BLOCK_SIZE : shiftedMod( cellB_length, BLOCK_SIZE );
+		for( int blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
+			const int numCellsInBlockB = (blockIndexB < numBlocksB - 1) ? BLOCK_SIZE : shiftedMod( cellBLength, BLOCK_SIZE );
 
-			const int bBlockIndex = cellB_start + transferIndexB * BLOCK_SIZE;
+			const int blockOffsetB = cellBStart + blockIndexB * BLOCK_SIZE;
 
-			processTransferBlock<false>(
-					aIndex,
+			processBlock<false>(
+					indexA,
 					numCellsInBlockA,
 					numCellsInBlockB,
 					parameters,
-					cachedAPosition, positions + bBlockIndex,
-					cachedAForce, forces + bBlockIndex,
-					totalThreadPotential[aIndex], totalThreadVirial[aIndex]
+					cachedAPosition, positions + blockOffsetB,
+					cachedAForce, forces + blockOffsetB,
+					totalThreadPotential[indexA], totalThreadVirial[indexA]
 				);
 		}
 
 		// push A data back
-		if( aIndex < numCellsInBlockA ) {
-			forces[aBlockIndex + aIndex] = cachedAForce;
+		if( indexA < numCellsInBlockA ) {
+			forces[blockOffsetA + indexA] = cachedAForce;
 		}
 	}
 
@@ -313,54 +313,54 @@ __global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *fo
 	__shared__ float totalThreadPotential[BLOCK_SIZE];
 	__shared__ float totalThreadVirial[BLOCK_SIZE];
 
-	const int aIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int indexA = threadIdx.y * WARP_SIZE + threadIdx.x;
 
-	totalThreadPotential[aIndex] = 0.0f;
-	totalThreadVirial[aIndex] = 0.0f;
+	totalThreadPotential[indexA] = 0.0f;
+	totalThreadVirial[indexA] = 0.0f;
 
 	const int numBlocks = iceil( cellLength, BLOCK_SIZE );
-	for( int transferIndexA = 0 ; transferIndexA < numBlocks ; transferIndexA++ ) {
+	for( int blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
 		float3 cachedAForce;
 		float3 cachedAPosition;
 
-		const int numCellsInBlockA = (transferIndexA < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
-		const int aBlockIndex = cellStart + transferIndexA * BLOCK_SIZE;
+		const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
+		const int blockOffsetA = cellStart + blockIndexA * BLOCK_SIZE;
 
 		// load A data into (register) cache
-		if( aIndex < numCellsInBlockA ) {
+		if( indexA < numCellsInBlockA ) {
 			cachedAForce = make_float3( 0.0f );
-			cachedAPosition = positions[aBlockIndex + aIndex];
+			cachedAPosition = positions[blockOffsetA + indexA];
 		}
 
-		processTransferBlock<true>(
-				aIndex,
+		processBlock<true>(
+				indexA,
 				numCellsInBlockA,
 				numCellsInBlockA,
 				parameters,
-				cachedAPosition, positions + aBlockIndex,
-				cachedAForce, forces + aBlockIndex,
-				totalThreadPotential[aIndex], totalThreadVirial[aIndex]
+				cachedAPosition, positions + blockOffsetA,
+				cachedAForce, forces + blockOffsetA,
+				totalThreadPotential[indexA], totalThreadVirial[indexA]
 			);
 
-		for( int transferIndexB = 0 ; transferIndexB < transferIndexA ; transferIndexB++ ) {
-			const int numCellsInBlockB = (transferIndexB < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
+		for( int blockIndexB = 0 ; blockIndexB < blockIndexA ; blockIndexB++ ) {
+			const int numCellsInBlockB = (blockIndexB < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
 
-			const int bBlockIndex = cellStart + transferIndexB * BLOCK_SIZE;
+			const int blockOffsetB = cellStart + blockIndexB * BLOCK_SIZE;
 
-			processTransferBlock<false>(
-					aIndex,
+			processBlock<false>(
+					indexA,
 					numCellsInBlockA,
 					numCellsInBlockB,
 					parameters,
-					cachedAPosition, positions + bBlockIndex,
-					cachedAForce, forces + bBlockIndex,
-					totalThreadPotential[aIndex], totalThreadVirial[aIndex]
+					cachedAPosition, positions + blockOffsetB,
+					cachedAForce, forces + blockOffsetB,
+					totalThreadPotential[indexA], totalThreadVirial[indexA]
 				);
 		}
 
 		// push A data back
-		if( aIndex < numCellsInBlockA ) {
-			forces[aBlockIndex + aIndex] += cachedAForce;
+		if( indexA < numCellsInBlockA ) {
+			forces[blockOffsetA + indexA] += cachedAForce;
 		}
 	}
 
