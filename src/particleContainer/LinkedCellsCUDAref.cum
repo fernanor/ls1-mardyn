@@ -1,0 +1,121 @@
+#include "cutil_math.h"
+
+#define WARP_SIZE 1
+#define NUM_WARPS 1
+#define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
+
+// threadIdx.xy = intraWarpIndex | warpIndex
+
+struct InteractionParameters {
+	float cutOffRadiusSquared;
+	float epsilon;
+	float sigmaSquared;
+};
+
+__device__ inline void calculateInteraction(
+		const InteractionParameters &parameters,
+		const float3 &positionA, const float3 &positionB,
+		float3 &forceA, float3 &forceB,
+		float &totalPotential, float &totalVirial
+	) {
+	const float3 distance = positionB - positionA;
+	const float distanceSquared = dot( distance, distance );
+
+	if( distanceSquared >= parameters.cutOffRadiusSquared ) {
+		return;
+	}
+
+	float3 force;
+	float potential;
+	calculateLennardJones( distance, distanceSquared, parameters.epsilon, parameters.sigmaSquared, force, potential );
+
+	totalPotential += potential;
+	float virial = dot( force, distance );
+	totalVirial += virial;
+
+	forceA += force;
+	forceB -= force;
+}
+
+__global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
+		int startIndex, int2 dimension, int3 gridOffsets,
+		int neighborOffset,
+		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
+	InteractionParameters parameters;
+	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
+	parameters.epsilon = epsilon;
+	parameters.sigmaSquared = sigmaSquared;
+
+	int cellIndex = getCellIndex( startIndex, dimension, gridOffsets );
+	int neighborIndex = cellIndex + neighborOffset;
+
+	// ensure that cellA_length <= cellB_length (which will use fewer data transfers)
+	// (numTransfersA + numTransfersA * numTransfersB) * BLOCK_SIZE
+	if( cellInfos[cellIndex].y > cellInfos[neighborIndex].y ) {
+		// swap cellIndex and neighborIndex
+		cellIndex = neighborIndex;
+		neighborIndex -= neighborOffset;
+	}
+
+	const int cellAStart = cellInfos[cellIndex].x;
+	const int cellALength = cellInfos[cellIndex].y;
+	const int cellBStart = cellInfos[neighborIndex].x;
+	const int cellBLength = cellInfos[neighborIndex].y;
+
+	float totalPotential = 0.0f;
+	float totalVirial = 0.0f;
+
+	const float3 *positionsA = positions + cellAStart;
+	const float3 *positionsB = positions + cellBStart;
+
+	float3 *forcesA = forces + cellAStart;
+	float3 *forcesB = forces + cellBStart;
+
+	for( int indexA = 0 ; indexA < cellALength ; indexA++ ) {
+		for( int indexB = 0 ; indexB < cellBLength ; indexB++ ) {
+			calculateInteraction( parameters,
+					positionsA[indexA], positionsB[indexB],
+					forcesA[indexA], forcesB[indexB],
+					totalPotential, totalVirial
+				);
+		}
+	}
+
+	domainValues[cellIndex].x += totalPotential;
+	domainValues[cellIndex].y += totalVirial;
+	domainValues[neighborIndex].x += totalPotential;
+	domainValues[neighborIndex].y += totalVirial;
+}
+
+__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
+		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
+	InteractionParameters parameters;
+	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
+	parameters.epsilon = epsilon;
+	parameters.sigmaSquared = sigmaSquared;
+
+	const int cellIndex = blockIdx.x;
+
+	const int cellStart = cellInfos[cellIndex].x;
+	const int cellLength = cellInfos[cellIndex].y;
+
+	float totalPotential = 0.0f;
+	float totalVirial = 0.0f;
+
+	const float3 *positionsA = positions + cellStart;
+	float3 *forcesA = forces + cellStart;
+
+	for( int indexA = 0 ; indexA < cellLength ; indexA++ ) {
+		for( int indexB = 0 ; indexB < indexA ; indexB++ ) {
+			calculateInteraction( parameters,
+					positionsA[indexA], positionsA[indexB],
+					forcesA[indexA], forcesA[indexB],
+					totalPotential, totalVirial
+				);
+		}
+	}
+
+
+	domainValues[cellIndex].x = totalPotential * 2;
+	domainValues[cellIndex].y = totalVirial * 2;
+}

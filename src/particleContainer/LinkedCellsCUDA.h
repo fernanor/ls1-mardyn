@@ -279,7 +279,7 @@ public:
 
 		float cpuPotential = _domain.getLocalUpot();
 		float cpuVirial = _domain.getLocalVirial();
-		printf( "CPU Avg Potential: %f CPU Avg Virial: %f\n", cpuPotential, cpuVirial );
+		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
 
 		LinkedCellsCUDA_Internal::DomainValues domainValues = _cudaInternal.calculateForces();
 		// update the domain values
