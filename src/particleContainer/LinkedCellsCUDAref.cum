@@ -13,7 +13,8 @@ struct InteractionParameters {
 };
 
 __device__ inline void calculateInteraction(
-		const InteractionParameters &parameters,
+		const float cutOffRadiusSquared,
+		const ComponentInfo &componentInfo,
 		const float3 &positionA, const float3 &positionB,
 		float3 &forceA, float3 &forceB,
 		float &totalPotential, float &totalVirial
@@ -21,13 +22,13 @@ __device__ inline void calculateInteraction(
 	const float3 distance = positionB - positionA;
 	const float distanceSquared = dot( distance, distance );
 
-	if( distanceSquared >= parameters.cutOffRadiusSquared ) {
+	if( distanceSquared >= cutOffRadiusSquared ) {
 		return;
 	}
 
 	float3 force;
 	float potential;
-	calculateLennardJones( distance, distanceSquared, parameters.epsilon, parameters.sigmaSquared, force, potential );
+	calculateLennardJones( distance, distanceSquared, componentInfo.epsilon, componentInfo.sigmaSquared, force, potential );
 
 	totalPotential += potential;
 	float virial = dot( force, distance );
@@ -37,14 +38,12 @@ __device__ inline void calculateInteraction(
 	forceB -= force;
 }
 
-__global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
-		int startIndex, int2 dimension, int3 gridOffsets,
-		int neighborOffset,
-		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
-	InteractionParameters parameters;
-	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
-	parameters.epsilon = epsilon;
-	parameters.sigmaSquared = sigmaSquared;
+__global__ void Kernel_calculatePairLJForces(
+		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
+		const ComponentInfo *componentInfos, int numComponents,
+		const int2 *cellInfos, float2 *domainValues,
+		int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset,
+		float cutOffRadiusSquared ) {
 
 	int cellIndex = getCellIndex( startIndex, dimension, gridOffsets );
 	int neighborIndex = cellIndex + neighborOffset;
@@ -71,9 +70,15 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	float3 *forcesA = forces + cellAStart;
 	float3 *forcesB = forces + cellBStart;
 
+	const unsigned char *componentIndicesA = componentIndices + cellAStart;
+	const unsigned char *componentIndicesB = componentIndices + cellBStart;
+
 	for( int indexA = 0 ; indexA < cellALength ; indexA++ ) {
 		for( int indexB = 0 ; indexB < cellBLength ; indexB++ ) {
-			calculateInteraction( parameters,
+			const ComponentInfo &componentInfo = componentInfos[ componentIndicesA[ indexA ] * numComponents + componentIndicesB[ indexB ] ];
+
+			calculateInteraction(
+					cutOffRadiusSquared, componentInfo,
 					positionsA[indexA], positionsB[indexB],
 					forcesA[indexA], forcesB[indexB],
 					totalPotential, totalVirial
@@ -87,13 +92,11 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	domainValues[neighborIndex].y += totalVirial;
 }
 
-__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
-		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
-	InteractionParameters parameters;
-	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
-	parameters.epsilon = epsilon;
-	parameters.sigmaSquared = sigmaSquared;
-
+__global__ void Kernel_calculateInnerLJForces(
+		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
+		const ComponentInfo *componentInfos, int numComponents,
+		const int2 *cellInfos, float2 *domainValues,
+		float cutOffRadiusSquared ) {
 	const int cellIndex = blockIdx.x;
 
 	const int cellStart = cellInfos[cellIndex].x;
@@ -104,17 +107,20 @@ __global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *fo
 
 	const float3 *positionsA = positions + cellStart;
 	float3 *forcesA = forces + cellStart;
+	const unsigned char *componentIndicesA = componentIndices + cellStart;
 
 	for( int indexA = 0 ; indexA < cellLength ; indexA++ ) {
 		for( int indexB = 0 ; indexB < indexA ; indexB++ ) {
-			calculateInteraction( parameters,
+			const ComponentInfo &componentInfo = componentInfos[ componentIndicesA[ indexA ] * numComponents + componentIndicesA[ indexB ] ];
+
+			calculateInteraction(
+					cutOffRadiusSquared, componentInfo,
 					positionsA[indexA], positionsA[indexB],
 					forcesA[indexA], forcesA[indexB],
 					totalPotential, totalVirial
 				);
 		}
 	}
-
 
 	domainValues[cellIndex].x = totalPotential * 2;
 	domainValues[cellIndex].y = totalVirial * 2;

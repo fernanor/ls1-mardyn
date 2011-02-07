@@ -112,11 +112,21 @@ public:
 	}
 };
 
+struct ComponentInfo {
+	float epsilon, sigmaSquared;
+};
+
 class LinkedCellsCUDA_Internal {
 private:
 	LinkedCells &_linkedCells;
 
 	CUDABuffer<float3> _positions, _forces;
+	CUDABuffer<unsigned char> _componentIndices;
+
+	// 2-dim array [componentIdA][componentIdB]
+	CUDABuffer<ComponentInfo> _componentInfos;
+	int _numComponents;
+
 	// stores UPotential and Virial (per cell)
 	CUDABuffer<float2> _domainValues;
 	// start length for each cell inside the _positions and _forces arrays
@@ -127,13 +137,18 @@ private:
 
 	float _cutOffRadius;
 
+	Domain &_domain;
+
 public:
 	LinkedCellsCUDA_Internal( Domain &domain, LinkedCells &linkedCells, float cutOffRadius )
-	: _linkedCells( linkedCells ),
+	: _domain( domain ),
+	  _linkedCells( linkedCells ),
 	  _cutOffRadius( cutOffRadius ),
 	  _numParticles( 0 ), _maxParticles( 0 ),
 	  _numCells( 0 ), _maxCells( 0 )
-		{}
+		{
+		initComponentInfos();
+	}
 
 	~LinkedCellsCUDA_Internal() {
 		freeAllocations();
@@ -143,15 +158,13 @@ public:
 		float potential, virial;
 	};
 
-	DomainValues calculateForces();
+	void calculateForces( DomainValues &domainValues );
 
 protected:
 	void manageAllocations();
 	void freeAllocations();
 
-	void initGlobalAllocs();
-	void destroyGlobalAllocs();
-
+	void initComponentInfos();
 	void initCellInfosAndCopyPositions();
 
 	void prepareDeviceMemory();
@@ -274,18 +287,7 @@ public:
 	//! For each pair found, there is an action executed, but it is a different action for
 	//! original and duplicated pairs. Details about how to handle pairs can be found
 	//! in the documentation for the class ParticlePairsHandler
-	virtual void traversePairs() {
-		_linkedCells.traversePairs();
-
-		float cpuPotential = _domain.getLocalUpot();
-		float cpuVirial = _domain.getLocalVirial();
-		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
-
-		LinkedCellsCUDA_Internal::DomainValues domainValues = _cudaInternal.calculateForces();
-		// update the domain values
-		_domain.setLocalUpot( domainValues.potential );
-		_domain.setLocalVirial( domainValues.virial );
-	}
+	virtual void traversePairs();
 
 	//! @return the number of particles stored in this container
 	//!
