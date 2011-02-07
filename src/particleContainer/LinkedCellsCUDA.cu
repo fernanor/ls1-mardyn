@@ -93,8 +93,8 @@ __device__ int getCellIndex( int startIndex, int2 dimension, int3 gridOffsets ) 
 #ifdef TEST_CELL_COVERAGE
 #include "LinkedCellsCUDAcellCoverage.cum"
 #else
-//#include "LinkedCellsCUDAfast.cum"
-#include "LinkedCellsCUDAref.cum"
+#include "LinkedCellsCUDAfast.cum"
+//#include "LinkedCellsCUDAref.cum"
 #endif
 
 void LinkedCellsCUDA::traversePairs() {

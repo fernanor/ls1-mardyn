@@ -1,5 +1,7 @@
 #include "cutil_math.h"
 
+#define MAX_NUM_COMPONENTS 3
+
 #define MAX_BLOCK_SIZE 512
 #define WARP_SIZE 32
 #define NUM_WARPS 4
@@ -18,29 +20,23 @@ __device__ inline int shiftedMod( int a, int b ) {
 	return (r > 0) ? r : b;
 }
 
-__device__ inline void reducePotentialAndVirial( float *potential, float *virial ) {
+__device__ inline void reducePotentialAndVirial( const int threadIndex, float *potential, float *virial ) {
 	// ASSERT: BLOCK_SIZE is power of 2
 	for( int power = 2 ; power <= BLOCK_SIZE ; power <<= 1 ) {
 		__syncthreads();
 
-		const int index = WARP_SIZE * threadIdx.y + threadIdx.x;
-		if( (index & (power-1)) == 0 ) {
-			const int neighborIndex = index + (power >> 1);
+		if( (threadIndex & (power-1)) == 0 ) {
+			const int neighborIndex = threadIndex + (power >> 1);
 
-			potential[index] += potential[neighborIndex];
-			virial[index] += virial[neighborIndex];
+			potential[threadIndex] += potential[neighborIndex];
+			virial[threadIndex] += virial[neighborIndex];
 		}
 	}
 }
 
-struct InteractionParameters {
-	float cutOffRadiusSquared;
-	float epsilon;
-	float sigmaSquared;
-};
-
 __device__ inline void calculateInteraction(
-		const InteractionParameters &parameters,
+		const float cutOffRadiusSquared,
+		const ComponentInfo &componentInfo,
 		const float3 &positionA, const float3 &positionB,
 		float3 &forceA, float3 &forceB,
 		float &totalPotential, float &totalVirial
@@ -48,13 +44,13 @@ __device__ inline void calculateInteraction(
 	const float3 distance = positionB - positionA;
 	const float distanceSquared = dot( distance, distance );
 
-	if( distanceSquared > parameters.cutOffRadiusSquared ) {
+	if( distanceSquared > cutOffRadiusSquared ) {
 		return;
 	}
 
 	float3 force;
 	float potential;
-	calculateLennardJones( distance, distanceSquared, parameters.epsilon, parameters.sigmaSquared, force, potential );
+	calculateLennardJones( distance, distanceSquared, componentInfo.epsilon, componentInfo.sigmaSquared, force, potential );
 
 	totalPotential += potential;
 	float virial = dot( force, distance );
@@ -66,21 +62,25 @@ __device__ inline void calculateInteraction(
 
 template< bool sameBlock >
 __device__ inline void processBlock(
-		const int indexA,
+		const int threadIndex,
 		const int numCellsInBlockA,
 		const int numCellsInBlockB,
-		const InteractionParameters &interactionParameters,
+		const float cutOffRadiusSquared,
+		const ComponentInfo *componentInfos, int numComponents,
 		const float3 &positionA, const float3 *positionsB,
+		const unsigned char &componentIndexA, const unsigned char *componentIndicesB,
 		float3 &forceA, float3 *forcesB,
 		float &totalPotential, float &totalVirial
 		) {
 	__shared__ float3 cachedBForces[BLOCK_SIZE];
+	__shared__ unsigned char cachedBComponentIndices[BLOCK_SIZE];
 	__shared__ float3 cachedBPositions[BLOCK_SIZE];
 
 	// load B data into cache
-	if( indexA < numCellsInBlockB ) {
-		cachedBForces[indexA] = forcesB[indexA];
-		cachedBPositions[indexA] = positionsB[indexA];
+	if( threadIndex < numCellsInBlockB ) {
+		cachedBForces[threadIndex] = forcesB[threadIndex];
+		cachedBComponentIndices[threadIndex] = componentIndicesB[threadIndex];
+		cachedBPositions[threadIndex] = positionsB[threadIndex];
 	}
 
 	// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
@@ -91,6 +91,8 @@ __device__ inline void processBlock(
 	const int numShifts = max( numCellsInBlockA, numCellsInBlockB );
 	const int numWarps = iceil( numShifts, WARP_SIZE );
 	const int numWarpsInBlockB = iceil( numCellsInBlockB, WARP_SIZE );
+
+	const int indexA = threadIndex;
 
 	for( int warpShiftIndex = 0 ; warpShiftIndex < numWarps ; warpShiftIndex++ ) {
 		int warpIndexB = (threadIdx.y + warpShiftIndex) % numWarps;
@@ -111,7 +113,8 @@ __device__ inline void processBlock(
 					continue;
 				}
 
-				calculateInteraction( interactionParameters,
+				const ComponentInfo &componentInfo = componentInfos[ componentIndexA * numComponents + cachedBComponentIndices[ indexB ] ];
+				calculateInteraction( cutOffRadiusSquared, componentInfo,
 						positionA, cachedBPositions[indexB],
 						forceA, cachedBForces[indexB],
 						totalPotential, totalVirial
@@ -123,19 +126,25 @@ __device__ inline void processBlock(
 	}
 
 	// push B data back
-	if( indexA < numCellsInBlockB ) {
-		forcesB[indexA] = cachedBForces[indexA];
+	if( threadIndex < numCellsInBlockB ) {
+		forcesB[threadIndex] = cachedBForces[threadIndex];
 	}
 }
 
-__global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
-		int startIndex, int2 dimension, int3 gridOffsets,
-		int neighborOffset,
-		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
-	InteractionParameters parameters;
-	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
-	parameters.epsilon = epsilon;
-	parameters.sigmaSquared = sigmaSquared;
+__global__ void Kernel_calculatePairLJForces(
+		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
+		const ComponentInfo *componentInfos, int numComponents,
+		const int2 *cellInfos, float2 *domainValues,
+		int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset,
+		float cutOffRadiusSquared ) {
+	__shared__ ComponentInfo cachedComponentInfos[ MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS ];
+
+	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	{
+		for( int i = threadIndex ; i < numComponents * numComponents ; i += BLOCK_SIZE ) {
+			cachedComponentInfos[ i ] = componentInfos[ i ];
+		}
+	}
 
 	int cellIndex = getCellIndex( startIndex, dimension, gridOffsets );
 	int neighborIndex = cellIndex + neighborOffset;
@@ -156,11 +165,12 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	__shared__ float totalThreadPotential[BLOCK_SIZE];
 	__shared__ float totalThreadVirial[BLOCK_SIZE];
 
-	const int indexA = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int indexA = threadIndex;
 
 	totalThreadPotential[indexA] = 0.0f;
 	totalThreadVirial[indexA] = 0.0f;
 
+	// make sure that cachedComponentInfos has been initialized
 	__syncthreads();
 
 	const int numBlocksA = iceil( cellALength, BLOCK_SIZE );
@@ -168,14 +178,17 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
 		float3 cachedAForce;
 		float3 cachedAPosition;
+		unsigned char cachedAComponentIndex;
 
 		const int numCellsInBlockA = (blockIndexA < numBlocksA - 1) ? BLOCK_SIZE : shiftedMod( cellALength, BLOCK_SIZE );
 		const int blockOffsetA = cellAStart + blockIndexA * BLOCK_SIZE;
 
 		// load A data into (register) cache
 		if( indexA < numCellsInBlockA ) {
-			cachedAForce = forces[blockOffsetA + indexA];
-			cachedAPosition = positions[blockOffsetA + indexA];
+			const int index = blockOffsetA + indexA;
+			cachedAForce = forces[index];
+			cachedAPosition = positions[index];
+			cachedAComponentIndex = componentIndices[index];
 		}
 
 		for( int blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
@@ -187,8 +200,10 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 					indexA,
 					numCellsInBlockA,
 					numCellsInBlockB,
-					parameters,
+					cutOffRadiusSquared,
+					cachedComponentInfos, numComponents,
 					cachedAPosition, positions + blockOffsetB,
+					cachedAComponentIndex, componentIndices + blockOffsetB,
 					cachedAForce, forces + blockOffsetB,
 					totalThreadPotential[indexA], totalThreadVirial[indexA]
 				);
@@ -202,7 +217,7 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 
 	// reduce the potential and the virial
 	// ASSERT: BLOCK_SIZE is power of 2
-	reducePotentialAndVirial( totalThreadPotential, totalThreadVirial );
+	reducePotentialAndVirial( threadIndex, totalThreadPotential, totalThreadVirial );
 
 	if( threadIdx.x == 0 && threadIdx.y == 0 ) {
 		domainValues[cellIndex].x += totalThreadPotential[0];
@@ -212,12 +227,19 @@ __global__ void Kernel_calculatePairLJForces( float3 *positions, OUT float3 *for
 	}
 }
 
-__global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *forces, int2 *cellInfos, OUT float2 *domainValues,
-		float epsilon, float sigmaSquared, float cutOffRadiusSquared ) {
-	InteractionParameters parameters;
-	parameters.cutOffRadiusSquared = cutOffRadiusSquared;
-	parameters.epsilon = epsilon;
-	parameters.sigmaSquared = sigmaSquared;
+__global__ void Kernel_calculateInnerLJForces(
+		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
+		const ComponentInfo *componentInfos, int numComponents,
+		const int2 *cellInfos, float2 *domainValues,
+		float cutOffRadiusSquared ) {
+	__shared__ ComponentInfo cachedComponentInfos[ MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS ];
+
+	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	{
+		for( int i = threadIndex ; i < numComponents * numComponents ; i += BLOCK_SIZE ) {
+			cachedComponentInfos[ i ] = componentInfos[ i ];
+		}
+	}
 
 	const int cellIndex = blockIdx.x;
 
@@ -227,31 +249,39 @@ __global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *fo
 	__shared__ float totalThreadPotential[BLOCK_SIZE];
 	__shared__ float totalThreadVirial[BLOCK_SIZE];
 
-	const int indexA = threadIdx.y * WARP_SIZE + threadIdx.x;
+	totalThreadPotential[threadIndex] = 0.0f;
+	totalThreadVirial[threadIndex] = 0.0f;
 
-	totalThreadPotential[indexA] = 0.0f;
-	totalThreadVirial[indexA] = 0.0f;
+	__syncthreads();
+
+	const int indexA = threadIndex;
 
 	const int numBlocks = iceil( cellLength, BLOCK_SIZE );
 	for( int blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
 		float3 cachedAForce;
 		float3 cachedAPosition;
+		unsigned char cachedAComponentIndex;
 
 		const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
 		const int blockOffsetA = cellStart + blockIndexA * BLOCK_SIZE;
 
 		// load A data into (register) cache
 		if( indexA < numCellsInBlockA ) {
+			const int index = blockOffsetA + threadIndex;
 			cachedAForce = make_float3( 0.0f );
-			cachedAPosition = positions[blockOffsetA + indexA];
+
+			cachedAPosition = positions[index];
+			cachedAComponentIndex = componentIndices[index];
 		}
 
 		processBlock<true>(
-				indexA,
+				threadIndex,
 				numCellsInBlockA,
 				numCellsInBlockA,
-				parameters,
+				cutOffRadiusSquared,
+				cachedComponentInfos, numComponents,
 				cachedAPosition, positions + blockOffsetA,
+				cachedAComponentIndex, componentIndices + blockOffsetA,
 				cachedAForce, forces + blockOffsetA,
 				totalThreadPotential[indexA], totalThreadVirial[indexA]
 			);
@@ -262,25 +292,27 @@ __global__ void Kernel_calculateInnerLJForces( float3 *positions, OUT float3 *fo
 			const int blockOffsetB = cellStart + blockIndexB * BLOCK_SIZE;
 
 			processBlock<false>(
-					indexA,
+					threadIndex,
 					numCellsInBlockA,
 					numCellsInBlockB,
-					parameters,
+					cutOffRadiusSquared,
+					cachedComponentInfos, numComponents,
 					cachedAPosition, positions + blockOffsetB,
+					cachedAComponentIndex, componentIndices + blockOffsetB,
 					cachedAForce, forces + blockOffsetB,
 					totalThreadPotential[indexA], totalThreadVirial[indexA]
 				);
 		}
 
 		// push A data back
-		if( indexA < numCellsInBlockA ) {
-			forces[blockOffsetA + indexA] += cachedAForce;
+		if( threadIndex < numCellsInBlockA ) {
+			forces[blockOffsetA + threadIndex] += cachedAForce;
 		}
 	}
 
 	/// reduce the potential and the virial
 	// ASSERT: BLOCK_SIZE is power of 2
-	reducePotentialAndVirial( totalThreadPotential, totalThreadVirial );
+	reducePotentialAndVirial( threadIndex, totalThreadPotential, totalThreadVirial );
 
 	if( threadIdx.x == 0 && threadIdx.y == 0 ) {
 		domainValues[cellIndex].x = totalThreadPotential[0] * 2;
