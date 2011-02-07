@@ -181,8 +181,9 @@ void LinkedCellsCUDA_Internal::initComponentInfos() {
 
 			LJcenter ljCenterA = components[indexA].ljcenter(0);
 			LJcenter ljCenterB = components[indexB].ljcenter(0);
-			_componentInfos[ targetIndex ].epsilon = 0.5f * ( ljCenterA.eps() + ljCenterB.eps() );
-			_componentInfos[ targetIndex ].sigmaSquared = ljCenterA.sigma() * ljCenterB.sigma();
+			_componentInfos[ targetIndex ].epsilon = sqrt( ljCenterA.eps() * ljCenterB.eps() );
+			float sigma = 0.5f * ( ljCenterA.sigma() + ljCenterB.sigma() );
+			_componentInfos[ targetIndex ].sigmaSquared = sigma * sigma;
 		}
 	}
 
