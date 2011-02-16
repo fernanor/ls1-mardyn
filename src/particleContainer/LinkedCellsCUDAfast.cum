@@ -1,6 +1,7 @@
 #include "cutil_math.h"
 
-#define MAX_NUM_COMPONENTS 3
+// sum over all components of the number of lj centers <= MAX_NUM_TOTAL_LJ_CENTERS
+#define MAX_NUM_TOTAL_LJ_CENTERS 4
 
 #define MAX_BLOCK_SIZE 512
 #define WARP_SIZE 32
@@ -36,7 +37,7 @@ __device__ inline void reducePotentialAndVirial( const int threadIndex, float *p
 
 __device__ inline void calculateInteraction(
 		const float cutOffRadiusSquared,
-		const ComponentInfo &componentInfo,
+		const ComponentLJCenterInfo &componentLJCenterInfo,
 		const float3 &positionA, const float3 &positionB,
 		float3 &forceA, float3 &forceB,
 		float &totalPotential, float &totalVirial
@@ -44,13 +45,13 @@ __device__ inline void calculateInteraction(
 	const float3 distance = positionB - positionA;
 	const float distanceSquared = dot( distance, distance );
 
-	if( distanceSquared > cutOffRadiusSquared ) {
+	if( distanceSquared >= cutOffRadiusSquared ) {
 		return;
 	}
 
 	float3 force;
 	float potential;
-	calculateLennardJones( distance, distanceSquared, componentInfo.epsilon, componentInfo.sigmaSquared, force, potential );
+	calculateLennardJones( distance, distanceSquared, componentLJCenterInfo.epsilon, componentLJCenterInfo.sigmaSquared, force, potential );
 
 	totalPotential += potential;
 	float virial = dot( force, distance );
@@ -60,26 +61,35 @@ __device__ inline void calculateInteraction(
 	forceB -= force;
 }
 
-template< bool sameBlock >
+enum BlockPairType {
+	BPT_UNRELATED,
+	BPT_B_NEXT_TO_A, // implies same cell
+	BPT_SAME_BLOCK   // implies same cell
+};
+
+// componentLJCenterOffsetFromFirst is only used when blockPairType != BPT_UNRELATED
+template< BlockPairType blockPairType >
 __device__ inline void processBlock(
 		const int threadIndex,
 		const int numCellsInBlockA,
 		const int numCellsInBlockB,
 		const float cutOffRadiusSquared,
-		const ComponentInfo *componentInfos, int numComponents,
+		const ComponentLJCenterInfo *componentLJCenterInfos,
+		const int *componentLJCenterOffsetFromFirst,
+		int numComponentLJCenters,
 		const float3 &positionA, const float3 *positionsB,
-		const unsigned char &componentIndexA, const unsigned char *componentIndicesB,
+		const unsigned char &componentLJCenterIndexA, const unsigned char *componentLJCenterIndicesB,
 		float3 &forceA, float3 *forcesB,
 		float &totalPotential, float &totalVirial
 		) {
 	__shared__ float3 cachedBForces[BLOCK_SIZE];
-	__shared__ unsigned char cachedBComponentIndices[BLOCK_SIZE];
+	__shared__ unsigned char cachedBComponentLJCenterIndices[BLOCK_SIZE];
 	__shared__ float3 cachedBPositions[BLOCK_SIZE];
 
 	// load B data into cache
 	if( threadIndex < numCellsInBlockB ) {
 		cachedBForces[threadIndex] = forcesB[threadIndex];
-		cachedBComponentIndices[threadIndex] = componentIndicesB[threadIndex];
+		cachedBComponentLJCenterIndices[threadIndex] = componentLJCenterIndicesB[threadIndex];
 		cachedBPositions[threadIndex] = positionsB[threadIndex];
 	}
 
@@ -107,14 +117,26 @@ __device__ inline void processBlock(
 					continue;
 				}
 
-				// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside a warp
+				// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside the warp
 				// otherwise only process the lower half
-				if( sameBlock && indexA >= indexB ) {
+				if( blockPairType == BPT_SAME_BLOCK && indexB >= indexA ) {
 					continue;
 				}
 
-				const ComponentInfo &componentInfo = componentInfos[ componentIndexA * numComponents + cachedBComponentIndices[ indexB ] ];
-				calculateInteraction( cutOffRadiusSquared, componentInfo,
+				// multiple lj center handling code
+				if( blockPairType == BPT_SAME_BLOCK ) {
+					if( indexA - componentLJCenterOffsetFromFirst[componentLJCenterIndexA] <= indexB ) {
+						continue;
+					}
+				}
+				else if( blockPairType == BPT_B_NEXT_TO_A ) {
+					if( BLOCK_SIZE + indexA - componentLJCenterOffsetFromFirst[componentLJCenterIndexA] <= indexB ) {
+						continue;
+					}
+				}
+
+				const ComponentLJCenterInfo &componentLJCenterInfo = componentLJCenterInfos[ componentLJCenterIndexA * numComponentLJCenters + cachedBComponentLJCenterIndices[ indexB ] ];
+				calculateInteraction( cutOffRadiusSquared, componentLJCenterInfo,
 						positionA, cachedBPositions[indexB],
 						forceA, cachedBForces[indexB],
 						totalPotential, totalVirial
@@ -133,16 +155,16 @@ __device__ inline void processBlock(
 
 __global__ void Kernel_calculatePairLJForces(
 		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
-		const ComponentInfo *componentInfos, int numComponents,
-		const int2 *cellInfos, float2 *domainValues,
+		const ComponentLJCenterInfo *componentLJCenterInfos, int numComponentLJCenters,
+		const int *cellInfos, float2 *domainValues,
 		int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset,
 		float cutOffRadiusSquared ) {
-	__shared__ ComponentInfo cachedComponentInfos[ MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS ];
+	__shared__ ComponentLJCenterInfo cachedComponentLJCenterInfos[ MAX_NUM_TOTAL_LJ_CENTERS * MAX_NUM_TOTAL_LJ_CENTERS ];
 
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 	{
-		for( int i = threadIndex ; i < numComponents * numComponents ; i += BLOCK_SIZE ) {
-			cachedComponentInfos[ i ] = componentInfos[ i ];
+		for( int i = threadIndex ; i < numComponentLJCenters * numComponentLJCenters ; i += BLOCK_SIZE ) {
+			cachedComponentLJCenterInfos[ i ] = componentLJCenterInfos[ i ];
 		}
 	}
 
@@ -157,10 +179,10 @@ __global__ void Kernel_calculatePairLJForces(
 		neighborIndex -= neighborOffset;
 	}
 
-	const int cellAStart = cellInfos[cellIndex].x;
-	const int cellALength = cellInfos[cellIndex].y;
-	const int cellBStart = cellInfos[neighborIndex].x;
-	const int cellBLength = cellInfos[neighborIndex].y;
+	const int cellAStart = cellInfos[cellIndex];
+	const int cellALength = cellInfos[cellIndex + 1] - cellAStart;
+	const int cellBStart = cellInfos[neighborIndex];
+	const int cellBLength = cellInfos[neighborIndex + 1] - cellBStart;
 
 	__shared__ float totalThreadPotential[BLOCK_SIZE];
 	__shared__ float totalThreadVirial[BLOCK_SIZE];
@@ -193,15 +215,14 @@ __global__ void Kernel_calculatePairLJForces(
 
 		for( int blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
 			const int numCellsInBlockB = (blockIndexB < numBlocksB - 1) ? BLOCK_SIZE : shiftedMod( cellBLength, BLOCK_SIZE );
-
 			const int blockOffsetB = cellBStart + blockIndexB * BLOCK_SIZE;
 
-			processBlock<false>(
+			processBlock<BPT_UNRELATED>(
 					indexA,
 					numCellsInBlockA,
 					numCellsInBlockB,
 					cutOffRadiusSquared,
-					cachedComponentInfos, numComponents,
+					cachedComponentLJCenterInfos, NULL, numComponentLJCenters,
 					cachedAPosition, positions + blockOffsetB,
 					cachedAComponentIndex, componentIndices + blockOffsetB,
 					cachedAForce, forces + blockOffsetB,
@@ -229,22 +250,22 @@ __global__ void Kernel_calculatePairLJForces(
 
 __global__ void Kernel_calculateInnerLJForces(
 		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
-		const ComponentInfo *componentInfos, int numComponents,
-		const int2 *cellInfos, float2 *domainValues,
+		const ComponentLJCenterInfo *componentLJCenterInfos, const int *componentLJCenterOffsetFromFirst, int numComponentLJCenters,
+		const int *cellInfos, float2 *domainValues,
 		float cutOffRadiusSquared ) {
-	__shared__ ComponentInfo cachedComponentInfos[ MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS ];
+	__shared__ ComponentLJCenterInfo cachedComponentLJCenterInfos[ MAX_NUM_TOTAL_LJ_CENTERS * MAX_NUM_TOTAL_LJ_CENTERS ];
 
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 	{
-		for( int i = threadIndex ; i < numComponents * numComponents ; i += BLOCK_SIZE ) {
-			cachedComponentInfos[ i ] = componentInfos[ i ];
+		for( int i = threadIndex ; i < numComponentLJCenters * numComponentLJCenters ; i += BLOCK_SIZE ) {
+			cachedComponentLJCenterInfos[ i ] = componentLJCenterInfos[ i ];
 		}
 	}
 
 	const int cellIndex = blockIdx.x;
 
-	const int cellStart = cellInfos[cellIndex].x;
-	const int cellLength = cellInfos[cellIndex].y;
+	const int cellStart = cellInfos[cellIndex];
+	const int cellLength = cellInfos[cellIndex + 1] - cellStart;
 
 	__shared__ float totalThreadPotential[BLOCK_SIZE];
 	__shared__ float totalThreadVirial[BLOCK_SIZE];
@@ -274,29 +295,47 @@ __global__ void Kernel_calculateInnerLJForces(
 			cachedAComponentIndex = componentIndices[index];
 		}
 
-		processBlock<true>(
+		processBlock<BPT_SAME_BLOCK>(
 				threadIndex,
 				numCellsInBlockA,
 				numCellsInBlockA,
 				cutOffRadiusSquared,
-				cachedComponentInfos, numComponents,
+				cachedComponentLJCenterInfos, componentLJCenterOffsetFromFirst, numComponentLJCenters,
 				cachedAPosition, positions + blockOffsetA,
 				cachedAComponentIndex, componentIndices + blockOffsetA,
 				cachedAForce, forces + blockOffsetA,
 				totalThreadPotential[indexA], totalThreadVirial[indexA]
 			);
 
-		for( int blockIndexB = 0 ; blockIndexB < blockIndexA ; blockIndexB++ ) {
-			const int numCellsInBlockB = (blockIndexB < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
-
+		for( int blockIndexB = 0 ; blockIndexB < blockIndexA - 1; blockIndexB++ ) {
+			// blockIndexB < blockIndexA - 1  < numBlocks - 1 implies numCellsInBlock = BLOCK_SIZE
+			const int numCellsInBlockB = BLOCK_SIZE;
 			const int blockOffsetB = cellStart + blockIndexB * BLOCK_SIZE;
 
-			processBlock<false>(
+			processBlock<BPT_UNRELATED>(
 					threadIndex,
 					numCellsInBlockA,
 					numCellsInBlockB,
 					cutOffRadiusSquared,
-					cachedComponentInfos, numComponents,
+					cachedComponentLJCenterInfos, NULL, numComponentLJCenters,
+					cachedAPosition, positions + blockOffsetB,
+					cachedAComponentIndex, componentIndices + blockOffsetB,
+					cachedAForce, forces + blockOffsetB,
+					totalThreadPotential[indexA], totalThreadVirial[indexA]
+				);
+		}
+		// treat the last B block differently (BPT_B_NEXT_TO_A)
+		if( blockIndexA > 0) {
+			const int blockIndexB = blockIndexA - 1;
+			const int numCellsInBlockB = shiftedMod( cellLength, BLOCK_SIZE );
+			const int blockOffsetB = cellStart + blockIndexB * BLOCK_SIZE;
+
+			processBlock<BPT_B_NEXT_TO_A>(
+					threadIndex,
+					numCellsInBlockA,
+					numCellsInBlockB,
+					cutOffRadiusSquared,
+					cachedComponentLJCenterInfos, componentLJCenterOffsetFromFirst, numComponentLJCenters,
 					cachedAPosition, positions + blockOffsetB,
 					cachedAComponentIndex, componentIndices + blockOffsetB,
 					cachedAForce, forces + blockOffsetB,
@@ -315,7 +354,7 @@ __global__ void Kernel_calculateInnerLJForces(
 	reducePotentialAndVirial( threadIndex, totalThreadPotential, totalThreadVirial );
 
 	if( threadIdx.x == 0 && threadIdx.y == 0 ) {
-		domainValues[cellIndex].x = totalThreadPotential[0] * 2;
-		domainValues[cellIndex].y = totalThreadVirial[0] * 2;
+		domainValues[cellIndex].x += totalThreadPotential[0] * 2;
+		domainValues[cellIndex].y += totalThreadVirial[0] * 2;
 	}
 }

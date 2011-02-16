@@ -6,32 +6,26 @@
 
 // threadIdx.xy = intraWarpIndex | warpIndex
 
-struct InteractionParameters {
-	float cutOffRadiusSquared;
-	float epsilon;
-	float sigmaSquared;
-};
-
 __device__ inline void calculateInteraction(
-		const float cutOffRadiusSquared,
-		const ComponentInfo &componentInfo,
-		const float3 &positionA, const float3 &positionB,
-		float3 &forceA, float3 &forceB,
-		float &totalPotential, float &totalVirial
+		const CUDAPrecisionType cutOffRadiusSquared,
+		const ComponentLJCenterInfo &componentLJCenterInfo,
+		const CUDAPrecisionType3 &positionA, const CUDAPrecisionType3 &positionB,
+		CUDAPrecisionType3 &forceA, CUDAPrecisionType3 &forceB,
+		CUDAPrecisionType &totalPotential, CUDAPrecisionType &totalVirial
 	) {
-	const float3 distance = positionB - positionA;
-	const float distanceSquared = dot( distance, distance );
+	const CUDAPrecisionType3 distance = positionB - positionA;
+	const CUDAPrecisionType distanceSquared = dot( distance, distance );
 
 	if( distanceSquared >= cutOffRadiusSquared ) {
 		return;
 	}
 
-	float3 force;
-	float potential;
-	calculateLennardJones( distance, distanceSquared, componentInfo.epsilon, componentInfo.sigmaSquared, force, potential );
+	CUDAPrecisionType3 force;
+	CUDAPrecisionType potential;
+	calculateLennardJones( distance, distanceSquared, componentLJCenterInfo.epsilon, componentLJCenterInfo.sigmaSquared, force, potential );
 
 	totalPotential += potential;
-	float virial = dot( force, distance );
+	CUDAPrecisionType virial = dot( force, distance );
 	totalVirial += virial;
 
 	forceA += force;
@@ -39,46 +33,48 @@ __device__ inline void calculateInteraction(
 }
 
 __global__ void Kernel_calculatePairLJForces(
-		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
-		const ComponentInfo *componentInfos, int numComponents,
-		const int2 *cellInfos, float2 *domainValues,
+		const CUDAPrecisionType3 *positions, const unsigned char *componentLJCenterIndices, CUDAPrecisionType3 *forces,
+		const ComponentLJCenterInfo *componentLJCenterInfos, int numComponentLJCenters,
+		const int *cellInfos, float2 *domainValues,
 		int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset,
-		float cutOffRadiusSquared ) {
+		CUDAPrecisionType cutOffRadiusSquared ) {
 
 	int cellIndex = getCellIndex( startIndex, dimension, gridOffsets );
 	int neighborIndex = cellIndex + neighborOffset;
+	int cellLength = cellInfos[ cellIndex + 1 ] - cellInfos[ cellIndex ];
+	int neighborLength = cellInfos[ neighborIndex + 1 ] - cellInfos[ neighborIndex ];
 
 	// ensure that cellA_length <= cellB_length (which will use fewer data transfers)
 	// (numTransfersA + numTransfersA * numTransfersB) * BLOCK_SIZE
-	if( cellInfos[cellIndex].y > cellInfos[neighborIndex].y ) {
+	if( cellLength > neighborLength ) {
 		// swap cellIndex and neighborIndex
 		cellIndex = neighborIndex;
 		neighborIndex -= neighborOffset;
 	}
 
-	const int cellAStart = cellInfos[cellIndex].x;
-	const int cellALength = cellInfos[cellIndex].y;
-	const int cellBStart = cellInfos[neighborIndex].x;
-	const int cellBLength = cellInfos[neighborIndex].y;
+	const int cellAStart = cellInfos[cellIndex];
+	const int cellALength = cellInfos[cellIndex + 1] - cellAStart;
+	const int cellBStart = cellInfos[neighborIndex];
+	const int cellBLength = cellInfos[neighborIndex + 1] - cellBStart;
 
-	float totalPotential = 0.0f;
-	float totalVirial = 0.0f;
+	CUDAPrecisionType totalPotential = 0.0f;
+	CUDAPrecisionType totalVirial = 0.0f;
 
-	const float3 *positionsA = positions + cellAStart;
-	const float3 *positionsB = positions + cellBStart;
+	const CUDAPrecisionType3 *positionsA = positions + cellAStart;
+	const CUDAPrecisionType3 *positionsB = positions + cellBStart;
 
-	float3 *forcesA = forces + cellAStart;
-	float3 *forcesB = forces + cellBStart;
+	CUDAPrecisionType3 *forcesA = forces + cellAStart;
+	CUDAPrecisionType3 *forcesB = forces + cellBStart;
 
-	const unsigned char *componentIndicesA = componentIndices + cellAStart;
-	const unsigned char *componentIndicesB = componentIndices + cellBStart;
+	const unsigned char *componentLJCenterIndicesA = componentLJCenterIndices + cellAStart;
+	const unsigned char *componentLJCenterIndicesB = componentLJCenterIndices + cellBStart;
 
 	for( int indexA = 0 ; indexA < cellALength ; indexA++ ) {
 		for( int indexB = 0 ; indexB < cellBLength ; indexB++ ) {
-			const ComponentInfo &componentInfo = componentInfos[ componentIndicesA[ indexA ] * numComponents + componentIndicesB[ indexB ] ];
+			const ComponentLJCenterInfo &componentLJCenterInfo = componentLJCenterInfos[ componentLJCenterIndicesA[ indexA ] * numComponentLJCenters + componentLJCenterIndicesB[ indexB ] ];
 
 			calculateInteraction(
-					cutOffRadiusSquared, componentInfo,
+					cutOffRadiusSquared, componentLJCenterInfo,
 					positionsA[indexA], positionsB[indexB],
 					forcesA[indexA], forcesB[indexB],
 					totalPotential, totalVirial
@@ -93,35 +89,39 @@ __global__ void Kernel_calculatePairLJForces(
 }
 
 __global__ void Kernel_calculateInnerLJForces(
-		const float3 *positions, const unsigned char *componentIndices, float3 *forces,
-		const ComponentInfo *componentInfos, int numComponents,
-		const int2 *cellInfos, float2 *domainValues,
-		float cutOffRadiusSquared ) {
+		const CUDAPrecisionType3 *positions, const unsigned char *componentLJCenterIndices, CUDAPrecisionType3 *forces,
+		const ComponentLJCenterInfo *componentLJCenterInfos, const int *componentLJCenterOffsetFromFirst, int numComponentLJCenters,
+		const int *cellInfos, float2 *domainValues,
+		CUDAPrecisionType cutOffRadiusSquared ) {
 	const int cellIndex = blockIdx.x;
 
-	const int cellStart = cellInfos[cellIndex].x;
-	const int cellLength = cellInfos[cellIndex].y;
+	const int cellStart = cellInfos[cellIndex];
+	const int cellLength = cellInfos[cellIndex + 1] - cellStart;
 
-	float totalPotential = 0.0f;
-	float totalVirial = 0.0f;
+	CUDAPrecisionType totalPotential = 0.0f;
+	CUDAPrecisionType totalVirial = 0.0f;
 
-	const float3 *positionsA = positions + cellStart;
-	float3 *forcesA = forces + cellStart;
-	const unsigned char *componentIndicesA = componentIndices + cellStart;
+	const CUDAPrecisionType3 *cellPositions = positions + cellStart;
+	CUDAPrecisionType3 *cellForces = forces + cellStart;
+	const unsigned char *componentLJCellCenterIndices = componentLJCenterIndices + cellStart;
 
 	for( int indexA = 0 ; indexA < cellLength ; indexA++ ) {
-		for( int indexB = 0 ; indexB < indexA ; indexB++ ) {
-			const ComponentInfo &componentInfo = componentInfos[ componentIndicesA[ indexA ] * numComponents + componentIndicesA[ indexB ] ];
+		// => indexB < indexA always
+		// same molecule iff indexA - componentLJCenterOffsetFromFirst[...] <= indexB
+		// (and we dont want to calculate LJ for centers from the same molecule!)
+		const int maxIndexB = indexA - componentLJCenterOffsetFromFirst[ componentLJCellCenterIndices[ indexA ] ];
+		for( int indexB = 0 ; indexB < maxIndexB ; indexB++ ) {
+			const ComponentLJCenterInfo &componentLJCenterInfo = componentLJCenterInfos[ componentLJCellCenterIndices[ indexA ] * numComponentLJCenters + componentLJCellCenterIndices[ indexB ] ];
 
 			calculateInteraction(
-					cutOffRadiusSquared, componentInfo,
-					positionsA[indexA], positionsA[indexB],
-					forcesA[indexA], forcesA[indexB],
+					cutOffRadiusSquared, componentLJCenterInfo,
+					cellPositions[indexA], cellPositions[indexB],
+					cellForces[indexA], cellForces[indexB],
 					totalPotential, totalVirial
 				);
 		}
 	}
 
-	domainValues[cellIndex].x = totalPotential * 2;
-	domainValues[cellIndex].y = totalVirial * 2;
+	domainValues[cellIndex].x += totalPotential * 2;
+	domainValues[cellIndex].y += totalVirial * 2;
 }

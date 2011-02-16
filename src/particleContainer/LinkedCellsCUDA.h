@@ -14,6 +14,9 @@
 #include <cuda_runtime.h>
 #include <assert.h>
 
+typedef double CUDAPrecisionType;
+typedef double3 CUDAPrecisionType3;
+
 struct CUDAException : public std::exception {
 	const cudaError_t errorCode;
 	const std::string errorSource;
@@ -112,27 +115,33 @@ public:
 	}
 };
 
-struct ComponentInfo {
-	float epsilon, sigmaSquared;
+struct ComponentLJCenterInfo {
+	CUDAPrecisionType epsilon, sigmaSquared;
 };
 
 class LinkedCellsCUDA_Internal {
 private:
 	LinkedCells &_linkedCells;
 
-	CUDABuffer<float3> _positions, _forces;
-	CUDABuffer<unsigned char> _componentIndices;
+	CUDABuffer<CUDAPrecisionType3> _positions, _forces;
+	CUDABuffer<unsigned char> _componentLJCenterIndices;
 
-	// 2-dim array [componentIdA][componentIdB]
-	CUDABuffer<ComponentInfo> _componentInfos;
-	int _numComponents;
+	// 2-dim array [centerA][centerB]
+	CUDABuffer<ComponentLJCenterInfo> _componentLJCenterInfos;
+	// offset from the first lj center of the respective component
+	CUDABuffer<int> _componentLJCenterOffsetFromFirst;
+	// total number of lj centers in the _componentLJCenterInfos array
+	int _numComponentLJCenters;
+	// start index of a component in the lj center info array
+	// (in either dimension of the _componentLJCenterInfos array)
+	int *_componentStartIndices;
 
 	// stores UPotential and Virial (per cell)
 	CUDABuffer<float2> _domainValues;
-	// start length for each cell inside the _positions and _forces arrays
-	CUDABuffer<int2> _cellInfos;
+	// start index for each cell in the big linear arrays (contains one element more than there are cells which points to the end of the array)
+	CUDABuffer<int> _cellStartIndices;
 
-	int _numParticles, _maxParticles;
+	int _numLJCenters, _maxLJCenters;
 	int _numCells, _maxCells;
 
 	float _cutOffRadius;
@@ -144,7 +153,7 @@ public:
 	: _domain( domain ),
 	  _linkedCells( linkedCells ),
 	  _cutOffRadius( cutOffRadius ),
-	  _numParticles( 0 ), _maxParticles( 0 ),
+	  _numLJCenters( 0 ), _maxLJCenters( 0 ),
 	  _numCells( 0 ), _maxCells( 0 )
 		{
 		initComponentInfos();
@@ -155,7 +164,7 @@ public:
 	}
 
 	struct DomainValues {
-		float potential, virial;
+		CUDAPrecisionType potential, virial;
 	};
 
 	void calculateForces( DomainValues &domainValues );
@@ -175,7 +184,7 @@ protected:
 	void calculateAllLJFoces();
 	void determineForceError();
 
-	void reducePotentialAndVirial( float &potential, float &virial );
+	void reducePotentialAndVirial( CUDAPrecisionType &potential, CUDAPrecisionType &virial );
 
 private:
 	int getDirectionOffset( const int3 &direction ) {

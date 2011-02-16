@@ -3,6 +3,27 @@
 #include "LinkedCellsCUDA.h"
 #include "molecules/Molecule.h"
 #include "cutil_math.h"
+#include "math.h"
+
+double3 operator +=( double3 &a, const double3 &b ) {
+	a.x += b.x;
+	a.y += b.y;
+	a.z += b.z;
+}
+
+double3 operator -=( double3 &a, const double3 &b ) {
+	a.x -= b.x;
+	a.y -= b.y;
+	a.z -= b.z;
+}
+
+double3 operator -( const double3 &a, const double3 &b ) {
+	return make_double3( a.x - b.x, a.y - b.y, a.z - b.z );
+}
+
+double3 operator *( const double &s, const double3 &b ) {
+	return make_double3( s * b.x, s * b.y, s * b.z );
+}
 
 #define OUT
 
@@ -63,15 +84,15 @@ public:
 };
 #endif
 
-__device__ void calculateLennardJones( const float3 distance, const float distanceSquared, float epsilon, float sigmaSquared,
-		OUT float3 &force, OUT float &potential) {
-	float invdr2 = 1.f / distanceSquared;
-	float lj6 = sigmaSquared * invdr2; lj6 = lj6 * lj6 * lj6;
-	float lj12 = lj6 * lj6;
-	float lj12m6 = lj12 - lj6;
+__device__ void calculateLennardJones( const CUDAPrecisionType3 distance, const CUDAPrecisionType distanceSquared, CUDAPrecisionType epsilon, CUDAPrecisionType sigmaSquared,
+		OUT CUDAPrecisionType3 &force, OUT CUDAPrecisionType &potential) {
+	CUDAPrecisionType invdr2 = 1.f / distanceSquared;
+	CUDAPrecisionType lj6 = sigmaSquared * invdr2; lj6 = lj6 * lj6 * lj6;
+	CUDAPrecisionType lj12 = lj6 * lj6;
+	CUDAPrecisionType lj12m6 = lj12 - lj6;
 	potential = 4.0f * epsilon * lj12m6;
 	// result: force = fac * distance = fac * |distance| * normalized(distance)
-	float fac = -24.0f * epsilon * (lj12 + lj12m6) * invdr2;
+	CUDAPrecisionType fac = -24.0f * epsilon * (lj12 + lj12m6) * invdr2;
 	force = fac * distance;
 }
 
@@ -88,21 +109,25 @@ __device__ int getCellIndex( int startIndex, int2 dimension, int3 gridOffsets ) 
 }
 
 #define MEASURE_ERROR
+#define USE_REF
 
 //#define TEST_CELL_COVERAGE
 #ifdef TEST_CELL_COVERAGE
-#include "LinkedCellsCUDAcellCoverage.cum"
+#	include "LinkedCellsCUDAcellCoverage.cum"
 #else
-#include "LinkedCellsCUDAfast.cum"
-//#include "LinkedCellsCUDAref.cum"
+#	ifndef USE_REF
+#		include "LinkedCellsCUDAfast.cum"
+#	else
+#		include "LinkedCellsCUDAref.cum"
+#endif
 #endif
 
 void LinkedCellsCUDA::traversePairs() {
 #ifdef MEASURE_ERROR
 	_linkedCells.traversePairs();
 
-	float cpuPotential = _domain.getLocalUpot();
-	float cpuVirial = _domain.getLocalVirial();
+	CUDAPrecisionType cpuPotential = _domain.getLocalUpot();
+	CUDAPrecisionType cpuVirial = _domain.getLocalVirial();
 	printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
 #endif
 	LinkedCellsCUDA_Internal::DomainValues domainValues;
@@ -115,6 +140,7 @@ void LinkedCellsCUDA::traversePairs() {
 void LinkedCellsCUDA_Internal::calculateForces( LinkedCellsCUDA_Internal::DomainValues &domainValues ) {
 	manageAllocations();
 
+	initComponentInfos();
 	initCellInfosAndCopyPositions();
 	prepareDeviceMemory();
 
@@ -124,31 +150,32 @@ void LinkedCellsCUDA_Internal::calculateForces( LinkedCellsCUDA_Internal::Domain
 	reducePotentialAndVirial( domainValues.potential, domainValues.virial );
 
 	printf( "Potential: %f Virial: %f\n", domainValues.potential, domainValues.virial );
-	printf( "Average Potential: %f Average Virial: %f\n", domainValues.potential / _numParticles, domainValues.virial / _numParticles );
+	printf( "Average Potential: %f Average Virial: %f\n", domainValues.potential / _numLJCenters, domainValues.virial / _numLJCenters );
 
 #ifdef MEASURE_ERROR
 	determineForceError();
 #endif
 
-	updateMoleculeForces();
+	//updateMoleculeForces();
 }
 
 void LinkedCellsCUDA_Internal::manageAllocations()
 {
-	_numParticles = _linkedCells.getParticles().size();
+	// HACK HACK HACK
+	_numLJCenters = 2 * _linkedCells.getParticles().size();
 	_numCells = _linkedCells.getCells().size();
 
 	// TODO: use memalign like the old code?
-	if( _numParticles > _maxParticles ) {
-		_positions.resize( _numParticles );
-		_forces.resize( _numParticles );
-		_componentIndices.resize( _numParticles );
+	if( _numLJCenters > _maxLJCenters ) {
+		_positions.resize( _numLJCenters );
+		_forces.resize( _numLJCenters );
+		_componentLJCenterIndices.resize( _numLJCenters );
 
-		_maxParticles = _numParticles;
+		_maxLJCenters = _numLJCenters;
 	}
 
 	if( _numCells > _maxCells ) {
-		_cellInfos.resize( _numCells );
+		_cellStartIndices.resize( _numCells + 1 );
 		_domainValues.resize( _numCells );
 
 		_maxCells = _numCells;
@@ -159,35 +186,67 @@ void LinkedCellsCUDA_Internal::freeAllocations()
 {
 	_positions.resize( 0 );
 	_forces.resize( 0 );
-	_componentIndices.resize( 0 );
+	_componentLJCenterIndices.resize( 0 );
 
-	_cellInfos.resize( 0 );
+	_cellStartIndices.resize( 0 );
 	_domainValues.resize( 0 );
 
-	_componentInfos.resize( 0 );
+	_componentLJCenterInfos.resize( 0 );
+	_componentLJCenterOffsetFromFirst.resize( 0 );
+	delete[] _componentStartIndices;
 }
 
 void LinkedCellsCUDA_Internal::initComponentInfos() {
 	const std::vector< Component > &components = _domain.getComponents();
-	_numComponents = components.size();
-	_componentInfos.resize( _numComponents * _numComponents );
+	_componentStartIndices = new int[ components.size() ];
 
-	for( int indexA = 0 ; indexA < _numComponents ; indexA++ ) {
-		for( int indexB = 0 ; indexB < _numComponents ; indexB++ ) {
-			int targetIndex = indexA * _numComponents + indexB;
+	// TODO: clean up this code..
+	// initialize _numComponentLJCenters and _componentStartIndices
+	_numComponentLJCenters = 0;
+	for( int i = 0 ; i < components.size() ; i++ ) {
+		_componentStartIndices[ i ] = _numComponentLJCenters;
+		_numComponentLJCenters += components[i].numLJcenters();
+	}
 
-			assert( components[indexA].numSites() == 1 );
-			assert( components[indexB].numSites() == 1 );
-
-			LJcenter ljCenterA = components[indexA].ljcenter(0);
-			LJcenter ljCenterB = components[indexB].ljcenter(0);
-			_componentInfos[ targetIndex ].epsilon = sqrt( ljCenterA.eps() * ljCenterB.eps() );
-			float sigma = 0.5f * ( ljCenterA.sigma() + ljCenterB.sigma() );
-			_componentInfos[ targetIndex ].sigmaSquared = sigma * sigma;
+	// initialize _componentLJCenterOffsetFromFirst
+	_componentLJCenterOffsetFromFirst.resize( _numComponentLJCenters);
+	for( int i = 0 ; i < components.size() ; i++ ) {
+		for( int j = 0 ; j < components[i].numLJcenters() ; j++ ) {
+			_componentLJCenterOffsetFromFirst[ _componentStartIndices[i] + j ] = j;
 		}
 	}
 
-	_componentInfos.copyToDevice();
+	// initialize _componentLJCenterInfos
+	_componentLJCenterInfos.resize( _numComponentLJCenters * _numComponentLJCenters );
+
+	for( int indexCompA = 0 ; indexCompA < components.size() ; indexCompA++ ) {
+		const Component &compA = components[ indexCompA ];
+		assert( compA.numLJcenters() <= 2 );
+
+		for( int indexCompB = 0 ; indexCompB < components.size() ; indexCompB++ ) {
+			const Component &compB = components[ indexCompB ];
+			assert( compB.numLJcenters() <= 2 );
+
+			for( int indexLJCenterA = 0 ; indexLJCenterA < compA.numLJcenters() ; indexLJCenterA++ ) {
+				const LJcenter &ljCenterA = compA.ljcenter(indexLJCenterA);
+
+				for( int indexLJCenterB = 0 ; indexLJCenterB < compB.numLJcenters() ; indexLJCenterB++ ) {
+					const LJcenter &ljCenterB = compB.ljcenter(indexLJCenterB);
+
+					const int targetIndex = (_componentStartIndices[indexCompA] + indexLJCenterA) * _numComponentLJCenters +
+							_componentStartIndices[indexCompB] + indexLJCenterB;
+					ComponentLJCenterInfo &ljCenterInfo = _componentLJCenterInfos[ targetIndex ];
+
+					ljCenterInfo.epsilon = sqrt( ljCenterA.eps() * ljCenterB.eps() );
+					CUDAPrecisionType sigma = 0.5f * ( ljCenterA.sigma() + ljCenterB.sigma() );
+					ljCenterInfo.sigmaSquared = sigma * sigma;
+				}
+			}
+		}
+	}
+
+	_componentLJCenterOffsetFromFirst.copyToDevice();
+	_componentLJCenterInfos.copyToDevice();
 }
 
 void LinkedCellsCUDA_Internal::initCellInfosAndCopyPositions()
@@ -196,46 +255,55 @@ void LinkedCellsCUDA_Internal::initCellInfosAndCopyPositions()
 	for( int i = 0 ; i < _numCells ; i++ ) {
 		const Cell &cell = _linkedCells.getCells()[i];
 
-		_cellInfos[i].x = currentIndex;
-		_cellInfos[i].y = cell.getMoleculeCount();
+		_cellStartIndices[i] = currentIndex;
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
 
 			const unsigned int numLJCenters = molecule.numLJcenters();
-			if( numLJCenters > 1 ) {
-				printf( "%i has more than 1 lj center!\n", currentIndex );
+			if( numLJCenters > 2 ) {
+				printf( "%i has more than 2 lj centers!\n", currentIndex );
 			}
 
-			_positions[currentIndex].x = molecule.r(0);
-			_positions[currentIndex].y = molecule.r(1);
-			_positions[currentIndex].z = molecule.r(2);
+			const Quaternion &q = molecule.q();
 
-			_componentIndices[currentIndex] = molecule.componentid();
+			for( int ljCenterIndex = 0 ; ljCenterIndex < numLJCenters ; ljCenterIndex++ ) {
+				const double *ljCenterInitialPosition = _domain.getComponents()[ molecule.componentid() ].ljcenter( ljCenterIndex ).r();
+				double ljCenterRelativePosition[3];
+				q.rotateinv( ljCenterInitialPosition, ljCenterRelativePosition );
 
-			currentIndex++;
+				_positions[currentIndex].x = molecule.r(0) + ljCenterRelativePosition[0];
+				_positions[currentIndex].y = molecule.r(1) + ljCenterRelativePosition[1];
+				_positions[currentIndex].z = molecule.r(2) + ljCenterRelativePosition[2];
+
+				_componentLJCenterIndices[currentIndex] = _componentStartIndices[ molecule.componentid() ] + ljCenterIndex;
+				currentIndex++;
+			}
 		}
 	}
+
+	_cellStartIndices[_numCells] = currentIndex;
 }
 
 void LinkedCellsCUDA_Internal::prepareDeviceMemory()
 {
 	// TODO: use page-locked/mapped memory
 	int3 *dimensions = (int3*) _linkedCells.getCellDimensions();
-	printf( "Num Particles: %i Num Cells: %i (%i x %i x %i)\n", _numParticles, _numCells, dimensions->x, dimensions->y, dimensions->z );
+	printf( "Num LJ Centers: %i Num Cells: %i (%i x %i x %i)\n", _numLJCenters, _numCells, dimensions->x, dimensions->y, dimensions->z );
 
 	CUDATimer copyTimer;
 
 	copyTimer.begin();
 
+	// copy the input data to the device
 	_positions.copyToDevice();
-	_componentIndices.copyToDevice();
-	_cellInfos.copyToDevice();
+	_componentLJCenterIndices.copyToDevice();
+	_cellStartIndices.copyToDevice();
 
-	// init device forces to 0
+	// reset the output buffers
 	_forces.zeroDevice();
-	// not needed: _domainValues.zeroDevice();
+	_domainValues.zeroDevice();
 
 	copyTimer.end();
 	copyTimer.printElapsedTime( "host to device copying: %f ms\n" );
@@ -254,10 +322,17 @@ void LinkedCellsCUDA_Internal::updateMoleculeForces() {
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
-			molecule.Fljcenterset( 0, (float*) &_forces[currentIndex] );
-			currentIndex++;
+
+			for( int i = 0 ; i < molecule.numLJcenters() ; i++ ) {
+				molecule.Fljcenterset( i, (CUDAPrecisionType*) &_forces[currentIndex++] );
+			}
 		}
 	}
+}
+
+static double lengthd( const CUDAPrecisionType3 &v ) {
+	double lengthSquared = (double)v.x*v.x + v.y*v.y + v.z*v.z;
+	return sqrt(lengthSquared);
 }
 
 void LinkedCellsCUDA_Internal::determineForceError() {
@@ -265,32 +340,43 @@ void LinkedCellsCUDA_Internal::determineForceError() {
 	double totalRelativeError = 0.0;
 	float epsilon = 5.96e-06f;
 
-	float avgCPUMagnitude = 0.0, avgCUDAMagnitude = 0.0;
+	double avgCPUMagnitude = 0.0, avgCUDAMagnitude = 0.0;
 	int currentIndex = 0;
 	for( int i = 0 ; i < _numCells ; i++ ) {
 		const Cell &cell = _linkedCells.getCells()[i];
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
-		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++, currentIndex++ ) {
-			if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
-				continue;
-			}
+		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
+		    Molecule &molecule = **iterator;
+			for( int ljCenter = 0 ; ljCenter < molecule.numLJcenters() ; ljCenter++ ) {
+				CUDAPrecisionType3 &cudaForce = _forces[currentIndex++];
 
-			Molecule &molecule = **iterator;
-			float3 &cudaForce = _forces[currentIndex];
-			const double *cpuForceD = molecule.ljcenter_F(0);
-			float3 cpuForce = make_float3( cpuForceD[0], cpuForceD[1], cpuForceD[2] );
-			float3 deltaForce = cudaForce - cpuForce;
+				if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
+					continue;
+				}
 
-			avgCPUMagnitude += length( cpuForce );
-			avgCUDAMagnitude += length( cudaForce );
+				const double *cpuForceD = molecule.ljcenter_F(ljCenter);
+				CUDAPrecisionType3 cpuForce = make_float3( cpuForceD[0], cpuForceD[1], cpuForceD[2] );
+				CUDAPrecisionType3 deltaForce = cudaForce - cpuForce;
 
-			float error = length( deltaForce );
-			totalError += error;
+				CUDAPrecisionType cpuForceLength = lengthd( cpuForce );
+				CUDAPrecisionType cudaForceLength = lengthd( cudaForce );
+				CUDAPrecisionType deltaForceLength = lengthd( deltaForce );
 
-			if( error > epsilon ) {
-				float relativeError = error / length( cpuForce );
-				totalRelativeError += relativeError;
+				if( isfinite(cpuForceLength) && isfinite( cudaForceLength ) && isfinite( deltaForceLength ) ) {
+					avgCPUMagnitude += cpuForceLength;
+					avgCUDAMagnitude += cudaForceLength;
+
+					totalError += deltaForceLength;
+
+					if( cpuForceLength > epsilon ) {
+						double relativeError = deltaForceLength / cpuForceLength;
+						totalRelativeError += relativeError;
+					}
+				}
+				else {
+					;
+				}
 			}
 		}
 	}
@@ -301,7 +387,7 @@ void LinkedCellsCUDA_Internal::determineForceError() {
 	printf( "Average CPU Mag:  %f\n"
 			"Average CUDA Mag: %f\n"
 			"Average Error: %f\n"
-			"Average Relative Error: %f\n", avgCPUMagnitude, avgCUDAMagnitude, totalError / _numParticles, totalRelativeError / _numParticles );
+			"Average Relative Error: %f\n", avgCPUMagnitude, avgCUDAMagnitude, totalError / _numLJCenters, totalRelativeError / _numLJCenters );
 }
 
 void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
@@ -312,19 +398,7 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 	const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );
 
-	singleCellsTimer.begin();
-
-	// inner forces first
-	Kernel_calculateInnerLJForces<<<_numCells, blockSize>>>(
-			_positions.devicePtr(), _componentIndices.devicePtr(), _forces.devicePtr(),
-			_componentInfos.devicePtr(), _numComponents,
-			_cellInfos.devicePtr(), _domainValues.devicePtr(),
-			cutOffRadiusSquared
-		);
-
-	singleCellsTimer.end();
-
-	// pair forces
+	// intra cell forces
 	const int *dimensions = _linkedCells.getCellDimensions();
 	assert( dimensions[0] >= 2 && dimensions[1] >= 2 && dimensions[2] >=2 );
 
@@ -414,9 +488,9 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 		// do all even slices
 		Kernel_calculatePairLJForces<<<numEvenSlices * numCellsInSlice, blockSize>>>(
-				_positions.devicePtr(), _componentIndices.devicePtr(), _forces.devicePtr(),
-				_componentInfos.devicePtr(), _numComponents,
-				_cellInfos.devicePtr(), _domainValues.devicePtr(),
+				_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),
+				_componentLJCenterInfos.devicePtr(), _numComponentLJCenters,
+				_cellStartIndices.devicePtr(), _domainValues.devicePtr(),
 				evenSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
 				neighborOffset,
 				cutOffRadiusSquared
@@ -424,9 +498,9 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 		// do all odd slices
 		Kernel_calculatePairLJForces<<<numOddSlices * numCellsInSlice, blockSize>>>(
-				_positions.devicePtr(), _componentIndices.devicePtr(), _forces.devicePtr(),
-				_componentInfos.devicePtr(), _numComponents,
-				_cellInfos.devicePtr(), _domainValues.devicePtr(),
+				_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),
+				_componentLJCenterInfos.devicePtr(), _numComponentLJCenters,
+				_cellStartIndices.devicePtr(), _domainValues.devicePtr(),
 				oddSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
 				neighborOffset,
 				cutOffRadiusSquared
@@ -435,11 +509,23 @@ void LinkedCellsCUDA_Internal::calculateAllLJFoces() {
 
 	cellPairsTimer.end();
 
+	// inner cell forces
+	singleCellsTimer.begin();
+
+	Kernel_calculateInnerLJForces<<<_numCells, blockSize>>>(
+			_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),
+			_componentLJCenterInfos.devicePtr(), _componentLJCenterOffsetFromFirst.devicePtr(), _numComponentLJCenters,
+			_cellStartIndices.devicePtr(), _domainValues.devicePtr(),
+			cutOffRadiusSquared
+		);
+
+	singleCellsTimer.end();
+
 	singleCellsTimer.printElapsedTime( "intra cell LJ forces: %f ms " );
 	cellPairsTimer.printElapsedTime( "inter cell LJ forces: %f ms\n" );
 }
 
-void LinkedCellsCUDA_Internal::reducePotentialAndVirial( OUT float &potential, OUT float &virial ) {
+void LinkedCellsCUDA_Internal::reducePotentialAndVirial( OUT CUDAPrecisionType &potential, OUT CUDAPrecisionType &virial ) {
 	const std::vector<unsigned long> &innerCellIndices = _linkedCells.getInnerCellIndices();
 	const std::vector<unsigned long> &boundaryCellIndices = _linkedCells.getBoundaryCellIndices();
 

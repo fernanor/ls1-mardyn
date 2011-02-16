@@ -346,7 +346,7 @@ unsigned long InputOldstyle::readPhaseSpace(ParticleContainer* particleContainer
 			}
 
 			// Print status message
-			unsigned long iph = domain->getglobalNumMolecules() / 100;
+			unsigned long iph = 1 + domain->getglobalNumMolecules() / 100;
 			if( (i % iph) == 0 )
 				global_log->info() << "Finished reading molecules: " << i/iph << "%\r" << flush;
 		}

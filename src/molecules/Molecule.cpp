@@ -167,8 +167,10 @@ void Molecule::upd_cache() {
 	// update Cache (rotate sites and save relative positions)
 	unsigned int i;
 	unsigned int ns = numLJcenters();
-	for (i = 0; i < ns; ++i)
+	for (i = 0; i < ns; ++i) {
 		_q.rotateinv((*_ljcenters)[i].r(), &(_ljcenters_d[i*3]));
+		//printf( "%f %f %f\n", (*_ljcenters)[i].r()[0], (*_ljcenters)[i].r()[1], (*_ljcenters)[i].r()[2] );
+	}
 	ns = numCharges();
 	for (i = 0; i < ns; ++i)
 		_q.rotateinv((*_charges)[i].r(), &(_charges_d[i*3]));
