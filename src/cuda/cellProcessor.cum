@@ -1,0 +1,84 @@
+#include <host_defines.h>
+
+struct Cell {
+	int startIndex;
+	int endIndex;
+	int length;
+};
+
+// general handler
+template<class Molecule>
+struct MoleculePairHandler {
+	void process( Molecule &moleculeA, Molecule &moleculeB);
+};
+
+template<class Molecule>
+struct MoleculeDataAccessor {
+	void get(int index, Molecule &molecule);
+};
+
+template<class Molecule>
+struct MoleculeCache : MoleculeDataAccessor<Molecule> {
+	void setBase(int baseIndex);
+	void loadMolecule(int index);
+};
+
+struct MoleculeCacheManager {
+	typedef MoleculeCacheInterface MoleculeCache;
+
+	void initMoleculeCache(MoleculeCache &moleculeCache);
+};
+
+struct CellInfoRetriever {
+	static int getCellStartIndex(int index);
+	static int getCellLength(int index);
+};
+
+class CellProcessor {
+	void processCellPair(int cellA, int cellB);
+	void processCell(int cell);
+};
+
+// actual implementations
+
+// exactly one thread pro block
+template<class Molecule, class MoleculeDataAccessor, class MoleculePairHandler>
+class ReferenceCellProcessor {
+	MoleculeDataAccessor &moleculeDataAccessor;
+	MoleculePairHandler &moleculePairHandler;
+
+	ReferenceCellProcessor(MoleculeDataAccessor &moleculeDataAccessor, MoleculePairHandler &moleculePairHandler)
+		: moleculeDataAccessor( moleculeDataAccessor ), moleculePairHandler( moleculePairHandler ) {}
+
+	__device__ void processCellPair(const Cell & cellA, const Cell & cellB) {
+		for( int indexA = cellA.startIndex ; indexA < cellA.endIndex ; indexA++ ) {
+			Molecule moleculeA;
+			moleculeDataAccessor.get( indexA, moleculeA );
+			for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
+				Molecule moleculeB;
+				moleculeDataAccessor.get( indexB, moleculeB );
+
+				moleculePairHandler.process( moleculeA, moleculeB );
+			}
+		}
+	}
+
+	__device__ void processCell(const Cell & cell) {
+		for( int indexA = cell.startIndex ; indexA < cell.endIndex ; indexA++ ) {
+			Molecule moleculeA;
+			moleculeDataAccessor.get( indexA, moleculeA );
+			for( int indexB = cell.startIndex ; indexB < indexA; indexB++ ) {
+				Molecule moleculeB;
+				moleculeDataAccessor.get( indexB, moleculeB );
+
+				moleculePairHandler.process( moleculeA, moleculeB );
+			}
+		}
+	}
+};
+
+
+
+
+
+

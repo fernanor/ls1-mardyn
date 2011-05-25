@@ -1,0 +1,13 @@
+#include "host_defines.h"
+
+inline __device__ int getCellIndex( int startIndex, int2 dimension, int3 gridOffsets ) {
+	const int idx = blockIdx.x;
+	const int3 gridIndex = make_int3(
+			idx % dimension.x,
+			(idx / dimension.x) % dimension.y,
+			idx / dimension.x / dimension.y
+		);
+	const int cellIndex = startIndex + dot( gridIndex, gridOffsets );
+
+	return cellIndex;
+}
