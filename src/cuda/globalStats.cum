@@ -1,0 +1,49 @@
+
+struct GlobalStats {
+	float potential;
+	float virial;
+
+	__device__ void add( float potential, float virial ) {
+		this->potential += potential;
+		this->virial += virial;
+	}
+};
+
+GlobalStats *globalStats;
+
+template<int blockSize>
+struct GlobalStatsCollector {
+	float threadPotential[blockSize];
+	float threadVirial[blockSize];
+
+	__device__ void initThreadStats(int threadIndex);
+	__device__ void add(int threadIndex, float potential, float virial) {
+		threadPotential[threadIndex] += potential;
+		threadVirial[threadIndex] += virial;
+	}
+
+	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
+		__syncthreads();
+
+		// blockSize is a power of two
+		for( int power = 2 ; power <= blockSize ; power <<= 1 ) {
+			if( (threadIndex & (power-1)) == 0 ) {
+				const int neighborIndex = threadIndex + (power >> 1);
+
+				threadPotential[threadIndex] += threadPotential[neighborIndex];
+				threadVirial[threadIndex] += threadVirial[neighborIndex];
+			}
+
+			__syncthreads();
+		}
+
+		if( threadIndex == 0 ) {
+			float potential, virial;
+			potential = threadPotential[0];
+			virial = threadVirial[0];
+
+			globalStats[cellIndexA].add( potential, virial );
+			globalStats[cellIndexB].add( potential, virial );
+		}
+	}
+};

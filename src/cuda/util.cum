@@ -1,0 +1,16 @@
+#ifndef UTIL_CUM
+#define UTIL_CUM
+#include <host_defines.h>
+
+// = ceil( a / b )
+__device__ inline int iceil(int a, int b) {
+	return (a+b-1) / b;
+}
+
+// = b if a % b = 0, a % b otherwise
+__device__ inline int shiftedMod( int a, int b ) {
+	int r = a % b;
+	return (r > 0) ? r : b;
+}
+
+#endif

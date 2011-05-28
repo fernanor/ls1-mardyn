@@ -101,11 +101,11 @@ struct ReferenceCellProcessor {
 template<int blockSize, class Molecule, class MoleculeStorage, class MoleculePairHandler>
 struct FastCellProcessor {
 	MoleculeStorage &moleculeStorage;
-	typedef MoleculeStorage::MoleculeLocalStorage<blockSize> MoleculeLocalStorage;
+	typedef typename MoleculeStorage::template MoleculeLocalStorage<blockSize> MoleculeLocalStorage;
 
 	MoleculePairHandler &moleculePairHandler;
 
-	__device__ FastCellProcessor(MoleculeCacheManager &moleculeStorage, MoleculePairHandler &moleculePairHandler)
+	__device__ FastCellProcessor(MoleculeStorage &moleculeStorage, MoleculePairHandler &moleculePairHandler)
 			: moleculeStorage( moleculeStorage ), moleculePairHandler( moleculePairHandler ) {}
 
 	enum BlockPairType {
@@ -176,13 +176,13 @@ struct FastCellProcessor {
 	}
 
 	__device__ void processCellPair(const CellEx & cellA, const CellEx & cellB) {
-		const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+		const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
 		const int numBlocksA = iceil( cellA.length, blockSize );
 		const int numBlocksB = iceil( cellB.length, blockSize );
 		for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
-			const int numCellsInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellALength, blockSize );
-			const int blockOffsetA = cellAStart + blockIndexA * blockSize;
+			const int numCellsInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellA.length, blockSize );
+			const int blockOffsetA = cellA.startIndex + blockIndexA * blockSize;
 
 			Molecule moleculeA;
 
@@ -192,8 +192,8 @@ struct FastCellProcessor {
 			}
 
 			for( int blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
-				const int numCellsInBlockB = (blockIndexB < numBlocksB - 1) ? blockSize : shiftedMod( cellBLength, blockSize );
-				const int blockOffsetB = cellBStart + blockIndexB * blockSize;
+				const int numCellsInBlockB = (blockIndexB < numBlocksB - 1) ? blockSize : shiftedMod( cellB.length, blockSize );
+				const int blockOffsetB = cellB.startIndex + blockIndexB * blockSize;
 
 				processBlock<BPT_UNRELATED>(
 						threadIndex,
@@ -212,12 +212,12 @@ struct FastCellProcessor {
 	}
 
 	__device__ void processCell(const CellEx & cell) {
-		const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+		const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
-		const int numBlocks = iceil( cell.length, BLOCK_SIZE );
+		const int numBlocks = iceil( cell.length, blockSize );
 		for( int blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
-			const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
-			const int blockOffsetA = cell.startIndex + blockIndexA * BLOCK_SIZE;
+			const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
+			const int blockOffsetA = cell.startIndex + blockIndexA * blockSize;
 
 			Molecule moleculeA;
 			// load A data into (register) cache
@@ -235,8 +235,8 @@ struct FastCellProcessor {
 
 			for( int blockIndexB = 0 ; blockIndexB < blockIndexA; blockIndexB++ ) {
 				// blockIndexB < blockIndexA - 1  < numBlocks - 1 implies numCellsInBlock = BLOCK_SIZE
-				const int numCellsInBlockB = BLOCK_SIZE;
-				const int blockOffsetB = cellStart + blockIndexB * BLOCK_SIZE;
+				const int numCellsInBlockB = (blockIndexB < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
+				const int blockOffsetB = cell.startIndex + blockIndexB * blockSize;
 
 				processBlock<BPT_UNRELATED>(
 						threadIndex,
