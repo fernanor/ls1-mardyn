@@ -1,53 +1,67 @@
 #include <host_defines.h>
 
+#include "util.cum"
+
 struct Cell {
 	int startIndex;
 	int endIndex;
-	int length;
+
+	__device__ Cell( int startIndex, int endIndex ) : startIndex( startIndex ), endIndex( endIndex ) {}
 };
 
+struct CellEx {
+	int startIndex;
+	int endIndex;
+
+	int length;
+
+	__device__ CellEx( const Cell &cell ) : startIndex( cell.startIndex ), endIndex( cell.endIndex ), length( endIndex - startIndex ) {}
+};
+
+// concepts that have to be implemented
+#if 0
 // general handler
 template<class Molecule>
 struct MoleculePairHandler {
-	void process( Molecule &moleculeA, Molecule &moleculeB);
+	void process( int threadIndex, Molecule &moleculeA, Molecule &moleculeB);
 };
 
 template<class Molecule>
 struct MoleculeDataAccessor {
+	// straight-forward getter/setter
 	void get(int index, Molecule &molecule);
+	void set(int index, const Molecule &molecule);
+
+	// get the molecule data but in a way that merge will be able to merge changes back into the storage
+	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
+	void getMergable(int index, Molecule &molecule);
+	void merge(int index, const Molecule &molecule);
 };
 
 template<class Molecule>
-struct MoleculeCache : MoleculeDataAccessor<Molecule> {
-	void setBase(int baseIndex);
-	void loadMolecule(int index);
+struct MoleculeStorage : MoleculeDataAccessor<Molecule> {
+	template<int blockSize>
+	struct MoleculeLocalStorage : MoleculeDataAccessor<Molecule> {
+		void load(int localIndex, MoleculeDataAccessor<Molecule> &storage, int index);
+		void commit(int localIndex, MoleculeDataAccessor<Molecule> &storage, int index);
+	};
 };
 
-struct MoleculeCacheManager {
-	typedef MoleculeCacheInterface MoleculeCache;
-
-	void initMoleculeCache(MoleculeCache &moleculeCache);
-};
-
-struct CellInfoRetriever {
-	static int getCellStartIndex(int index);
-	static int getCellLength(int index);
-};
-
-class CellProcessor {
+struct CellProcessor {
 	void processCellPair(int cellA, int cellB);
 	void processCell(int cell);
 };
+#endif
 
 // actual implementations
 
 // exactly one thread pro block
 template<class Molecule, class MoleculeDataAccessor, class MoleculePairHandler>
-class ReferenceCellProcessor {
+struct ReferenceCellProcessor {
 	MoleculeDataAccessor &moleculeDataAccessor;
 	MoleculePairHandler &moleculePairHandler;
 
-	ReferenceCellProcessor(MoleculeDataAccessor &moleculeDataAccessor, MoleculePairHandler &moleculePairHandler)
+	__device__ ReferenceCellProcessor(MoleculeDataAccessor &moleculeDataAccessor, MoleculePairHandler &moleculePairHandler)
 		: moleculeDataAccessor( moleculeDataAccessor ), moleculePairHandler( moleculePairHandler ) {}
 
 	__device__ void processCellPair(const Cell & cellA, const Cell & cellB) {
@@ -58,8 +72,11 @@ class ReferenceCellProcessor {
 				Molecule moleculeB;
 				moleculeDataAccessor.get( indexB, moleculeB );
 
-				moleculePairHandler.process( moleculeA, moleculeB );
+				moleculePairHandler.process( 0, moleculeA, moleculeB );
+
+				moleculeDataAccessor.set( indexB, moleculeB );
 			}
+			moleculeDataAccessor.set( indexA, moleculeA );
 		}
 	}
 
@@ -71,14 +88,170 @@ class ReferenceCellProcessor {
 				Molecule moleculeB;
 				moleculeDataAccessor.get( indexB, moleculeB );
 
-				moleculePairHandler.process( moleculeA, moleculeB );
+				moleculePairHandler.process( 0, moleculeA, moleculeB );
+
+				moleculeDataAccessor.set( indexB, moleculeB );
 			}
+			moleculeDataAccessor.set( indexA, moleculeA );
 		}
 	}
 };
 
+// exactly one thread pro block
+template<int blockSize, class Molecule, class MoleculeStorage, class MoleculePairHandler>
+struct FastCellProcessor {
+	MoleculeStorage &moleculeStorage;
+	typedef MoleculeStorage::MoleculeLocalStorage<blockSize> MoleculeLocalStorage;
 
+	MoleculePairHandler &moleculePairHandler;
 
+	__device__ FastCellProcessor(MoleculeCacheManager &moleculeStorage, MoleculePairHandler &moleculePairHandler)
+			: moleculeStorage( moleculeStorage ), moleculePairHandler( moleculePairHandler ) {}
 
+	enum BlockPairType {
+		BPT_UNRELATED,
+		BPT_SAME_BLOCK   // implies same cell
+	};
 
+	// componentLJCenterOffsetFromFirst is only used when blockPairType != BPT_UNRELATED
+	template< BlockPairType blockPairType >
+	__device__ void processBlock(
+			const int threadIndex,
+			const int numCellsInBlockA,
+			const int numCellsInBlockB,
+			const int blockOffsetB,
+			Molecule &moleculeA
+			) {
+		__shared__ MoleculeLocalStorage moleculeLocalStorageB;
+
+		// load B data into cache
+		if( threadIndex < numCellsInBlockB ) {
+			moleculeLocalStorageB.load( threadIndex, moleculeStorage, blockOffsetB + threadIndex );
+		}
+
+		// I'm working on WARP_SIZE many data entries at once during processing, so there should be a natural synchronization?
+		// TODO: remove this __syncthreads maybe?
+		__syncthreads();
+
+		// process block
+		const int numShifts = max( numCellsInBlockA, numCellsInBlockB );
+		const int numWarps = iceil( numShifts, warpSize );
+		const int numWarpsInBlockB = iceil( numCellsInBlockB, warpSize );
+
+		const int indexA = threadIndex;
+
+		for( int warpShiftIndex = 0 ; warpShiftIndex < numWarps ; warpShiftIndex++ ) {
+			const int warpIndexB = (threadIdx.y + warpShiftIndex) % numWarps;
+
+			if( indexA < numCellsInBlockA && warpIndexB < numWarpsInBlockB ) {
+				for( int cellShiftIndex = 0 ; cellShiftIndex < warpSize ; cellShiftIndex++ ) {
+					const int indexB = warpIndexB * warpSize + ((threadIdx.x + cellShiftIndex) % warpSize);
+					if( indexB >= numCellsInBlockB ) {
+						continue;
+					}
+
+					// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside the warp
+					// otherwise only process the lower half
+					if( blockPairType == BPT_SAME_BLOCK && indexB >= indexA ) {
+						continue;
+					}
+
+					Molecule moleculeB;
+					moleculeLocalStorageB.get( indexB, moleculeB );
+
+					moleculePairHandler.process( threadIndex, moleculeA, moleculeB );
+
+					moleculeLocalStorageB.set( indexB, moleculeB );
+				}
+			}
+
+			// sync all warps, so that no two different warps will try to access the same warp data block
+			__syncthreads();
+		}
+
+		// write moleculeB back
+		if( threadIndex < numCellsInBlockB ) {
+			moleculeLocalStorageB.commit( threadIndex, moleculeStorage, blockOffsetB + threadIndex );
+		}
+	}
+
+	__device__ void processCellPair(const CellEx & cellA, const CellEx & cellB) {
+		const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+
+		const int numBlocksA = iceil( cellA.length, blockSize );
+		const int numBlocksB = iceil( cellB.length, blockSize );
+		for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
+			const int numCellsInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellALength, blockSize );
+			const int blockOffsetA = cellAStart + blockIndexA * blockSize;
+
+			Molecule moleculeA;
+
+			// load A data into (register) cache
+			if( threadIndex < numCellsInBlockA ) {
+				moleculeStorage.get( blockOffsetA + threadIndex, moleculeA );
+			}
+
+			for( int blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
+				const int numCellsInBlockB = (blockIndexB < numBlocksB - 1) ? blockSize : shiftedMod( cellBLength, blockSize );
+				const int blockOffsetB = cellBStart + blockIndexB * blockSize;
+
+				processBlock<BPT_UNRELATED>(
+						threadIndex,
+						numCellsInBlockA,
+						numCellsInBlockB,
+						blockOffsetB,
+						moleculeA
+					);
+			}
+
+			// push A data back
+			if( threadIndex < numCellsInBlockA ) {
+				moleculeStorage.set(blockOffsetA + threadIndex, moleculeA);
+			}
+		}
+	}
+
+	__device__ void processCell(const CellEx & cell) {
+		const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+
+		const int numBlocks = iceil( cell.length, BLOCK_SIZE );
+		for( int blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
+			const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? BLOCK_SIZE : shiftedMod( cellLength, BLOCK_SIZE );
+			const int blockOffsetA = cell.startIndex + blockIndexA * BLOCK_SIZE;
+
+			Molecule moleculeA;
+			// load A data into (register) cache
+			if( threadIndex < numCellsInBlockA ) {
+				moleculeStorage.getMergable( blockOffsetA + threadIndex, moleculeA );
+			}
+
+			processBlock<BPT_SAME_BLOCK>(
+					threadIndex,
+					numCellsInBlockA,
+					numCellsInBlockA,
+					blockOffsetA,
+					moleculeA
+				);
+
+			for( int blockIndexB = 0 ; blockIndexB < blockIndexA; blockIndexB++ ) {
+				// blockIndexB < blockIndexA - 1  < numBlocks - 1 implies numCellsInBlock = BLOCK_SIZE
+				const int numCellsInBlockB = BLOCK_SIZE;
+				const int blockOffsetB = cellStart + blockIndexB * BLOCK_SIZE;
+
+				processBlock<BPT_UNRELATED>(
+						threadIndex,
+						numCellsInBlockA,
+						numCellsInBlockB,
+						blockOffsetB,
+						moleculeA
+					);
+			}
+
+			// push A data back
+			if( threadIndex < numCellsInBlockA ) {
+				moleculeStorage.merge( blockOffsetA + threadIndex, moleculeA );
+			}
+		}
+	}
+};
 
