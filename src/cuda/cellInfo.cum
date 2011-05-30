@@ -1,0 +1,23 @@
+#ifndef CELLINFO_H__
+#define CELLINFO_H__
+
+#include <host_defines.h>
+
+struct CellInfo {
+	int startIndex;
+	int endIndex;
+
+	__device__ CellInfo() {}
+	__device__ CellInfo( int startIndex, int endIndex ) : startIndex( startIndex ), endIndex( endIndex ) {}
+};
+
+struct CellInfoEx : CellInfo {
+	int length;
+
+	__device__ CellInfoEx() {}
+	__device__ CellInfoEx( const CellInfo &cell ) : CellInfo( cell.startIndex , cell.endIndex ), length( endIndex - startIndex ) {}
+};
+
+__device__ CellInfo *cellInfos;
+
+#endif

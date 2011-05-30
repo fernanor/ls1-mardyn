@@ -2,21 +2,7 @@
 
 #include "util.cum"
 
-struct Cell {
-	int startIndex;
-	int endIndex;
-
-	__device__ Cell( int startIndex, int endIndex ) : startIndex( startIndex ), endIndex( endIndex ) {}
-};
-
-struct CellEx {
-	int startIndex;
-	int endIndex;
-
-	int length;
-
-	__device__ CellEx( const Cell &cell ) : startIndex( cell.startIndex ), endIndex( cell.endIndex ), length( endIndex - startIndex ) {}
-};
+#include "cellInfo.cum"
 
 // concepts that have to be implemented
 #if 0
@@ -64,7 +50,7 @@ struct ReferenceCellProcessor {
 	__device__ ReferenceCellProcessor(MoleculeDataAccessor &moleculeDataAccessor, MoleculePairHandler &moleculePairHandler)
 		: moleculeDataAccessor( moleculeDataAccessor ), moleculePairHandler( moleculePairHandler ) {}
 
-	__device__ void processCellPair(const Cell & cellA, const Cell & cellB) {
+	__device__ void processCellPair(const int threadIndex, const CellInfo & cellA, const CellInfo & cellB) {
 		for( int indexA = cellA.startIndex ; indexA < cellA.endIndex ; indexA++ ) {
 			Molecule moleculeA;
 			moleculeDataAccessor.get( indexA, moleculeA );
@@ -80,7 +66,7 @@ struct ReferenceCellProcessor {
 		}
 	}
 
-	__device__ void processCell(const Cell & cell) {
+	__device__ void processCell(const int threadIndex, const CellInfo & cell) {
 		for( int indexA = cell.startIndex ; indexA < cell.endIndex ; indexA++ ) {
 			Molecule moleculeA;
 			moleculeDataAccessor.get( indexA, moleculeA );
@@ -175,9 +161,7 @@ struct FastCellProcessor {
 		}
 	}
 
-	__device__ void processCellPair(const CellEx & cellA, const CellEx & cellB) {
-		const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
-
+	__device__ void processCellPair( const int threadIndex, const CellInfoEx & cellA, const CellInfoEx & cellB) {
 		const int numBlocksA = iceil( cellA.length, blockSize );
 		const int numBlocksB = iceil( cellB.length, blockSize );
 		for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
@@ -211,9 +195,7 @@ struct FastCellProcessor {
 		}
 	}
 
-	__device__ void processCell(const CellEx & cell) {
-		const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
-
+	__device__ void processCell(const int threadIndex, const CellInfoEx & cell) {
 		const int numBlocks = iceil( cell.length, blockSize );
 		for( int blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
 			const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );

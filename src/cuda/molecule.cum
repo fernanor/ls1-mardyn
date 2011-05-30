@@ -1,0 +1,15 @@
+#ifndef MOLECULE_H__
+#define MOLECULE_H__
+
+#include <host_defines.h>
+
+struct Molecule {
+	float3 position;
+	float3 force;
+
+	__device__ Molecule() {}
+
+	__device__ Molecule(const float3 &position, const float3 &force) : position( position ), force( force ) {}
+};
+
+#endif

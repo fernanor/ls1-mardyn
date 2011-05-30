@@ -1,3 +1,5 @@
+#ifndef GLOBALSTATS_CUM_H__
+#define GLOBALSTATS_CUM_H__
 
 struct GlobalStats {
 	float potential;
@@ -9,14 +11,21 @@ struct GlobalStats {
 	}
 };
 
-GlobalStats *globalStats;
+// should be: __device__ GlobalStats globalStats[CellCount]
+__device__ GlobalStats *globalStats;
 
 template<int blockSize>
 struct GlobalStatsCollector {
 	float threadPotential[blockSize];
 	float threadVirial[blockSize];
 
-	__device__ void initThreadStats(int threadIndex);
+	__device__ void initThreadLocal(int threadIndex) {
+		threadPotential[threadIndex] = 0.0f;
+		threadVirial[threadIndex] = 0.0f;
+
+		__syncthreads();
+	}
+
 	__device__ void add(int threadIndex, float potential, float virial) {
 		threadPotential[threadIndex] += potential;
 		threadVirial[threadIndex] += virial;
@@ -47,3 +56,5 @@ struct GlobalStatsCollector {
 		}
 	}
 };
+
+#endif

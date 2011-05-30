@@ -1,0 +1,26 @@
+#ifndef POTFORCE_CUM__
+#define POTFORCE_CUM__
+
+#include <host_defines.h>
+
+#include "cutil_math.h"
+
+struct LJParameters {
+	float epsilon;
+	float sigmaSquared;
+};
+
+__device__ void calculateLennardJones( const float3 distanceAtoB, const float distanceSquared, const LJParameters &ljParameters,
+		float3 &forceAtoB, float &potential) {
+	const float invdr2 = 1.f / distanceSquared;
+	const float lj2 = ljParameters.sigmaSquared * invdr2;
+	const float lj6 = lj2 * lj2 * lj2;
+	const float lj12 = lj6 * lj6;
+	const float lj12m6 = lj12 - lj6;
+	potential = 4.0f * ljParameters.epsilon * lj12m6;
+	// result: force = fac * distance = fac * |distance| * normalized(distance)
+	const float fac = -24.0f * ljParameters.epsilon * (lj12 + lj12m6) * invdr2;
+	forceAtoB = fac * distanceAtoB;
+}
+
+#endif

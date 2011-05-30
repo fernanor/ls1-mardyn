@@ -1,0 +1,35 @@
+#include "potForce.cum"
+
+#include "globalStats.cum"
+
+__device__ float cutOffRadiusSquared;
+
+template<int blockSize>
+struct MoleculePairHandler {
+	GlobalStatsCollector<blockSize> &globalStatsCollector;
+
+	__device__ MoleculePairHandler( GlobalStatsCollector<blockSize> &globalStatsCollector ) : globalStatsCollector( globalStatsCollector ) {}
+
+	__device__ void process( int threadIndex, Molecule &moleculeA, Molecule &moleculeB) {
+		const float3 distanceAtoB = moleculeB.position - moleculeA.position;
+		const float distanceSquared = dot( distanceAtoB, distanceAtoB );
+
+		if( distanceSquared >= cutOffRadiusSquared ) {
+			return;
+		}
+
+		LJParameters ljParameters;
+		ljParameters.epsilon = 1.0f;
+		ljParameters.sigmaSquared = 1.0f;
+
+		float3 forceAtoB;
+		float potential;
+		calculateLennardJones( distanceAtoB, distanceSquared, ljParameters, forceAtoB, potential );
+
+		moleculeA.force += forceAtoB;
+		moleculeB.force -= forceAtoB;
+
+		const float virial = dot( distanceAtoB, forceAtoB );
+		globalStatsCollector.add( threadIndex, potential, virial );
+	}
+};

@@ -2,17 +2,11 @@
 
 #include "util.cum"
 
-struct Molecule {
-	float3 position;
-	float3 force;
-
-	__device__  Molecule(const float3 &position, const float3 &force) : position( position ), force( force ) {}
-};
+#include "molecule.cum"
 
 __device__ float3 *moleculePositions;
 __device__ float3 *moleculeForces;
 
-template<class Molecule>
 struct MoleculeStorage {
 	// straight-forward getter/setter
 	__device__ void get(int index, Molecule &molecule) {
@@ -26,7 +20,7 @@ struct MoleculeStorage {
 	// get the molecule data but in a way that merge will be able to merge changes back into the storage
 	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 	__device__ void getMergable(int index, Molecule &molecule) {
-		molecule = Molecule( moleculePositions[index], 0.0f );
+		molecule = Molecule( moleculePositions[index], make_float3( 0.0f ) );
 	}
 
 	__device__ void merge(int index, const Molecule &molecule) {
@@ -50,7 +44,7 @@ struct MoleculeStorage {
 		// get the molecule data but in a way that merge will be able to merge changes back into the storage
 		// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 		__device__ void getMergable(int index, Molecule &molecule) {
-			molecule = Molecule( positions[index], 0.0f );
+			molecule = Molecule( positions[index], make_float3( 0.0f ) );
 		}
 
 		__device__ void merge(int index, const Molecule &molecule) {
