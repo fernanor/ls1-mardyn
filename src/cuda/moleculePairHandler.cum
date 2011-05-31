@@ -4,11 +4,11 @@
 
 __device__ float cutOffRadiusSquared;
 
-template<int blockSize>
+template<class GlobalStatsCollector>
 struct MoleculePairHandler {
-	GlobalStatsCollector<blockSize> &globalStatsCollector;
+	GlobalStatsCollector &globalStatsCollector;
 
-	__device__ MoleculePairHandler( GlobalStatsCollector<blockSize> &globalStatsCollector ) : globalStatsCollector( globalStatsCollector ) {}
+	__device__ MoleculePairHandler( GlobalStatsCollector &globalStatsCollector ) : globalStatsCollector( globalStatsCollector ) {}
 
 	__device__ void process( int threadIndex, Molecule &moleculeA, Molecule &moleculeB) {
 		const float3 distanceAtoB = moleculeB.position - moleculeA.position;

@@ -3,17 +3,16 @@
 
 #include <malloc.h>
 #include <vector>
-#include <cuda_runtime.h>
+#include <cuda.h>
 #include <assert.h>
 
-typedef float CUDAPrecisionType;
-typedef float3 CUDAPrecisionType3;
+// TODO: use a namespace instead of the slightly stupid CUDA prefix
 
 struct CUDAException : public std::exception {
-	const cudaError_t errorCode;
+	const CUresult errorCode;
 	const std::string errorSource;
 
-	CUDAException( cudaError_t errorCode, const std::string &errorSource = "" )
+	CUDAException( CUresult errorCode, const std::string &errorSource = "" )
 	: errorCode( errorCode ), errorSource( errorSource ) {}
 
 	~CUDAException() throw() {}
@@ -25,19 +24,19 @@ struct CUDAException : public std::exception {
     }
 };
 
-#define CUDA_THROW_ON_ERROR( expr ) \
-	do { \
-		cudaError_t errorCode = (expr); \
-		if( errorCode != cudaSuccess ) { \
-			throw CUDAException( errorCode, #expr ); \
-		} \
-	} while( 0 )
+#define CUDA_THROW_ON_ERROR( expr ) do {\
+        CUresult result = (expr);\
+        if( result != CUDA_SUCCESS ) {\
+            assert(false);\
+            throw CUDAException( result, #expr ); \
+        }\
+    } while(false)
 
 template<typename type>
 class CUDABuffer {
 protected:
 	type *_hostBuffer;
-	type *_deviceBuffer;
+	CUdeviceptr *_deviceBuffer;
 
 	int _byteSize;
 
@@ -47,7 +46,8 @@ public:
 
 	~CUDABuffer() {
 		delete[] _hostBuffer;
-		CUDA_THROW_ON_ERROR( cudaFree( _deviceBuffer ) );
+		if( _byteSize )
+			CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 	}
 
 	type & operator []( int index ) {
@@ -76,13 +76,14 @@ public:
 
 	void resize(int count) {
 		delete[] _hostBuffer;
-		CUDA_THROW_ON_ERROR( cudaFree( _deviceBuffer ) );
+		if( _byteSize )
+			CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 
 		if( count > 0 ) {
 			_byteSize = count * sizeof( type );
 
 			_hostBuffer = new type[count];
-			CUDA_THROW_ON_ERROR( cudaMalloc( &_deviceBuffer, _byteSize ) );
+			CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
 		}
 		else {
 			_hostBuffer = 0;
@@ -93,77 +94,216 @@ public:
 	}
 
 	void zeroDevice() {
-		CUDA_THROW_ON_ERROR( cudaMemset( _deviceBuffer, 0, _byteSize ) );
+		CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
 	}
 
 	void copyToDevice() {
-		CUDA_THROW_ON_ERROR( cudaMemcpy( _deviceBuffer, _hostBuffer, _byteSize, cudaMemcpyHostToDevice ) );
+		CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, _hostBuffer, _byteSize ) );
 	}
 
 	void copyToHost() {
-		CUDA_THROW_ON_ERROR( cudaMemcpy( _hostBuffer, _deviceBuffer, _byteSize, cudaMemcpyDeviceToHost ) );
+		CUDA_THROW_ON_ERROR( cuMemcpyDtoH( _hostBuffer, _deviceBuffer, _byteSize ) );
 	}
 
-	type *devicePtr() {
+	CUdeviceptr devicePtr() const {
 		return _deviceBuffer;
 	}
 };
 
-#define CUDA_TIMING
-
-#ifdef CUDA_TIMING
 class CUDATimer {
 private:
-	cudaEvent_t _startEvent, _endEvent;
+    CUevent _startEvent, _endEvent;
 
 public:
-	CUDATimer() {
-		CUDA_THROW_ON_ERROR( cudaEventCreate( &_startEvent ) );
-		CUDA_THROW_ON_ERROR( cudaEventCreate( &_endEvent ) );
-	}
+    CUDATimer() {
+        expectCUDASuccess( cuEventCreate( &_startEvent, ::CU_EVENT_DEFAULT ) );
+        expectCUDASuccess( cuEventCreate( &_endEvent, ::CU_EVENT_DEFAULT ) );
+    }
 
-	~CUDATimer() {
-		CUDA_THROW_ON_ERROR( cudaEventDestroy( _startEvent ) );
-		CUDA_THROW_ON_ERROR( cudaEventDestroy( _endEvent ) );
-	}
+    ~CUDATimer() {
+        expectCUDASuccess( cuEventDestroy( _startEvent ) );
+        expectCUDASuccess( cuEventDestroy( _endEvent ) );
+    }
 
-	void begin() {
-		CUDA_THROW_ON_ERROR( cudaEventRecord( _startEvent ) );
-	}
+    void begin() {
+        expectCUDASuccess( cuEventRecord( _startEvent, 0 ) );
+    }
 
-	void end() {
-		CUDA_THROW_ON_ERROR( cudaEventRecord( _endEvent ) );
-	}
+    void end() {
+        expectCUDASuccess( cuEventRecord( _endEvent, 0 ) );
+    }
 
-	float getElapsedTime() {
-		CUDA_THROW_ON_ERROR( cudaEventSynchronize( _endEvent ) );
+    float getElapsedTime() {
+        expectCUDASuccess( cuEventSynchronize( _endEvent ) );
 
-		float elapsedTime;
-		CUDA_THROW_ON_ERROR( cudaEventElapsedTime( &elapsedTime, _startEvent, _endEvent ) );
+        float elapsedTime;
+        expectCUDASuccess( cuEventElapsedTime( &elapsedTime, _startEvent, _endEvent ) );
 
-		return elapsedTime;
-	}
-
-	void printElapsedTime( const char *format ) {
-		printf( format, getElapsedTime() );
-	}
+        return elapsedTime;
+    }
 };
-#else
-class CUDATimer {
+
+class ZeroTimer {
 public:
-	void begin() {
-	}
+    void begin() {
+    }
 
-	void end() {
-	}
+    void end() {
+    }
 
-	float getElapsedTime() {
-		return 0.0f;
-	}
+    float getElapsedTime() {
+        return 0.0f;
+    }
 
-	void printElapsedTime( const char *format ) {
+};
+
+typedef CUDATimer EventTimer;
+
+template<typename DataType>
+class CUDAGlobal {
+protected:
+	CUdeviceptr _dataPointer;
+
+	friend class CUDAModule;
+
+	CUDAGlobal( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
+public:
+
+	void set( const DataType &data ) {
+		CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( DataType ) ) );
 	}
 };
-#endif
 
-#endif
+class CUDAFunctionCall {
+private:
+    int _offset;
+
+    int _gridWidth, _gridHeight;
+
+    CUfunction _function;
+
+    CUDAFunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ),_gridWidth( 1 ), _gridHeight( 1 ) {}
+
+public:
+    template<typename T>
+    CUDAFunctionCall & parameter( const T &param ) {
+        // align with parameter size
+    	_offset = (_offset + (__alignof(T) - 1)) & ~(__alignof(T) - 1);
+    	CUDA_THROW_ON_ERROR( cuParamSetv( function, offset, (void *) &param, sizeof(T) ) );
+        _offset += sizeof(T);
+
+        return *this;
+    }
+
+    CUDAFunctionCall & setBlockShape( int x, int y, int z ) {
+    	CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, x, y, z ) );s
+
+    	return *this;
+    }
+
+    CUDAFunctionCall & setGridSize( int gridWidth, int gridHeight ) {
+    	_gridWidth = gridWidth;
+    	_gridHeight = gridHeight;
+
+    	return *this;
+    }
+
+    void execute() {
+    	CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
+
+        CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
+    }
+};
+
+class CUDAFunction {
+protected:
+	CUfunction _function;
+
+	friend class CUDAModule;
+
+	CUDAFunction( CUfunction function ) : _function( function ) {}
+
+public:
+	CUDAFunctionCall call() {
+		return CUDAFunctionCall( _function );
+	}
+
+};
+
+class CUDAModule {
+protected:
+	CUmodule _module;
+
+	friend class CUDA;
+
+	CUDAModule(CUmodule module) : _module( module ) {}
+
+public:
+
+	template<typename DataType>
+	CUDAGlobal<DataType> getGlobal(const char *name) {
+		CUdeviceptr dptr;
+		size_t bytes;
+
+		CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &bytes, _module, name ) );
+
+		assert( bytes == sizeof( DataType ) );
+
+		return CUDAGlobal(dptr);
+	}
+
+	CUDAFunction getFunction(const char*name) {
+		CUfunction function;
+
+		CUDA_THROW_ON_ERROR( cuModuleGetFunction( &function, _module, name ) );
+
+		return CUADFunction( function );
+	}
+};
+
+class CUDA {
+protected:
+	CUcontext context;
+
+	static CUDA *singleton;
+
+	CUDA(CUcontext context) : context(context) {}
+public:
+
+	static CUDA &get() {
+		assert( singleton );
+		return *singleton;
+	}
+
+	static void create(int deviceIndex) {
+		assert( !singleton );
+
+		CUDA_THROW_ON_ERROR( cuInit( 0 ) );
+
+		CUdevice device;
+		CUDA_THROW_ON_ERROR( cuDeviceGet( &device, deviceIndex ) );
+
+		CUcontext context;
+		CUDA_THROW_ON_ERROR( cuCtxCreate( &context, 0, device ) );
+
+		singleton = new CUDA( context );
+	}
+
+	static void destruct() {
+		CUDA_THROW_ON_ERROR( cuCtxDestroy( singleton->context ) );
+
+		delete singleton;
+		singleton = 0;
+	}
+
+	CUDAModule loadModule(const char *name) {
+		CUmodule module;
+		CUDA_THROW_ON_ERROR( cuModuleLoad( &module, name ) );
+
+		return CUDAModule( module );
+	}
+};
+
+inline CUDA &cuda() {
+	return CUDA.get();
+}
