@@ -3,9 +3,15 @@
 #include "util.cum"
 
 #include "molecule.cum"
+#include "cellInfo.cum"
 
 __device__ float3 *moleculePositions;
 __device__ float3 *moleculeForces;
+__device__ int *cellStartIndices;
+
+__device__ CellInfo fromCellIndex( int index ) {
+	return CellInfo( cellStartIndices[index], cellStartIndices[index+1] );
+}
 
 struct MoleculeStorage {
 	// straight-forward getter/setter

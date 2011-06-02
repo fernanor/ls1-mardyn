@@ -8,260 +8,327 @@
 
 // TODO: use a namespace instead of the slightly stupid CUDA prefix
 
-struct CUDAException : public std::exception {
-	const CUresult errorCode;
-	const std::string errorSource;
-
-	CUDAException( CUresult errorCode, const std::string &errorSource = "" )
-	: errorCode( errorCode ), errorSource( errorSource ) {}
-
-	~CUDAException() throw() {}
-
-    /** Returns a C-style character string describing the general cause
-     *  of the current error.  */
-    virtual const char* what() const throw() {
-    	return errorSource.c_str();
-    }
-};
-
-#define CUDA_THROW_ON_ERROR( expr ) do {\
-        CUresult result = (expr);\
-        if( result != CUDA_SUCCESS ) {\
-            assert(false);\
-            throw CUDAException( result, #expr ); \
-        }\
-    } while(false)
-
-template<typename type>
-class CUDABuffer {
-protected:
-	type *_hostBuffer;
-	CUdeviceptr *_deviceBuffer;
-
-	int _byteSize;
-
+class CUDA {
 public:
-	CUDABuffer() : _hostBuffer( 0 ), _deviceBuffer( 0 ), _byteSize( 0 ) {
-	}
+	struct Exception : public std::exception {
+		const CUresult errorCode;
+		const std::string errorSource;
 
-	~CUDABuffer() {
-		delete[] _hostBuffer;
-		if( _byteSize )
-			CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
-	}
+		Exception( CUresult errorCode, const std::string &errorSource = "" )
+		: errorCode( errorCode ), errorSource( errorSource ) {}
 
-	type & operator []( int index ) {
-		return _hostBuffer[ index ];
-	}
+		~Exception() throw() {}
 
-	const type & operator []( int index ) const {
-		return _hostBuffer[ index ];
-	}
-
-	type & operator *() {
-		return *_hostBuffer;
-	}
-
-	const type & operator *() const {
-		return *_hostBuffer;
-	}
-
-	operator type *() {
-		return _hostBuffer;
-	}
-
-	operator const type *() const {
-		return _hostBuffer;
-	}
-
-	void resize(int count) {
-		delete[] _hostBuffer;
-		if( _byteSize )
-			CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
-
-		if( count > 0 ) {
-			_byteSize = count * sizeof( type );
-
-			_hostBuffer = new type[count];
-			CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
+		/** Returns a C-style character string describing the general cause
+		 *  of the current error.  */
+		virtual const char* what() const throw() {
+			return errorSource.c_str();
 		}
-		else {
-			_hostBuffer = 0;
-			_deviceBuffer = 0;
+	};
 
-			_byteSize = 0;
+	#define CUDA_THROW_ON_ERROR( expr ) do {\
+			CUresult result = (expr);\
+			if( result != CUDA_SUCCESS ) {\
+				assert(false);\
+				throw CUDA::Exception( result, #expr ); \
+			}\
+		} while(false)
+
+	template<typename type>
+	class Buffer {
+	protected:
+		type *_hostBuffer;
+		CUdeviceptr *_deviceBuffer;
+
+		int _byteSize;
+
+	public:
+		Buffer() : _hostBuffer( 0 ), _deviceBuffer( 0 ), _byteSize( 0 ) {
 		}
-	}
 
-	void zeroDevice() {
-		CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
-	}
+		~Buffer() {
+			delete[] _hostBuffer;
+			if( _byteSize )
+				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
+		}
 
-	void copyToDevice() {
-		CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, _hostBuffer, _byteSize ) );
-	}
+		type & operator []( int index ) {
+			return _hostBuffer[ index ];
+		}
 
-	void copyToHost() {
-		CUDA_THROW_ON_ERROR( cuMemcpyDtoH( _hostBuffer, _deviceBuffer, _byteSize ) );
-	}
+		const type & operator []( int index ) const {
+			return _hostBuffer[ index ];
+		}
 
-	CUdeviceptr devicePtr() const {
-		return _deviceBuffer;
-	}
-};
+		type & operator *() {
+			return *_hostBuffer;
+		}
 
-class CUDATimer {
-private:
-    CUevent _startEvent, _endEvent;
+		const type & operator *() const {
+			return *_hostBuffer;
+		}
 
-public:
-    CUDATimer() {
-        expectCUDASuccess( cuEventCreate( &_startEvent, ::CU_EVENT_DEFAULT ) );
-        expectCUDASuccess( cuEventCreate( &_endEvent, ::CU_EVENT_DEFAULT ) );
-    }
+		operator type *() {
+			return _hostBuffer;
+		}
 
-    ~CUDATimer() {
-        expectCUDASuccess( cuEventDestroy( _startEvent ) );
-        expectCUDASuccess( cuEventDestroy( _endEvent ) );
-    }
+		operator const type *() const {
+			return _hostBuffer;
+		}
 
-    void begin() {
-        expectCUDASuccess( cuEventRecord( _startEvent, 0 ) );
-    }
+		void resize(int count) {
+			delete[] _hostBuffer;
+			if( _byteSize )
+				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 
-    void end() {
-        expectCUDASuccess( cuEventRecord( _endEvent, 0 ) );
-    }
+			if( count > 0 ) {
+				_byteSize = count * sizeof( type );
 
-    float getElapsedTime() {
-        expectCUDASuccess( cuEventSynchronize( _endEvent ) );
+				_hostBuffer = new type[count];
+				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
+			}
+			else {
+				_hostBuffer = 0;
+				_deviceBuffer = 0;
 
-        float elapsedTime;
-        expectCUDASuccess( cuEventElapsedTime( &elapsedTime, _startEvent, _endEvent ) );
+				_byteSize = 0;
+			}
+		}
 
-        return elapsedTime;
-    }
-};
+		void zeroDevice() {
+			CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
+		}
 
-class ZeroTimer {
-public:
-    void begin() {
-    }
+		void copyToDevice() {
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, _hostBuffer, _byteSize ) );
+		}
 
-    void end() {
-    }
+		void copyToHost() {
+			CUDA_THROW_ON_ERROR( cuMemcpyDtoH( _hostBuffer, _deviceBuffer, _byteSize ) );
+		}
 
-    float getElapsedTime() {
-        return 0.0f;
-    }
+		CUdeviceptr devicePtr() const {
+			return _deviceBuffer;
+		}
+	};
 
-};
+	class DeviceBuffer {
+	protected:
+		CUdeviceptr _deviceBuffer;
 
-typedef CUDATimer EventTimer;
+		int _byteSize;
 
-template<typename DataType>
-class CUDAGlobal {
-protected:
-	CUdeviceptr _dataPointer;
+	public:
+		DeviceBuffer() : _deviceBuffer( 0 ), _byteSize( 0 ) {
+		}
 
-	friend class CUDAModule;
+		~DeviceBuffer() {
+			if( _byteSize )
+				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
+		}
 
-	CUDAGlobal( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
-public:
+		void resize(int byteSize) {
+			if( _byteSize )
+				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 
-	void set( const DataType &data ) {
-		CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( DataType ) ) );
-	}
-};
+			if( byteSize > 0 ) {
+				_byteSize = byteSize;
 
-class CUDAFunctionCall {
-private:
-    int _offset;
+				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
+			}
+			else {
+				_deviceBuffer = 0;
 
-    int _gridWidth, _gridHeight;
+				_byteSize = 0;
+			}
+		}
 
-    CUfunction _function;
+		void zeroDevice() {
+			CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
+		}
 
-    CUDAFunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ),_gridWidth( 1 ), _gridHeight( 1 ) {}
+		template<typename DataType>
+		void copyElementsToDevice(const DataType *data, int count) {
+			const int byteSize = count * sizeof( data );
+			if( _byteSize < byteSize )
+				resize( byteSize );
 
-public:
-    template<typename T>
-    CUDAFunctionCall & parameter( const T &param ) {
-        // align with parameter size
-    	_offset = (_offset + (__alignof(T) - 1)) & ~(__alignof(T) - 1);
-    	CUDA_THROW_ON_ERROR( cuParamSetv( function, offset, (void *) &param, sizeof(T) ) );
-        _offset += sizeof(T);
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, data, _byteSize ) );
+		}
 
-        return *this;
-    }
+		template<typename DataType>
+		void copyElementsToDevice(const std::vector<Type> &collection) {
+			copyElementsToDevice( &collection.front(), collection.size() );
+		}
 
-    CUDAFunctionCall & setBlockShape( int x, int y, int z ) {
-    	CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, x, y, z ) );s
+		void copyToDevice(const void *data, int byteSize) {
+			copyElementsToDevice<char>( data, byteSize );
+		}
 
-    	return *this;
-    }
+		template<typename DataType>
+		void copyElementsToHost(std::vector<DataType> &collection) {
+			int count = _byteSize / sizeof( DataType );
+			collection.resize( count );
 
-    CUDAFunctionCall & setGridSize( int gridWidth, int gridHeight ) {
-    	_gridWidth = gridWidth;
-    	_gridHeight = gridHeight;
+			CUDA_THROW_ON_ERROR( cuMemcpyDtoH( &collection.front(), _deviceBuffer, count * sizeof( DataType ) ) );
+		}
 
-    	return *this;
-    }
+		CUdeviceptr devicePtr() const {
+			return _deviceBuffer;
+		}
+	};
 
-    void execute() {
-    	CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
+	class Timer {
+	private:
+		CUevent _startEvent, _endEvent;
 
-        CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
-    }
-};
+	public:
+		Timer() {
+			CUDA_THROW_ON_ERROR( cuEventCreate( &_startEvent, ::CU_EVENT_DEFAULT ) );
+			CUDA_THROW_ON_ERROR( cuEventCreate( &_endEvent, ::CU_EVENT_DEFAULT ) );
+		}
 
-class CUDAFunction {
-protected:
-	CUfunction _function;
+		~Timer() {
+			CUDA_THROW_ON_ERROR( cuEventDestroy( _startEvent ) );
+			CUDA_THROW_ON_ERROR( cuEventDestroy( _endEvent ) );
+		}
 
-	friend class CUDAModule;
+		void begin() {
+			CUDA_THROW_ON_ERROR( cuEventRecord( _startEvent, 0 ) );
+		}
 
-	CUDAFunction( CUfunction function ) : _function( function ) {}
+		void end() {
+			CUDA_THROW_ON_ERROR( cuEventRecord( _endEvent, 0 ) );
+		}
 
-public:
-	CUDAFunctionCall call() {
-		return CUDAFunctionCall( _function );
-	}
+		float getElapsedTime() {
+			CUDA_THROW_ON_ERROR( cuEventSynchronize( _endEvent ) );
 
-};
+			float elapsedTime;
+			CUDA_THROW_ON_ERROR( cuEventElapsedTime( &elapsedTime, _startEvent, _endEvent ) );
 
-class CUDAModule {
-protected:
-	CUmodule _module;
+			return elapsedTime;
+		}
+	};
 
-	friend class CUDA;
+	class NullTimer {
+	public:
+		void begin() {
+		}
 
-	CUDAModule(CUmodule module) : _module( module ) {}
+		void end() {
+		}
 
-public:
+		float getElapsedTime() {
+			return 0.0f;
+		}
+
+	};
+
+	typedef Timer EventTimer;
 
 	template<typename DataType>
-	CUDAGlobal<DataType> getGlobal(const char *name) {
-		CUdeviceptr dptr;
-		size_t bytes;
+	class Global {
+	protected:
+		CUdeviceptr _dataPointer;
 
-		CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &bytes, _module, name ) );
+		friend class Module;
 
-		assert( bytes == sizeof( DataType ) );
+		Global( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
+	public:
 
-		return CUDAGlobal(dptr);
-	}
+		void set( const DataType &data ) {
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( DataType ) ) );
+		}
+	};
 
-	CUDAFunction getFunction(const char*name) {
-		CUfunction function;
+	class FunctionCall {
+	private:
+		int _offset;
 
-		CUDA_THROW_ON_ERROR( cuModuleGetFunction( &function, _module, name ) );
+		int _gridWidth, _gridHeight;
 
-		return CUADFunction( function );
-	}
-};
+		CUfunction _function;
 
-class CUDA {
+		FunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ),_gridWidth( 1 ), _gridHeight( 1 ) {}
+
+	public:
+		template<typename T>
+		FunctionCall & parameter( const T &param ) {
+			// align with parameter size
+			_offset = (_offset + (__alignof(T) - 1)) & ~(__alignof(T) - 1);
+			CUDA_THROW_ON_ERROR( cuParamSetv( function, offset, (void *) &param, sizeof(T) ) );
+			_offset += sizeof(T);
+
+			return *this;
+		}
+
+		FunctionCall & setBlockShape( int x, int y, int z ) {
+			CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, x, y, z ) );
+
+			return *this;
+		}
+
+		FunctionCall & setGridSize( int gridWidth, int gridHeight ) {
+			_gridWidth = gridWidth;
+			_gridHeight = gridHeight;
+
+			return *this;
+		}
+
+		void execute() {
+			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
+
+			CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
+		}
+	};
+
+	class Function {
+	protected:
+		CUfunction _function;
+
+		friend class CUDAModule;
+
+		Function( CUfunction function ) : _function( function ) {}
+
+	public:
+		FunctionCall call() {
+			return CUDAFunctionCall( _function );
+		}
+
+	};
+
+	class Module {
+	protected:
+		CUmodule _module;
+
+		friend class CUDA;
+
+		Module(CUmodule module) : _module( module ) {}
+
+	public:
+
+		template<typename DataType>
+		Global<DataType> getGlobal(const char *name) {
+			CUdeviceptr dptr;
+			size_t bytes;
+
+			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &bytes, _module, name ) );
+
+			assert( bytes == sizeof( DataType ) );
+
+			return Global(dptr);
+		}
+
+		Function getFunction(const char*name) {
+			CUfunction function;
+
+			CUDA_THROW_ON_ERROR( cuModuleGetFunction( &function, _module, name ) );
+
+			return Function( function );
+		}
+	};
+
 protected:
 	CUcontext context;
 
@@ -293,14 +360,14 @@ public:
 		CUDA_THROW_ON_ERROR( cuCtxDestroy( singleton->context ) );
 
 		delete singleton;
-		singleton = 0;
+		singleton = NULL;
 	}
 
-	CUDAModule loadModule(const char *name) {
+	Module loadModule(const char *name) {
 		CUmodule module;
 		CUDA_THROW_ON_ERROR( cuModuleLoad( &module, name ) );
 
-		return CUDAModule( module );
+		return Module( module );
 	}
 };
 
