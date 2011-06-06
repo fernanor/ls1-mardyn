@@ -10,6 +10,9 @@ protected:
 	LinkedCells &_linkedCells;
 
 	CUDAComponent( const CUDA::Module &module, LinkedCells &linkedCells ) : module( module ), _linkedCells( linkedCells ) {}
+
+	virtual void preForceCalculation() = 0;
+	virtual void postForceCalculation() = 0;
 };
 
 #endif

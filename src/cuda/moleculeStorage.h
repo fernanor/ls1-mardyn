@@ -18,6 +18,14 @@ public:
 		_cellStartIndices = module.getGlobal("cellStartIndices");
 	}
 
+	void preForceCalculation() {
+		uploadState();
+	}
+
+	void postForceCalculation() {
+		downloadResults();
+	}
+
 	void uploadState();
 	void downloadResults();
 

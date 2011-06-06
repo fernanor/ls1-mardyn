@@ -143,6 +143,24 @@ public:
 			}
 		}
 
+		template<typename DataType>
+		void resizeElements(int count) {
+			if( _byteSize )
+				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
+
+			const int byteSize = count * sizeof( DataType );
+			if( byteSize > 0 ) {
+				_byteSize = byteSize;
+
+				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
+			}
+			else {
+				_deviceBuffer = 0;
+
+				_byteSize = 0;
+			}
+		}
+
 		void zeroDevice() {
 			CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
 		}

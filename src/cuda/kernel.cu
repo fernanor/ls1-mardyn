@@ -36,7 +36,7 @@ __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffset
 		neighborIndex -= neighborOffset;
 	}*/
 
-	__shared__ GlobalStatsCollector<BLOCK_SIZE> globalStatsCollector;
+	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );
 
 	MoleculeStorage moleculeStorage;
@@ -55,7 +55,7 @@ __global__ void processCell() {
 
 	int cellIndex = blockIdx.x;
 
-	__shared__ GlobalStatsCollector<BLOCK_SIZE> globalStatsCollector;
+	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );
 
 	MoleculeStorage moleculeStorage;

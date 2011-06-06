@@ -1,7 +1,7 @@
 #ifndef GLOBALSTATS_CUM_H__
 #define GLOBALSTATS_CUM_H__
 
-struct GlobalStats {
+struct CellStats {
 	float potential;
 	float virial;
 
@@ -11,11 +11,11 @@ struct GlobalStats {
 	}
 };
 
-// should be: __device__ GlobalStats globalStats[CellCount]
-__device__ GlobalStats *globalStats;
+// should be: __device__ CellStats cellStats[CellCount]
+__device__ CellStats *cellStats;
 
 template<int blockSize>
-struct GlobalStatsCollector {
+struct CellStatsCollector {
 	float threadPotential[blockSize];
 	float threadVirial[blockSize];
 
@@ -51,8 +51,8 @@ struct GlobalStatsCollector {
 			potential = threadPotential[0];
 			virial = threadVirial[0];
 
-			globalStats[cellIndexA].add( potential, virial );
-			globalStats[cellIndexB].add( potential, virial );
+			cellStats[cellIndexA].add( potential, virial );
+			cellStats[cellIndexB].add( potential, virial );
 		}
 	}
 };
