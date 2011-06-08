@@ -10,9 +10,9 @@
 
 #include "cudaComponent.h"
 
-class GlobalStats : public CUDAComponent {
+class GlobalStats : public CUDAComponentModule {
 public:
-	GlobalStats( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponent(module, linkedCells), _maxMoleculeStorage( 0 ) {
+	GlobalStats( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponentModule(module, linkedCells), _maxMoleculeStorage( 0 ) {
 		_cellStats = module.getGlobal("cellStats");
 	}
 

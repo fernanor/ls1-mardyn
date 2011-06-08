@@ -19,8 +19,8 @@ struct CellPairTraverserTemplate {
 	int getCellOffset( const int3 &cell );
 };
 
-template<class CellTemplate>
-void cellPairTraverser(int3 dimensions, CellTemplate &cellInterface ) {
+template<class CellPairTraverserTemplate>
+inline void cellPairTraverser(int3 dimensions, CellPairTraverserTemplate &cellInterface ) {
 	assert( dimensions.x >= 2 && dimensions.y >= 2 && dimensions.z >=2 );
 
 	/*const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );

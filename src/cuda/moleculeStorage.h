@@ -10,9 +10,9 @@
 
 #include "cudaComponent.h"
 
-class MoleculeStorage : public CUDAComponent {
+class MoleculeStorage : public CUDAComponentModule {
 public:
-	MoleculeStorage( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponent(module, linkedCells), _maxMoleculeStorage( 0 ) {
+	MoleculeStorage( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponentModule(module, linkedCells), _maxMoleculeStorage( 0 ) {
 		_moleculePositions = module.getGlobal("moleculePositions");
 		_moleculeForces = module.getGlobal("moleculeForces");
 		_cellStartIndices = module.getGlobal("cellStartIndices");
@@ -26,10 +26,10 @@ public:
 		downloadResults();
 	}
 
+protected:
 	void uploadState();
 	void downloadResults();
 
-protected:
 	CUDA::Global _moleculePositions, _moleculeForces, _cellStartIndices;
 
 	CUDA::DeviceBuffer _positionBuffer, _forceBuffer, _startIndexBuffer;

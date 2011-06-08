@@ -264,8 +264,6 @@ public:
 	private:
 		int _offset;
 
-		int _gridWidth, _gridHeight;
-
 		CUfunction _function;
 
 		FunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ),_gridWidth( 1 ), _gridHeight( 1 ) {}
@@ -287,11 +285,16 @@ public:
 			return *this;
 		}
 
-		FunctionCall & setGridSize( int gridWidth, int gridHeight ) {
-			_gridWidth = gridWidth;
-			_gridHeight = gridHeight;
+		FunctionCall & setBlockShape( const dim3 &shape) {
+			CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, shape.x, shape.y, shape.z ) );
 
 			return *this;
+		}
+
+		void execute(int gridWidth, int gridHeight) {
+			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
+
+			CUDA_THROW_ON_ERROR( cuLaunchGrid( _function, gridWidth, gridHeight ) );
 		}
 
 		void execute() {
@@ -299,6 +302,7 @@ public:
 
 			CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
 		}
+
 	};
 
 	class Function {
