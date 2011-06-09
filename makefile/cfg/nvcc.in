@@ -2,7 +2,7 @@
 
 CFG_INFO = "nvcc configuration"
 
-CXX_SEQ = nvcc
+CXX_SEQ = /usr/local/cuda/bin/nvcc
 
 # SEQ
 #########################################

@@ -2,15 +2,17 @@
 # show list of all available configurations with make cfg_list
 CFG ?= gcc
 
+NVCC ?= /usr/local/cuda/bin/nvcc
+
 # machine type: SEQ or PAR
 PARTYPE ?= SEQ
 
 # choose target: DEBUG|RELEASE
 # some configurations have additional targets, see the respective configuration files for details
-TARGET ?= RELEASE
+TARGET ?= DEBUG
 
 # compile using depmode?
-DEPS ?= 0
+DEPS ?= 1
 
 #build unit tests?
 TESTS ?= 0
@@ -38,13 +40,14 @@ SOURCES_COMMON = $(shell find ./ -name "*.cpp" | grep -v "parallel/" | grep -v "
 SOURCES_CUDA = $(shell find ./ -name "*.cu" | grep -v "parallel/" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_SEQ = $(shell find parallel/ -name "*.cpp" | grep "Dummy" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_PAR = $(shell find parallel/ -name "*.cpp" | grep -v "Dummy" | grep -v "/tests/" | grep -v "/vtk/")
-SOURCES = $(SOURCES_COMMON) $(SOURCES_CUDA) $(SOURCES_$(PARTYPE)) 
+SOURCES = $(SOURCES_COMMON) $(SOURCES_$(PARTYPE)) 
 
 
 OBJECTS = $(SOURCES:.cpp=.o)
+# ptx files are stored in the output directory
+PTXS = $(SOURCES_CUDA:.cu=.ptx)
 
 INCLUDES = -I$(CURDIR) -I$(CURDIR)/External $(CPPUNIT_INCLUDES) -I../dependencies-external/nvidia
-
 
 BINARYbasename = MarDyn
 ifneq ($(realpath .svn),)
@@ -72,13 +75,17 @@ endif
 VTK_MAKEFILE := $(realpath $(MAKEFILEDIR)vtkwriter.mk ) 
 include $(VTK_MAKEFILE)
 
-$(BINARY): .deps $(OBJECTS) cppunit
+$(BINARY): .deps $(OBJECTS) $(PTXS) cppunit
 	@echo "building $(BINARY)"
 	$(CXX) $(LINKFLAGS) -o $@ $(OBJECTS)
 	$(shell if [ ! -f $(BINARYbasename) -o -L $(BINARYbasename) ]; then ln -sf $(BINARY) $(BINARYbasename); fi)
 
 %.o: %.cpp
 	$(DEPCOMP) $(CXX) $(CXXFLAGS) -c $< -o $@
+	
+%.ptx: %.cu
+	$(NVCC) --ptx $< --output-directory $(<D)
+	cp $@ $(@F)
 
 .PHONY: help all clean cleanall depend cfg_list test
 
@@ -86,12 +93,12 @@ help:
 	@echo "configuration: $(CFG_INFO)"
 	@echo
 	@echo "options:"
-	@echo "make CFG=...                 choose compiler (see make cfg_list)"
-	@echo "make PARTYPE=SEQ | PAR       sequential or parallel (MPI) build"
-	@echo "make TARGET=DEBUG | RELEASE  debugging / non optimized build"
-	@echo "make DEPS=0 | 1              compile using dependancy tracking"
-	@echo "make TESTS=0 | 1             compile with or without unit tests (and build cppunit if neccessary)"
-	@echo "make VTK=0 | 1	            compile with or without the vtk output plugin" 
+	@echo "	CFG=...                 choose compiler (see make cfg_list)"
+	@echo " PARTYPE=SEQ | PAR       sequential or parallel (MPI) build"
+	@echo " TARGET=DEBUG | RELEASE  debugging / non optimized build"
+	@echo " DEPS=0 | 1              compile using dependancy tracking"
+	@echo " TESTS=0 | 1             compile with or without unit tests (and build cppunit if neccessary)"
+	@echo " VTK=0 | 1	            compile with or without the vtk output plugin" 
 	@echo
 	@echo "targets:"
 	@echo "make all         build $(BINARY)"

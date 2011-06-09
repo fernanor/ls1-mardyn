@@ -12,8 +12,8 @@
 
 class GlobalStats : public CUDAComponentModule {
 public:
-	GlobalStats( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponentModule(module, linkedCells), _maxMoleculeStorage( 0 ) {
-		_cellStats = module.getGlobal("cellStats");
+	GlobalStats( const CUDA::Module &module, LinkedCells &linkedCells ) :
+		CUDAComponentModule(module, linkedCells), _cellStats( module.getGlobal<CellStats *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
 	}
 
 	virtual void preForceCalculation();
@@ -36,9 +36,9 @@ protected:
 		float virial;
 	};
 
-	CUDA::Global _cellStats;
+	CUDA::Global<CellStats *> _cellStats;
 
-	CUDA::DeviceBuffer _cellStatsBuffer;
+	CUDA::DeviceBuffer<CellStats> _cellStatsBuffer;
 };
 
 

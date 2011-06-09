@@ -45,7 +45,7 @@ __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffset
 
 	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 
-	cellProcessor.processCellPair( threadIndex, cellInfos[cellIndex], cellInfos[neighborIndex] );
+	cellProcessor.processCellPair( threadIndex, fromCellIndex( cellIndex ), fromCellIndex( neighborIndex ) );
 
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, neighborIndex );
 }
@@ -64,7 +64,7 @@ __global__ void processCell() {
 
 	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 
-	cellProcessor.processCell( threadIndex, cellInfos[cellIndex] );
+	cellProcessor.processCell( threadIndex, fromCellIndex( cellIndex ) );
 
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, cellIndex );
 }

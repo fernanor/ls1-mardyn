@@ -1,10 +1,14 @@
 #ifndef CUDA_HELPERS_H_
 #define CUDA_HELPERS_H_
 
+#include <cuda.h>
+#include <vector_types.h>
+
 #include <malloc.h>
 #include <vector>
-#include <cuda.h>
+
 #include <assert.h>
+#include <string>
 
 // TODO: use a namespace instead of the slightly stupid CUDA prefix
 
@@ -38,7 +42,7 @@ public:
 	class Buffer {
 	protected:
 		type *_hostBuffer;
-		CUdeviceptr *_deviceBuffer;
+		CUdeviceptr _deviceBuffer;
 
 		int _byteSize;
 
@@ -112,6 +116,7 @@ public:
 		}
 	};
 
+	template<typename DataType>
 	class DeviceBuffer {
 	protected:
 		CUdeviceptr _deviceBuffer;
@@ -127,24 +132,7 @@ public:
 				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 		}
 
-		void resize(int byteSize) {
-			if( _byteSize )
-				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
-
-			if( byteSize > 0 ) {
-				_byteSize = byteSize;
-
-				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
-			}
-			else {
-				_deviceBuffer = 0;
-
-				_byteSize = 0;
-			}
-		}
-
-		template<typename DataType>
-		void resizeElements(int count) {
+		void resize(int count) {
 			if( _byteSize )
 				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 
@@ -165,8 +153,7 @@ public:
 			CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
 		}
 
-		template<typename DataType>
-		void copyElementsToDevice(const DataType *data, int count) {
+		void copyToDevice(const DataType *data, int count) {
 			const int byteSize = count * sizeof( data );
 			if( _byteSize < byteSize )
 				resize( byteSize );
@@ -174,17 +161,11 @@ public:
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, data, _byteSize ) );
 		}
 
-		template<typename DataType>
-		void copyElementsToDevice(const std::vector<Type> &collection) {
-			copyElementsToDevice( &collection.front(), collection.size() );
+		void copyToDevice(const std::vector<DataType> &collection) {
+			copyToDevice( &collection.front(), collection.size() );
 		}
 
-		void copyToDevice(const void *data, int byteSize) {
-			copyElementsToDevice<char>( data, byteSize );
-		}
-
-		template<typename DataType>
-		void copyElementsToHost(std::vector<DataType> &collection) {
+		void copyToHost(std::vector<DataType> &collection) {
 			int count = _byteSize / sizeof( DataType );
 			collection.resize( count );
 
@@ -200,6 +181,8 @@ public:
 	private:
 		CUevent _startEvent, _endEvent;
 
+		Timer( const Timer & );
+		Timer & operator =( const Timer & );
 	public:
 		Timer() {
 			CUDA_THROW_ON_ERROR( cuEventCreate( &_startEvent, ::CU_EVENT_DEFAULT ) );
@@ -245,6 +228,9 @@ public:
 
 	typedef Timer EventTimer;
 
+	class Function;
+	class Module;
+
 	template<typename DataType>
 	class Global {
 	protected:
@@ -253,27 +239,47 @@ public:
 		friend class Module;
 
 		Global( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
-	public:
 
+	public:
 		void set( const DataType &data ) {
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( DataType ) ) );
 		}
 	};
 
+	template<typename DataType>
+	class Global<DataType *> {
+	protected:
+		CUdeviceptr _dataPointer;
+
+		friend class Module;
+
+		Global( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
+
+	public:
+		void set( const CUdeviceptr data ) {
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( CUdeviceptr ) ) );
+		}
+
+		void set( const DeviceBuffer<DataType *> &buffer ) {
+			set( buffer.devicePtr() );
+		}
+	};
+
 	class FunctionCall {
-	private:
+	protected:
+		CUfunction _function;
 		int _offset;
 
-		CUfunction _function;
+		friend class Function;
 
-		FunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ),_gridWidth( 1 ), _gridHeight( 1 ) {}
+		FunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ) {}
 
 	public:
 		template<typename T>
 		FunctionCall & parameter( const T &param ) {
 			// align with parameter size
 			_offset = (_offset + (__alignof(T) - 1)) & ~(__alignof(T) - 1);
-			CUDA_THROW_ON_ERROR( cuParamSetv( function, offset, (void *) &param, sizeof(T) ) );
+			CUDA_THROW_ON_ERROR( cuParamSetv( _function, _offset, (void *) &param, sizeof(T) ) );
 			_offset += sizeof(T);
 
 			return *this;
@@ -291,13 +297,13 @@ public:
 			return *this;
 		}
 
-		void execute(int gridWidth, int gridHeight) {
+		void execute(int gridWidth, int gridHeight) const {
 			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
 
 			CUDA_THROW_ON_ERROR( cuLaunchGrid( _function, gridWidth, gridHeight ) );
 		}
 
-		void execute() {
+		void execute() const {
 			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
 
 			CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
@@ -309,15 +315,22 @@ public:
 	protected:
 		CUfunction _function;
 
-		friend class CUDAModule;
+		friend class Module;
 
 		Function( CUfunction function ) : _function( function ) {}
 
 	public:
-		FunctionCall call() {
-			return CUDAFunctionCall( _function );
+		FunctionCall call() const {
+			return FunctionCall( _function );
 		}
+	};
 
+	template<typename DataType> struct TypeInfo {
+		const static int size = sizeof( DataType );
+	};
+
+	template<typename DataType> struct TypeInfo<DataType *> {
+		const static int size = sizeof( CUdeviceptr );
 	};
 
 	class Module {
@@ -331,18 +344,18 @@ public:
 	public:
 
 		template<typename DataType>
-		Global<DataType> getGlobal(const char *name) {
+		Global<DataType> getGlobal(const char *name) const {
 			CUdeviceptr dptr;
 			size_t bytes;
 
 			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &bytes, _module, name ) );
 
-			assert( bytes == sizeof( DataType ) );
+			assert( bytes == sizeof( TypeInfo<DataType> ) );
 
-			return Global(dptr);
+			return Global<DataType>(dptr);
 		}
 
-		Function getFunction(const char*name) {
+		Function getFunction(const char*name) const {
 			CUfunction function;
 
 			CUDA_THROW_ON_ERROR( cuModuleGetFunction( &function, _module, name ) );
@@ -394,5 +407,7 @@ public:
 };
 
 inline CUDA &cuda() {
-	return CUDA.get();
+	return CUDA::get();
 }
+
+#endif

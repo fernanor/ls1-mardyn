@@ -12,10 +12,11 @@
 
 class MoleculeStorage : public CUDAComponentModule {
 public:
-	MoleculeStorage( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponentModule(module, linkedCells), _maxMoleculeStorage( 0 ) {
-		_moleculePositions = module.getGlobal("moleculePositions");
-		_moleculeForces = module.getGlobal("moleculeForces");
-		_cellStartIndices = module.getGlobal("cellStartIndices");
+	MoleculeStorage( const CUDA::Module &module, LinkedCells &linkedCells ) :
+		CUDAComponentModule(module, linkedCells),
+		_moleculePositions( module.getGlobal<float3 *>("moleculePositions") ),
+		_moleculeForces( module.getGlobal<float3 *>("moleculeForces") ),
+		_cellStartIndices( module.getGlobal<int *>("cellStartIndices") ) {
 	}
 
 	void preForceCalculation() {
@@ -30,9 +31,11 @@ protected:
 	void uploadState();
 	void downloadResults();
 
-	CUDA::Global _moleculePositions, _moleculeForces, _cellStartIndices;
+	CUDA::Global<float3 *> _moleculePositions, _moleculeForces;
+	CUDA::Global<int *> _cellStartIndices;
 
-	CUDA::DeviceBuffer _positionBuffer, _forceBuffer, _startIndexBuffer;
+	CUDA::DeviceBuffer<float3> _positionBuffer, _forceBuffer;
+	CUDA::DeviceBuffer<int> _startIndexBuffer;
 };
 
 #endif /* MOLECULESTORAGE_H_ */
