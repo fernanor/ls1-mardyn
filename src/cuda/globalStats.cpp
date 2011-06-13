@@ -10,6 +10,7 @@
 void GlobalStats::preForceCalculation() {
 	_cellStatsBuffer.resize( _linkedCells.getCells().size() );
 	_cellStatsBuffer.zeroDevice();
+	_cellStats.set( _cellStatsBuffer );
 }
 
 void GlobalStats::postForceCalculation() {

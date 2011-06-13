@@ -8,10 +8,10 @@
 #ifndef LINKEDCELLSCUDAPROXY_H_
 #define LINKEDCELLSCUDAPROXY_H_
 
-#include "ParticleContainer.h"
-#include "LinkedCells.h"
-#include "Cell.h"
-#include "handlerInterfaces/ParticlePairsHandler.h"
+#include "particleContainer/ParticleContainer.h"
+#include "particleContainer/LinkedCells.h"
+#include "particleContainer/Cell.h"
+#include "particleContainer/handlerInterfaces/ParticlePairsHandler.h"
 #include "Domain.h"
 
 #include "moleculeInteraction.h"

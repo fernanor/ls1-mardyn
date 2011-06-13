@@ -25,7 +25,7 @@
 #include "Domain.h"
 #include "molecules/Molecule.h"
 #include "particleContainer/LinkedCells.h"
-#include "particleContainer/LinkedCellsCUDA.h"
+#include "cuda/linkedCellsCUDAProxy.h"
 //#include "particleContainer/LinkedCellsCUDAold.h"
 #include "particleContainer/AdaptiveSubCells.h"
 #include "parallel/DomainDecompBase.h"
@@ -360,7 +360,8 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
 				                                     cellsInCutoffRadius, _particlePairsHandler);
 #else
-				_moleculeContainer = new LinkedCellsCUDA(*_domain, bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
+				CUDA::create(0);
+				_moleculeContainer = new LinkedCellsCUDAProxy(*_domain, bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
 #endif
 			}
 			else if (token == "AdaptiveSubCells") {

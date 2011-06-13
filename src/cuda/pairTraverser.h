@@ -3,7 +3,9 @@
 
 // we want to use the CUDA types: int3 etc
 #include <vector_types.h>
+#include "cutil_math.h"
 
+#if 0
 struct CellPairTraverserTemplate {
 	struct TaskInfo {
 		int numPairs;
@@ -13,14 +15,15 @@ struct CellPairTraverserTemplate {
 		int neighborOffset;
 	};
 
-	void processTask(const TaskInfo &taskInfo);
+	void processTask(const TaskInfo &taskInfo) const;
 
-	int getDirectionOffset( const int3 &direction );
-	int getCellOffset( const int3 &cell );
+	int getDirectionOffset( const int3 &direction ) const;
+	int getCellOffset( const int3 &cell ) const;
 };
+#endif
 
 template<class CellPairTraverserTemplate>
-inline void cellPairTraverser(int3 dimensions, CellPairTraverserTemplate &cellInterface ) {
+ void cellPairTraverser(const int3 &dimensions, const CellPairTraverserTemplate &cellInterface ) {
 	assert( dimensions.x >= 2 && dimensions.y >= 2 && dimensions.z >=2 );
 
 	/*const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );
@@ -56,7 +59,7 @@ inline void cellPairTraverser(int3 dimensions, CellPairTraverserTemplate &cellIn
 
 		// define: the main direction is the normal of the slice plane
 
-		int neighborOffset = getDirectionOffset( direction );
+		int neighborOffset = cellInterface.getDirectionOffset( direction );
 
 		// contains the oriented direction as if the main direction was (0,0,1)
 		int3 localDirection;
@@ -81,14 +84,14 @@ inline void cellPairTraverser(int3 dimensions, CellPairTraverserTemplate &cellIn
 			// xy plane (main direction: z)
 			localDirection = direction;
 			localDimensions = make_int3( dimensions.x, dimensions.y, dimensions.z );
-			gridOffsets = cellDirections.x, cellDirections.y, cellDirections.z;
+			gridOffsets = cellDirections;
 		}
 		else {
 			assert( false );
 		}
 
 		// determine the startOffset as first cell near (0,0,0) so that start + neighborOffset won't be out of bounds
-		int evenSlicesStartIndex = cellDirections.getCellOffset( -min( direction, zero3 ) );
+		int evenSlicesStartIndex = cellInterface.getCellOffset( -min( direction, zero3 ) );
 		// odd slices start one slice "down"
 		int oddSlicesStartIndex = evenSlicesStartIndex + gridOffsets.z;
 
@@ -108,18 +111,18 @@ inline void cellPairTraverser(int3 dimensions, CellPairTraverserTemplate &cellIn
 		int numCellsInSlice = localDimensions.x * localDimensions.y;
 
 
-		CellPairTraverserTemplate::TaskInfo taskInfo;
+		typename CellPairTraverserTemplate::TaskInfo taskInfo;
 
 		// set the global parameters
 		taskInfo.gridOffsets = gridOffsets;
-		taskInfo.localDimensions = make_int2( localDimentions );
+		taskInfo.localDimensions = make_int2( localDimensions );
 		taskInfo.neighborOffset = neighborOffset;
 
 		// do all even slices
 		taskInfo.numPairs = numEvenSlices * numCellsInSlice;
 		taskInfo.startIndex = evenSlicesStartIndex;
 
-		cellTemplate.processTask( taskInfo );
+		cellInterface.processTask( taskInfo );
 
 		/*Kernel_calculatePairLJForces<<<numEvenSlices * numCellsInSlice, blockSize>>>(
 				_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),
@@ -134,7 +137,7 @@ inline void cellPairTraverser(int3 dimensions, CellPairTraverserTemplate &cellIn
 		taskInfo.numPairs = numOddSlices * numCellsInSlice;
 		taskInfo.startIndex = oddSlicesStartIndex;
 
-		cellTemplate.processTask( taskInfo );
+		cellInterface.processTask( taskInfo );
 
 		/*Kernel_calculatePairLJForces<<<numOddSlices * numCellsInSlice, blockSize>>>(
 				_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),

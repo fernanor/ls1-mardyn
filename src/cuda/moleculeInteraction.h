@@ -14,48 +14,59 @@
 #include "globalStats.h"
 #include "moleculeStorage.h"
 #include "pairTraverser.h"
+#include "config.h"
 
 class MoleculeInteraction : public CUDAComponent {
+	struct CellPairTraverserTemplate {
+		struct TaskInfo {
+			int numPairs;
+			int startIndex;
+			int2 localDimensions;
+			int3 gridOffsets;
+			int neighborOffset;
+		};
+
+		MoleculeInteraction &_parent;
+
+		CellPairTraverserTemplate(MoleculeInteraction &parent) : _parent( parent ) {
+		}
+
+		void processTask(const CellPairTraverserTemplate::TaskInfo &taskInfo) const {
+			const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );
+			_parent._cellPairProcessor.call().
+					setBlockShape( blockSize ).
+					parameter( taskInfo.startIndex ).
+					parameter( taskInfo.localDimensions ).
+					parameter( taskInfo.gridOffsets ).
+					parameter( taskInfo.neighborOffset ).
+					execute( taskInfo.numPairs, 1 );
+		}
+
+		int getDirectionOffset( const int3 &direction ) const {
+			return _parent.getDirectionOffset( direction );
+		}
+
+		int getCellOffset( const int3 &cell ) const {
+			return _parent.getCellOffset( cell );
+		}
+	};
+
 public:
-	MoleculeInteraction( const CUDA::Module &module, LinkedCells &linkedCells ) : CUDAComponent(module, linkedCells), _globalStats( module, linkedCells ), _moleculeStorage( module, linkedCells ) {
-		_cellPairProcessor = module.getFunction("processCellPair");
-		_cellProcessor = module.getFunction("processCell");
+	MoleculeInteraction( const CUDA::Module &module, LinkedCells &linkedCells ) :
+		CUDAComponent(module, linkedCells), _globalStats( module, linkedCells ), _moleculeStorage( module, linkedCells ),
+		_cellPairProcessor( module.getFunction("processCellPair") ), _cellProcessor( module.getFunction("processCell") ) {
 	}
 
 	void calculate(float &potential, float &virial) {
 		_globalStats.preForceCalculation();
 		_moleculeStorage.preForceCalculation();
 
-		struct CellPairTraverser {
-			MoleculeInteraction &_parent;
+		const int *raw_dimensions = _linkedCells.getCellDimensions();
+		assert( raw_dimensions[0] >= 2 && raw_dimensions[1] >= 2 && raw_dimensions[2] >=2 );
 
-			CellPairTraverser(MoleculeInteraction &parent) : _parent( parent ) {
-			}
-
-			void processTask(const CellPairTraverserTemplate::TaskInfo &taskInfo) {
-				const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );
-				_parent._cellPairProcessor().call().
-						setBlockShape( blockSize ).
-						parameter( taskInfo.startIndex ).
-						parameter( taskInfo.localDimensions ).
-						parameter( taskInfo.gridOffsets ).
-						parameter( taskInfo.neighborOffset ).
-						execute( taskInfo.numPairs, 1 );
-			}
-
-			int getDirectionOffset( const int3 &direction ) {
-				return parent.getDirectionOffset( direction );
-			}
-
-			int getCellOffset( const int3 &cell ) {
-				return parent.getCellOffset( cell );
-			}
-		};
-
-		const int *dimensions = _linkedCells.getCellDimensions();
-		assert( dimensions[0] >= 2 && dimensions[1] >= 2 && dimensions[2] >=2 );
-
-		cellPairTraverser<CellPairTraverser>( dimensions, CellPairTraverser(*this) );
+		const int3 dimensions = make_int3( raw_dimensions[0], raw_dimensions[1], raw_dimensions[2] );
+		const CellPairTraverserTemplate cellInterface(*this);
+		cellPairTraverser( dimensions, cellInterface );
 
 		_cellProcessor.call().execute( _linkedCells.getCells().size(), 1 );
 

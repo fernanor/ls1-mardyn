@@ -40,9 +40,9 @@ void MoleculeStorage::uploadState() {
 	_forceBuffer.resize( positions.size() );
 	_forceBuffer.zeroDevice();
 
-	_moleculePositions.set( _positionBuffer.devicePtr() );
-	_moleculeForces.set( _forceBuffer.devicePtr() );
-	_cellStartIndices.set( _startIndexBuffer.devicePtr() );
+	_moleculePositions.set( _positionBuffer );
+	_moleculeForces.set( _forceBuffer );
+	_cellStartIndices.set( _startIndexBuffer );
 }
 
 void MoleculeStorage::downloadResults() {

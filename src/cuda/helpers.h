@@ -38,83 +38,6 @@ public:
 			}\
 		} while(false)
 
-	template<typename type>
-	class Buffer {
-	protected:
-		type *_hostBuffer;
-		CUdeviceptr _deviceBuffer;
-
-		int _byteSize;
-
-	public:
-		Buffer() : _hostBuffer( 0 ), _deviceBuffer( 0 ), _byteSize( 0 ) {
-		}
-
-		~Buffer() {
-			delete[] _hostBuffer;
-			if( _byteSize )
-				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
-		}
-
-		type & operator []( int index ) {
-			return _hostBuffer[ index ];
-		}
-
-		const type & operator []( int index ) const {
-			return _hostBuffer[ index ];
-		}
-
-		type & operator *() {
-			return *_hostBuffer;
-		}
-
-		const type & operator *() const {
-			return *_hostBuffer;
-		}
-
-		operator type *() {
-			return _hostBuffer;
-		}
-
-		operator const type *() const {
-			return _hostBuffer;
-		}
-
-		void resize(int count) {
-			delete[] _hostBuffer;
-			if( _byteSize )
-				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
-
-			if( count > 0 ) {
-				_byteSize = count * sizeof( type );
-
-				_hostBuffer = new type[count];
-				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
-			}
-			else {
-				_hostBuffer = 0;
-				_deviceBuffer = 0;
-
-				_byteSize = 0;
-			}
-		}
-
-		void zeroDevice() {
-			CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
-		}
-
-		void copyToDevice() {
-			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, _hostBuffer, _byteSize ) );
-		}
-
-		void copyToHost() {
-			CUDA_THROW_ON_ERROR( cuMemcpyDtoH( _hostBuffer, _deviceBuffer, _byteSize ) );
-		}
-
-		CUdeviceptr devicePtr() const {
-			return _deviceBuffer;
-		}
-	};
 
 	template<typename DataType>
 	class DeviceBuffer {
@@ -260,7 +183,7 @@ public:
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( CUdeviceptr ) ) );
 		}
 
-		void set( const DeviceBuffer<DataType *> &buffer ) {
+		void set( const DeviceBuffer<DataType> &buffer ) {
 			set( buffer.devicePtr() );
 		}
 	};
