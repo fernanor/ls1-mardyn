@@ -33,9 +33,8 @@ class MoleculeInteraction : public CUDAComponent {
 		}
 
 		void processTask(const CellPairTraverserTemplate::TaskInfo &taskInfo) const {
-			const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );
 			_parent._cellPairProcessor.call().
-					setBlockShape( blockSize ).
+					setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
 					parameter( taskInfo.startIndex ).
 					parameter( taskInfo.localDimensions ).
 					parameter( taskInfo.gridOffsets ).
@@ -76,7 +75,7 @@ public:
 		const CellPairTraverserTemplate cellInterface(*this);
 		cellPairTraverser( dimensions, cellInterface );
 
-		_cellProcessor.call().execute( _linkedCells.getCells().size(), 1 );
+		_cellProcessor.call().setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).execute( _linkedCells.getCells().size(), 1 );
 
 		_globalStats.postForceCalculation();
 		_moleculeStorage.postForceCalculation();

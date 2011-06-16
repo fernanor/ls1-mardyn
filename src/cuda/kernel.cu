@@ -20,6 +20,12 @@
 
 #include "config.h"
 
+#ifndef REFERENCE_IMPLEMENTATION
+#warning using fast cell processor
+#else
+#warning using reference cell processor
+#endif
+
 extern "C" {
 __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
 	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
