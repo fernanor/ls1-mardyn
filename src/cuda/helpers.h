@@ -33,7 +33,7 @@ public:
 	#define CUDA_THROW_ON_ERROR( expr ) do {\
 			CUresult result = (expr);\
 			if( result != CUDA_SUCCESS ) {\
-				assert(false);\
+				printf( "CUDA error %i in '" #expr "'!\n", result );\
 				throw CUDA::Exception( result, #expr ); \
 			}\
 		} while(false)
@@ -59,15 +59,13 @@ public:
 			if( _byteSize )
 				CUDA_THROW_ON_ERROR( cuMemFree( _deviceBuffer ) );
 
-			const int byteSize = count * sizeof( DataType );
-			if( byteSize > 0 ) {
-				_byteSize = byteSize;
-
+			_byteSize = count * sizeof( DataType );
+			if( _byteSize > 0 ) {
 				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
 			}
 			else {
 				_deviceBuffer = 0;
-
+				// if _byteSize < 0
 				_byteSize = 0;
 			}
 		}
@@ -77,11 +75,11 @@ public:
 		}
 
 		void copyToDevice(const DataType *data, int count) {
-			const int byteSize = count * sizeof( data );
+			const int byteSize = count * sizeof( DataType );
 			if( _byteSize < byteSize )
 				resize( byteSize );
 
-			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, data, _byteSize ) );
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, data, byteSize ) );
 		}
 
 		void copyToDevice(const std::vector<DataType> &collection) {
@@ -89,6 +87,10 @@ public:
 		}
 
 		void copyToHost(std::vector<DataType> &collection) {
+			if( !_byteSize ) {
+				return;
+			}
+
 			int count = _byteSize / sizeof( DataType );
 			collection.resize( count );
 
@@ -146,7 +148,6 @@ public:
 		float getElapsedTime() {
 			return 0.0f;
 		}
-
 	};
 
 	typedef Timer EventTimer;
@@ -269,16 +270,16 @@ public:
 		template<typename DataType>
 		Global<DataType> getGlobal(const char *name) const {
 			CUdeviceptr dptr;
-			size_t bytes;
+			size_t dataSize;
 
-			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &bytes, _module, name ) );
+			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &dataSize, _module, name ) );
 
-			assert( bytes == sizeof( TypeInfo<DataType> ) );
+			assert( dataSize == TypeInfo<DataType>::size );
 
 			return Global<DataType>(dptr);
 		}
 
-		Function getFunction(const char*name) const {
+		Function getFunction(const char *name) const {
 			CUfunction function;
 
 			CUDA_THROW_ON_ERROR( cuModuleGetFunction( &function, _module, name ) );

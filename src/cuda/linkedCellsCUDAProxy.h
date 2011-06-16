@@ -117,20 +117,24 @@ public:
 	//! original and duplicated pairs. Details about how to handle pairs can be found
 	//! in the documentation for the class ParticlePairsHandler
 	virtual void traversePairs() {
-	#ifdef MEASURE_ERROR
 		_linkedCells.traversePairs();
 
 		float cpuPotential = _domain.getLocalUpot();
 		float cpuVirial = _domain.getLocalVirial();
 		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
-	#endif
 
 		float potential;
 		float virial;
 		_moleculeInteraction.calculate( potential, virial );
+
 		// update the domain values
 		_domain.setLocalUpot( potential );
 		_domain.setLocalVirial( virial );
+
+		printf( "Potential: %f Virial: %f\n", potential, virial );
+
+		const int numCells = _linkedCells.getCells().size();
+		printf( "Average Potential: %f Average Virial: %f\n", potential / numCells, virial / numCells );
 	}
 
 	//! @return the number of particles stored in this container
@@ -235,7 +239,7 @@ public:
 	}
 
 	virtual void grandcanonicalStep(ChemicalPotential* mu, double T) {
-		return grandcanonicalStep(mu, T);
+		return _linkedCells.grandcanonicalStep(mu, T);
 	}
 
 	//! @brief find out whether m1 is before m2 (in some global ordering)

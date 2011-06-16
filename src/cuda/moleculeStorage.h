@@ -31,6 +31,8 @@ protected:
 	void uploadState();
 	void downloadResults();
 
+	void compareResultsToCPURef( const std::vector<float3> &forces );
+
 	CUDA::Global<float3 *> _moleculePositions, _moleculeForces;
 	CUDA::Global<int *> _cellStartIndices;
 

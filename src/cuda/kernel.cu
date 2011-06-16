@@ -1,3 +1,5 @@
+#include "stdio.h"
+
 #include "cutil_math.h"
 
 #include "moleculeStorage.cum"
@@ -16,8 +18,9 @@
 
 #include "moleculePairHandler.cum"
 
-#define BLOCK_SIZE 4*32
+#include "config.h"
 
+extern "C" {
 __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
 	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
@@ -43,9 +46,13 @@ __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffset
 
 	MoleculePairHandler<typeof(globalStatsCollector)> moleculePairHandler( globalStatsCollector );
 
+#ifndef REFERENCE_IMPLEMENTATION
 	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
+#else
+	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
+#endif
 
-	cellProcessor.processCellPair( threadIndex, fromCellIndex( cellIndex ), fromCellIndex( neighborIndex ) );
+	cellProcessor.processCellPair( threadIndex, cellInfoFromCellIndex( cellIndex ), cellInfoFromCellIndex( neighborIndex ) );
 
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, neighborIndex );
 }
@@ -62,9 +69,14 @@ __global__ void processCell() {
 
 	MoleculePairHandler<typeof(globalStatsCollector)> moleculePairHandler( globalStatsCollector );
 
+#ifndef REFERENCE_IMPLEMENTATION
 	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
+#else
+	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
+#endif
 
-	cellProcessor.processCell( threadIndex, fromCellIndex( cellIndex ) );
+	cellProcessor.processCell( threadIndex, cellInfoFromCellIndex( cellIndex ) );
 
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, cellIndex );
+}
 }

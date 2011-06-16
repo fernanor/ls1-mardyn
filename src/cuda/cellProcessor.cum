@@ -103,15 +103,15 @@ struct FastCellProcessor {
 	template< BlockPairType blockPairType >
 	__device__ void processBlock(
 			const int threadIndex,
-			const int numCellsInBlockA,
-			const int numCellsInBlockB,
+			const int numMoleculesInBlockA,
+			const int numMoleculesInBlockB,
 			const int blockOffsetB,
 			Molecule &moleculeA
 			) {
 		__shared__ MoleculeLocalStorage moleculeLocalStorageB;
 
 		// load B data into cache
-		if( threadIndex < numCellsInBlockB ) {
+		if( threadIndex < numMoleculesInBlockB ) {
 			moleculeLocalStorageB.load( threadIndex, moleculeStorage, blockOffsetB + threadIndex );
 		}
 
@@ -120,19 +120,19 @@ struct FastCellProcessor {
 		__syncthreads();
 
 		// process block
-		const int numShifts = max( numCellsInBlockA, numCellsInBlockB );
+		const int numShifts = max( numMoleculesInBlockA, numMoleculesInBlockB );
 		const int numWarps = iceil( numShifts, warpSize );
-		const int numWarpsInBlockB = iceil( numCellsInBlockB, warpSize );
+		const int numWarpsInBlockB = iceil( numMoleculesInBlockB, warpSize );
 
 		const int indexA = threadIndex;
 
 		for( int warpShiftIndex = 0 ; warpShiftIndex < numWarps ; warpShiftIndex++ ) {
 			const int warpIndexB = (threadIdx.y + warpShiftIndex) % numWarps;
 
-			if( indexA < numCellsInBlockA && warpIndexB < numWarpsInBlockB ) {
+			if( indexA < numMoleculesInBlockA && warpIndexB < numWarpsInBlockB ) {
 				for( int cellShiftIndex = 0 ; cellShiftIndex < warpSize ; cellShiftIndex++ ) {
 					const int indexB = warpIndexB * warpSize + ((threadIdx.x + cellShiftIndex) % warpSize);
-					if( indexB >= numCellsInBlockB ) {
+					if( indexB >= numMoleculesInBlockB ) {
 						continue;
 					}
 
@@ -156,7 +156,7 @@ struct FastCellProcessor {
 		}
 
 		// write moleculeB back
-		if( threadIndex < numCellsInBlockB ) {
+		if( threadIndex < numMoleculesInBlockB ) {
 			moleculeLocalStorageB.commit( threadIndex, moleculeStorage, blockOffsetB + threadIndex );
 		}
 	}
@@ -165,31 +165,31 @@ struct FastCellProcessor {
 		const int numBlocksA = iceil( cellA.length, blockSize );
 		const int numBlocksB = iceil( cellB.length, blockSize );
 		for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
-			const int numCellsInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellA.length, blockSize );
+			const int numMoleculesInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellA.length, blockSize );
 			const int blockOffsetA = cellA.startIndex + blockIndexA * blockSize;
 
 			Molecule moleculeA;
 
 			// load A data into (register) cache
-			if( threadIndex < numCellsInBlockA ) {
+			if( threadIndex < numMoleculesInBlockA ) {
 				moleculeStorage.get( blockOffsetA + threadIndex, moleculeA );
 			}
 
 			for( int blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
-				const int numCellsInBlockB = (blockIndexB < numBlocksB - 1) ? blockSize : shiftedMod( cellB.length, blockSize );
+				const int numMoleculesInBlockB = (blockIndexB < numBlocksB - 1) ? blockSize : shiftedMod( cellB.length, blockSize );
 				const int blockOffsetB = cellB.startIndex + blockIndexB * blockSize;
 
 				processBlock<BPT_UNRELATED>(
 						threadIndex,
-						numCellsInBlockA,
-						numCellsInBlockB,
+						numMoleculesInBlockA,
+						numMoleculesInBlockB,
 						blockOffsetB,
 						moleculeA
 					);
 			}
 
 			// push A data back
-			if( threadIndex < numCellsInBlockA ) {
+			if( threadIndex < numMoleculesInBlockA ) {
 				moleculeStorage.set(blockOffsetA + threadIndex, moleculeA);
 			}
 		}
@@ -198,39 +198,39 @@ struct FastCellProcessor {
 	__device__ void processCell(const int threadIndex, const CellInfoEx & cell) {
 		const int numBlocks = iceil( cell.length, blockSize );
 		for( int blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
-			const int numCellsInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
+			const int numMoleculesInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
 			const int blockOffsetA = cell.startIndex + blockIndexA * blockSize;
 
 			Molecule moleculeA;
 			// load A data into (register) cache
-			if( threadIndex < numCellsInBlockA ) {
+			if( threadIndex < numMoleculesInBlockA ) {
 				moleculeStorage.getMergable( blockOffsetA + threadIndex, moleculeA );
 			}
 
 			processBlock<BPT_SAME_BLOCK>(
 					threadIndex,
-					numCellsInBlockA,
-					numCellsInBlockA,
+					numMoleculesInBlockA,
+					numMoleculesInBlockA,
 					blockOffsetA,
 					moleculeA
 				);
 
 			for( int blockIndexB = 0 ; blockIndexB < blockIndexA; blockIndexB++ ) {
 				// blockIndexB < blockIndexA - 1  < numBlocks - 1 implies numCellsInBlock = BLOCK_SIZE
-				const int numCellsInBlockB = (blockIndexB < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
+				const int numMoleculesInBlockB = (blockIndexB < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
 				const int blockOffsetB = cell.startIndex + blockIndexB * blockSize;
 
 				processBlock<BPT_UNRELATED>(
 						threadIndex,
-						numCellsInBlockA,
-						numCellsInBlockB,
+						numMoleculesInBlockA,
+						numMoleculesInBlockB,
 						blockOffsetB,
 						moleculeA
 					);
 			}
 
 			// push A data back
-			if( threadIndex < numCellsInBlockA ) {
+			if( threadIndex < numMoleculesInBlockA ) {
 				moleculeStorage.merge( blockOffsetA + threadIndex, moleculeA );
 			}
 		}

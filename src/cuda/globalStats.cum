@@ -29,6 +29,7 @@ struct CellStatsCollector {
 	__device__ void add(int threadIndex, float potential, float virial) {
 		threadPotential[threadIndex] += potential;
 		threadVirial[threadIndex] += virial;
+		//printf( "CUDA:: pot: %f, virial: %f\n", potential, virial );
 	}
 
 	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
@@ -48,6 +49,7 @@ struct CellStatsCollector {
 
 		if( threadIndex == 0 ) {
 			float potential, virial;
+
 			potential = threadPotential[0];
 			virial = threadVirial[0];
 

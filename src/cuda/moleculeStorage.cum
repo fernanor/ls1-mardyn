@@ -9,7 +9,7 @@ __device__ float3 *moleculePositions;
 __device__ float3 *moleculeForces;
 __device__ int *cellStartIndices;
 
-__device__ CellInfo fromCellIndex( int index ) {
+__device__ CellInfo cellInfoFromCellIndex( int index ) {
 	return CellInfo( cellStartIndices[index], cellStartIndices[index+1] );
 }
 

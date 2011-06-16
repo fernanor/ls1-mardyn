@@ -38,6 +38,7 @@ endif
 
 SOURCES_COMMON = $(shell find ./ -name "*.cpp" | grep -v "parallel/" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_CUDA = $(shell find ./ -name "*.cu" | grep -v "parallel/" | grep -v "/tests/" | grep -v "/vtk/")
+SOURCES_CUDA_MODULES = $(shell find ./ -name "*.cum" | grep -v "parallel/" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_SEQ = $(shell find parallel/ -name "*.cpp" | grep "Dummy" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES_PAR = $(shell find parallel/ -name "*.cpp" | grep -v "Dummy" | grep -v "/tests/" | grep -v "/vtk/")
 SOURCES = $(SOURCES_COMMON) $(SOURCES_$(PARTYPE)) 
@@ -64,7 +65,7 @@ endif
 
 CXX = $(CXX_$(PARTYPE))
 CXXFLAGS = $(CXXFLAGS_$(PARTYPE)_$(TARGET)) -DMPICH_IGNORE_CXX_SEEK 
-LINKFLAGS = $(LINKFLAGS_$(PARTYPE)_$(TARGET)) $(CPPUNIT_LINK_ARGS) -lrt 
+LINKFLAGS = $(LINKFLAGS_$(PARTYPE)_$(TARGET)) $(CPPUNIT_LINK_ARGS) -lrt -lcuda
 
 ifeq ($(DEPS),1)
   DEPCOMP = depmode=$(DEPMODE) source=$< object=$@ $(MAKEFILEDIR)depcomp
@@ -82,11 +83,23 @@ $(BINARY): .deps $(OBJECTS) $(PTXS) cppunit
 
 %.o: %.cpp
 	$(DEPCOMP) $(CXX) $(CXXFLAGS) -c $< -o $@
-	
-%.ptx: %.cu
-	$(NVCC) --ptx $< --output-directory $(<D)
+
+define CU_BUILDER
+$(shell $(NVCC) --generate-dependencies $(2) --output-directory ./cuda | sed -e 's/.o/.ptx/g' > $(2:.cu=.deps))
+endef
+
+$(call CU_BUILDER,./cuda/kernel.ptx,./cuda/kernel.cu)
+#include ./cuda/kernel.deps
+
+cuda/kernel.ptx: $(SOURCES_CUDA_MODULES) cuda/config.h
+
+%.ptx: %.cu 
+	$(NVCC) -arch=sm_21 --ptx $< --output-directory $(<D)
 	cp $@ $(@F)
 
+#$(foreach cufile,$(SOURCES_CUDA),$(eval $(call CU_BUILDER,$(cufile:.cu=.ptx),$(cufile))))
+ 
+ 
 .PHONY: help all clean cleanall depend cfg_list test
 
 help:

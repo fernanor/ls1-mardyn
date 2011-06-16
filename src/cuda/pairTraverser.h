@@ -26,12 +26,7 @@ template<class CellPairTraverserTemplate>
  void cellPairTraverser(const int3 &dimensions, const CellPairTraverserTemplate &cellInterface ) {
 	assert( dimensions.x >= 2 && dimensions.y >= 2 && dimensions.z >=2 );
 
-	/*const dim3 blockSize = dim3( WARP_SIZE, NUM_WARPS, 1 );
-
 	// intra cell forces
-	const int *dimensions = _linkedCells.getCellDimensions();
-	 */
-
 	const int3 zero3 = {0,0,0};
 	const int3 xDirection = {1,0,0};
 	const int3 yDirection = {0,1,0};
@@ -47,8 +42,8 @@ template<class CellPairTraverserTemplate>
 
 	const int3 cellDirections = make_int3(
 			cellInterface.getDirectionOffset( xDirection ),
-			cellInterface.getDirectionOffset( zDirection ),
-			cellInterface.getDirectionOffset( yDirection )
+			cellInterface.getDirectionOffset( yDirection ),
+			cellInterface.getDirectionOffset( zDirection )
 		);
 
 	//cellPairsTimer.begin();
@@ -83,7 +78,7 @@ template<class CellPairTraverserTemplate>
 		else if( direction.z == 1 ) {
 			// xy plane (main direction: z)
 			localDirection = direction;
-			localDimensions = make_int3( dimensions.x, dimensions.y, dimensions.z );
+			localDimensions = dimensions;
 			gridOffsets = cellDirections;
 		}
 		else {
@@ -105,11 +100,10 @@ template<class CellPairTraverserTemplate>
 		gridOffsets.z *= 2;
 
 		// there are floor( dimZ / 2 ) odd slices
-		int numOddSlices = localDimensions.z / 2;
-		int numEvenSlices = localDimensions.z - numOddSlices;
+		const int numOddSlices = localDimensions.z / 2;
+		const int numEvenSlices = localDimensions.z - numOddSlices;
 
-		int numCellsInSlice = localDimensions.x * localDimensions.y;
-
+		const int numCellsInSlice = localDimensions.x * localDimensions.y;
 
 		typename CellPairTraverserTemplate::TaskInfo taskInfo;
 
@@ -124,29 +118,11 @@ template<class CellPairTraverserTemplate>
 
 		cellInterface.processTask( taskInfo );
 
-		/*Kernel_calculatePairLJForces<<<numEvenSlices * numCellsInSlice, blockSize>>>(
-				_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),
-				_componentLJCenterInfos.devicePtr(), _numComponentLJCenters,
-				_cellStartIndices.devicePtr(), _domainValues.devicePtr(),
-				evenSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
-				neighborOffset,
-				cutOffRadiusSquared
-			);*/
-
 		// do all odd slices
 		taskInfo.numPairs = numOddSlices * numCellsInSlice;
 		taskInfo.startIndex = oddSlicesStartIndex;
 
 		cellInterface.processTask( taskInfo );
-
-		/*Kernel_calculatePairLJForces<<<numOddSlices * numCellsInSlice, blockSize>>>(
-				_positions.devicePtr(), _componentLJCenterIndices.devicePtr(), _forces.devicePtr(),
-				_componentLJCenterInfos.devicePtr(), _numComponentLJCenters,
-				_cellStartIndices.devicePtr(), _domainValues.devicePtr(),
-				oddSlicesStartIndex, make_int2( localDimensions ), gridOffsets,
-				neighborOffset,
-				cutOffRadiusSquared
-			);*/
 	}
 }
 
