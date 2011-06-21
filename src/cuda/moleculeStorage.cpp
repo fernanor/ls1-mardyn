@@ -14,6 +14,8 @@
 
 void MoleculeStorage::uploadState() {
 	std::vector<float3> positions;
+	std::vector<Molecule_ComponentType> componentTypes;
+
 	std::vector<int> startIndices;
 
 	int numCells = _linkedCells.getCells().size();
@@ -30,6 +32,9 @@ void MoleculeStorage::uploadState() {
 
 			float3 position = make_float3( molecule.r(0), molecule.r(1), molecule.r(2) );
 			positions.push_back( position );
+
+			componentTypes.push_back( molecule.componentid() );
+
 			currentIndex++;
 		}
 	}
@@ -37,13 +42,16 @@ void MoleculeStorage::uploadState() {
 	startIndices.push_back( currentIndex );
 
 	_startIndexBuffer.copyToDevice( startIndices );
+
 	_positionBuffer.copyToDevice( positions );
+	_componentTypeBuffer.copyToDevice( componentTypes );
 
 	_forceBuffer.resize( currentIndex );
 	_forceBuffer.zeroDevice();
 
 	_moleculePositions.set( _positionBuffer );
 	_moleculeForces.set( _forceBuffer );
+	_moleculeComponentTypes.set( _componentTypeBuffer );
 
 	_cellStartIndices.set( _startIndexBuffer );
 }

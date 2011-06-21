@@ -2,6 +2,14 @@
 #define UTIL_CUM
 #include <host_defines.h>
 
+#include "sharedDecls.h"
+
+struct Matrix3x3 : Matrix3x3Storage{
+	__device__ inline float3 operator *(const float3 &vector) const {
+		return make_float3( dot( rows[0], vector ), dot( rows[1], vector ), dot( rows[2], vector ) );
+	}
+};
+
 // = ceil( a / b )
 __device__ inline int iceil(int a, int b) {
 	return (a+b-1) / b;

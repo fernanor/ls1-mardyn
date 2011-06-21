@@ -3,13 +3,17 @@
 
 #include <host_defines.h>
 
+#include "sharedDecls.h"
+
 struct Molecule {
+	typedef Molecule_ComponentType ComponentType;
 	float3 position;
 	float3 force;
+	ComponentType componentType;
 
 	__device__ Molecule() {}
 
-	__device__ Molecule(const float3 &position, const float3 &force) : position( position ), force( force ) {}
+	__device__ Molecule(const float3 &position, const float3 &force, const ComponentType &componentType) : position( position ), force( force ), componentType( componentType ) {}
 };
 
 #endif

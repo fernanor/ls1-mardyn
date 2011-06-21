@@ -23,4 +23,7 @@
 
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
 
+// TODO: move this include into the referencing header files
+#include "sharedDecls.h"
+
 #endif /* CONFIG_H_ */
