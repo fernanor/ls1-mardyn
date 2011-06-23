@@ -1,0 +1,30 @@
+/*
+ * componentDescriptor.cum
+ *
+ *  Created on: Jun 21, 2011
+ *      Author: Andreas Kirsch
+ */
+
+#ifndef COMPONENTDESCRIPTOR_CUM_
+#define COMPONENTDESCRIPTOR_CUM_
+
+#include <host_defines.h>
+
+#include "molecule.cum"
+
+#include "sharedDecls.h"
+
+__device__ ComponentDescriptor *componentDescriptors;
+
+struct ComponentDescriptorAccessor {
+	float3 getRelativeLJCenter(Molecule::ComponentType type, int index ) {
+		return componentDescriptors[type].relativeLJCenter[index];
+	}
+
+	int getNumLJCenters(Molecule::ComponentType type) {
+		return componentDescriptors[type].numLJCenters;
+	}
+};
+
+
+#endif /* COMPONENTDESCRIPTOR_CUM_ */

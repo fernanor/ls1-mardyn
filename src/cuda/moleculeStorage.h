@@ -12,15 +12,15 @@
 
 #include "config.h"
 
-class MoleculeStorage : public CUDAComponentModule {
+class MoleculeStorage : public CUDAForceCalculationComponent {
 public:
-	MoleculeStorage( const CUDA::Module &module, LinkedCells &linkedCells ) :
-		CUDAComponentModule(module, linkedCells),
-		_moleculePositions( module.getGlobal<float3 *>("moleculePositions") ),
-		_moleculeForces( module.getGlobal<float3 *>("moleculeForces") ),
-		_moleculeComponentTypes( module.getGlobal<Molecule_ComponentType *>("moleculeComponentTypes") ),
+	MoleculeStorage( const CUDAComponent &component ) :
+		CUDAForceCalculationComponent( component ),
+		_moleculePositions( _module.getGlobal<float3 *>("moleculePositions") ),
+		_moleculeForces( _module.getGlobal<float3 *>("moleculeForces") ),
+		_moleculeComponentTypes( _module.getGlobal<Molecule_ComponentType *>("moleculeComponentTypes") ),
 
-		_cellStartIndices( module.getGlobal<int *>("cellStartIndices") ) {
+		_cellStartIndices( _module.getGlobal<int *>("cellStartIndices") ) {
 	}
 
 	void preForceCalculation() {

@@ -10,10 +10,10 @@
 
 #include "cudaComponent.h"
 
-class GlobalStats : public CUDAComponentModule {
+class GlobalStats : public CUDAForceCalculationComponent {
 public:
-	GlobalStats( const CUDA::Module &module, LinkedCells &linkedCells ) :
-		CUDAComponentModule(module, linkedCells), _cellStats( module.getGlobal<CellStats *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
+	GlobalStats( const CUDAComponent &component ) :
+		CUDAForceCalculationComponent(component), _cellStats( _module.getGlobal<CellStats *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
 	}
 
 	virtual void preForceCalculation();

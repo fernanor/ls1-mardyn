@@ -52,21 +52,22 @@ class MoleculeInteraction : public CUDAComponent {
 	};
 
 public:
-	MoleculeInteraction( const CUDA::Module &module, LinkedCells &linkedCells ) :
-		CUDAComponent(module, linkedCells),
+	MoleculeInteraction( const CUDA::Module &module, LinkedCells &linkedCells, Domain &domain ) :
+		CUDAComponent(module, linkedCells, domain),
 
-		_globalStats( module, linkedCells ),
-		_moleculeStorage( module, linkedCells ),
-		_moleculePairHandler( module, linkedCells ),
+		_globalStats( *this ),
+		_moleculeStorage( *this ),
+		_moleculePairHandler( *this ),
 
 		_cellPairProcessor( module.getFunction("processCellPair") ),
-		_cellProcessor( module.getFunction("processCell") ) {
+		_cellProcessor( module.getFunction("processCell") )
+	{
+		_moleculePairHandler.upload();
 	}
 
 	void calculate(float &potential, float &virial) {
 		_globalStats.preForceCalculation();
 		_moleculeStorage.preForceCalculation();
-		_moleculePairHandler.preForceCalculation();
 
 		const int *raw_dimensions = _linkedCells.getCellDimensions();
 		assert( raw_dimensions[0] >= 2 && raw_dimensions[1] >= 2 && raw_dimensions[2] >=2 );
@@ -79,7 +80,6 @@ public:
 
 		_globalStats.postForceCalculation();
 		_moleculeStorage.postForceCalculation();
-		_moleculePairHandler.postForceCalculation();
 
 		potential = _globalStats.getPotential();
 		virial = _globalStats.getVirial();

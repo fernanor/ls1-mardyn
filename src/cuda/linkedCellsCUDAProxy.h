@@ -59,7 +59,7 @@ public:
 	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax),
 	  _domain( domain ),
 	  _linkedCells(bBoxMin, bBoxMax, cutoffRadius, cutoffRadius, cutoffRadius, 1.0, partPairsHandler),
-	  _moleculeInteraction( cuda().loadModule("kernel.ptx"), _linkedCells )
+	  _moleculeInteraction( cuda().loadModule("kernel.ptx"), _linkedCells, _domain )
 	{}
 
 	//! @brief The destructor

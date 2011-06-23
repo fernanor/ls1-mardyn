@@ -23,6 +23,8 @@
 
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
 
+#define MAX_NUM_LJCENTERS 4
+
 // TODO: move this include into the referencing header files
 #include "sharedDecls.h"
 

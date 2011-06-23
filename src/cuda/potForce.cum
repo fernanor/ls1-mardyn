@@ -5,10 +5,7 @@
 
 #include "cutil_math.h"
 
-struct LJParameters {
-	float epsilon;
-	float sigmaSquared;
-};
+#include "sharedDecls.h"
 
 __device__ void calculateLennardJones( const float3 distanceAtoB, const float distanceSquared, const LJParameters &ljParameters,
 		float3 &forceAtoB, float &potential) {

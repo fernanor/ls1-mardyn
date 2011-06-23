@@ -3,18 +3,16 @@
 
 #include "cudaComponent.h"
 
-class MoleculePairHandler : public CUDAComponentModule {
+class MoleculePairHandler : public CUDAStaticDataComponent {
 public:
-	MoleculePairHandler( const CUDA::Module &module, LinkedCells &linkedCells ) :
-		CUDAComponentModule(module, linkedCells), _cutOffRadiusSquared( module.getGlobal<float>("cutOffRadiusSquared") ) {
+	MoleculePairHandler( const CUDAComponent &component ) :
+		CUDAStaticDataComponent( component ), _cutOffRadiusSquared( _module.getGlobal<float>("cutOffRadiusSquared") ) {
 	}
 
-	virtual void preForceCalculation() {
+	virtual void upload() {
 		const float cutOffRadius = _linkedCells.getCutoff();
 		_cutOffRadiusSquared.set( cutOffRadius * cutOffRadius );
 	}
-
-	virtual void postForceCalculation() {}
 
 protected:
 	CUDA::Global<float> _cutOffRadiusSquared;

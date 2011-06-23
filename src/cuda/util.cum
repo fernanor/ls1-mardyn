@@ -4,9 +4,40 @@
 
 #include "sharedDecls.h"
 
-struct Matrix3x3 : Matrix3x3Storage{
+struct Matrix3x3 : Matrix3x3Storage {
 	__device__ inline float3 operator *(const float3 &vector) const {
 		return make_float3( dot( rows[0], vector ), dot( rows[1], vector ), dot( rows[2], vector ) );
+	}
+};
+
+struct Quaternion : QuaternionStorage {
+	__device__ inline Matrix3x3 toInvRotMatrix3x3() const {
+		Matrix3x3 rot;
+
+		float ww=w*w;
+		float xx=x*x;
+		float yy=y*y;
+		float zz=z*z;
+		float xy=x*y;
+		float zw=z*w;
+		float xz=x*z;
+		float yw=y*w;
+		float yz=y*z;
+		float xw=x*w;
+
+		rot.rows[0].x=ww+xx-yy-zz;
+		rot.rows[0].y=2*(xy-zw);
+		rot.rows[0].z=2*(xz+yw);
+
+		rot.rows[1].x=2*(xy+zw);
+		rot.rows[1].y=ww-xx+yy-zz;
+		rot.rows[1].z=2*(yz-xw);
+
+		rot.rows[2].x=2*(xz-yw);
+		rot.rows[2].y=2*(yz+xw);
+		rot.rows[2].z=ww-xx-yy+zz;
+
+		return rot;
 	}
 };
 
