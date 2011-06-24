@@ -232,7 +232,6 @@ public:
 
 			CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
 		}
-
 	};
 
 	class Function {

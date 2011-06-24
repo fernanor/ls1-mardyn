@@ -57,6 +57,7 @@ public:
 
 		_globalStats( *this ),
 		_moleculeStorage( *this ),
+
 		_moleculePairHandler( *this ),
 
 		_cellPairProcessor( module.getFunction("processCellPair") ),

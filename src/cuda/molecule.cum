@@ -5,15 +5,20 @@
 
 #include "sharedDecls.h"
 
+#include "util.cum"
+
 struct Molecule {
 	typedef Molecule_ComponentType ComponentType;
 	float3 position;
+	Matrix3x3 rotation; // R: relative->global coord system
+
 	float3 force;
+
 	ComponentType componentType;
 
 	__device__ Molecule() {}
 
-	__device__ Molecule(const float3 &position, const float3 &force, const ComponentType &componentType) : position( position ), force( force ), componentType( componentType ) {}
+	__device__ Molecule(const float3 &position, const Matrix3x3 &rotation, const float3 &force, const ComponentType &componentType) : position( position ), rotation( rotation ), force( force ), componentType( componentType ) {}
 };
 
 #endif
