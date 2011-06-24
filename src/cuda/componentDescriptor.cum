@@ -22,5 +22,25 @@ struct ComponentDescriptorAccessor {
 	}
 };
 
+extern "C" {
+__global__ void debugComponentDescriptors( int numDescriptors ) {
+	printf( "CUDA component descriptor dump:\n" );
+
+	for( int i = 0 ; i < numDescriptors ; i++ ) {
+		const ComponentDescriptor &descriptor = componentDescriptors[i];
+		printf( "component #%i:\n", i );
+		for( int j = 0 ; j < descriptor.numLJCenters ; j++ ) {
+			const ComponentDescriptor::LJCenter &ljCenter = descriptor.ljCenters[j];
+			printf( "\trelative position:%f %f %f\n"
+					"\tepsilon: %f\n"
+					"\tsigma: %f\n",
+					ljCenter.relativePosition.x, ljCenter.relativePosition.y, ljCenter.relativePosition.z,
+					ljCenter.ljParameters.epsilon, ljCenter.ljParameters.sigma
+				);
+		}
+		printf( "\n" );
+	}
+}
+}
 
 #endif /* COMPONENTDESCRIPTOR_CUM_ */

@@ -121,8 +121,8 @@ void MoleculeStorage::uploadState() {
 }
 
 struct CPUCudaVectorErrorMeasure {
-	float totalCPUMagnitude, totalCudaMagnitude;
-	float totalError, totalRelativeError;
+	double totalCPUMagnitude, totalCudaMagnitude;
+	double totalError, totalRelativeError;
 	int numDataPoints;
 
 	const char *name;
@@ -132,13 +132,13 @@ struct CPUCudaVectorErrorMeasure {
 	}
 
 	void registerErrorFor( const float3 &cpuResult, const float3 &cudaResult ) {
-		const float epsilon = 5.96e-06f;
+		const double epsilon = 5.96e-06f;
 
-		const float3 delta = cpuResult - cudaResult;
+		const double3 delta = cpuResult - cudaResult;
 
-		const float cpuLength = length(cpuResult);
-		const float cudaLength = length(cudaResult);
-		const float deltaLength = length(delta);
+		const double cpuLength = length(cpuResult);
+		const double cudaLength = length(cudaResult);
+		const double deltaLength = length(delta);
 
 		totalCPUMagnitude += cpuLength;
 		totalCudaMagnitude += cudaLength;

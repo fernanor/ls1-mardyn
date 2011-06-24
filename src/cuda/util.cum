@@ -11,7 +11,10 @@ struct Matrix3x3 : Matrix3x3Storage {
 };
 
 struct Quaternion : QuaternionStorage {
-	__device__ inline Matrix3x3 toInvRotMatrix3x3() const {
+	/* according to http://www.flipcode.com/documents/matrfaq.html#Q54
+	 * this is the standard quaternion to matrix conversion (not the inverse one!)
+	 */
+	__device__ inline Matrix3x3 toRotMatrix3x3() const {
 		Matrix3x3 rot;
 
 		float ww=w*w;

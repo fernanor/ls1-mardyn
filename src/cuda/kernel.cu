@@ -40,10 +40,10 @@ __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuate
 	int moleculeIndex = blockIdx.x * blockDim.x + threadIdx.x;
 	if( moleculeIndex < numMolecules ) {
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
-		moleculeRotations[ moleculeIndex ] = quaternions[ moleculeIndex ].toInvRotMatrix3x3();
+		moleculeRotations[ moleculeIndex ] = quaternions[ moleculeIndex ].toRotMatrix3x3();
 #else
 #warning CUDA: testing quaternion matrix conversion
-		const Matrix3x3 convertedQuaternion = quaternions[ moleculeIndex ].toInvRotMatrix3x3();
+		const Matrix3x3 convertedQuaternion = quaternions[ moleculeIndex ].toRotMatrix3x3();
 		const Matrix3x3 &correctRotation = moleculeRotations[ moleculeIndex ];
 
 		const float error = length( convertedQuaternion.rows[0] - correctRotation.rows[0] ) +

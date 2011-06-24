@@ -38,17 +38,16 @@ struct MoleculePairHandler {
 				const ComponentDescriptor::LJCenter &ljCenterB = descriptorB.ljCenters[ljIndexB];
 				const float3 relativePositionB = moleculeB.rotation * ljCenterB.relativePosition;
 
-				const float3 relativeDistance = relativePositionB - relativePositionA;
-
 				LJParameters mixedParameters;
+				// TODO: add support for eta and xi!
 				mixedParameters.epsilon = sqrt( ljCenterA.ljParameters.epsilon * ljCenterB.ljParameters.epsilon );
 				mixedParameters.sigma = 0.5f * (ljCenterA.ljParameters.sigma + ljCenterB.ljParameters.sigma);
 
+				const float3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
+				const float totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
+
 				float3 forceAtoB;
 				float potential;
-
-				const float3 totalDistanceAtoB = distanceAtoB + relativeDistance;
-				const float totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
 				calculateLennardJones( totalDistanceAtoB, totalDistanceSquared, mixedParameters, forceAtoB, potential );
 
 				moleculeA.force += forceAtoB;
@@ -57,7 +56,7 @@ struct MoleculePairHandler {
 				moleculeA.torque += cross( relativePositionA, forceAtoB );
 				moleculeB.torque -= cross( relativePositionB, forceAtoB );
 
-				const float virial = dot( totalDistanceAtoB, forceAtoB );
+				const float virial = dot( distanceAtoB, forceAtoB );
 
 				globalStatsCollector.add( threadIndex, potential, virial );
 			}
