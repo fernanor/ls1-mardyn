@@ -14,6 +14,8 @@
 #include "particleContainer/handlerInterfaces/ParticlePairsHandler.h"
 #include "Domain.h"
 
+#include "behaviorProbe.h"
+
 #include "moleculeInteraction.h"
 
 class LinkedCellsCUDAProxy : public ParticleContainer {
@@ -117,15 +119,19 @@ public:
 	//! original and duplicated pairs. Details about how to handle pairs can be found
 	//! in the documentation for the class ParticlePairsHandler
 	virtual void traversePairs() {
+#ifdef COMPARE_TO_CPU
 		_linkedCells.traversePairs();
 
 		float cpuPotential = _domain.getLocalUpot();
 		float cpuVirial = _domain.getLocalVirial();
 		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
 
+#endif
 		float potential;
 		float virial;
 		_moleculeInteraction.calculate( potential, virial );
+
+		BehaviorProbe::FMset();
 
 		// update the domain values
 		_domain.setLocalUpot( potential );

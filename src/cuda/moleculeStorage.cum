@@ -28,7 +28,7 @@ struct MoleculeStorage {
 
 	__device__ 	void set(int index, const Molecule &molecule) {
 		moleculeForces[ index ] = molecule.force;
-		moleculeTorque[ index ] = molecule.force;
+		moleculeTorque[ index ] = molecule.torque;
 	}
 
 	// get the molecule data but in a way that merge will be able to merge changes back into the storage

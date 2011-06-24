@@ -120,12 +120,51 @@ void MoleculeStorage::uploadState() {
 			execute(currentIndex / MAX_BLOCK_SIZE + 1, 1);
 }
 
-void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces ) {
-	double totalError = 0.0;
-	double totalRelativeError = 0.0;
-	float epsilon = 5.96e-06f;
+struct CPUCudaVectorErrorMeasure {
+	float totalCPUMagnitude, totalCudaMagnitude;
+	float totalError, totalRelativeError;
+	int numDataPoints;
 
-	double avgCPUMagnitude = 0.0, avgCUDAMagnitude = 0.0;
+	const char *name;
+
+	CPUCudaVectorErrorMeasure(const char *name)
+	: name(name), totalCPUMagnitude(0.0f), totalCudaMagnitude(0.0f), totalError(0.0f), totalRelativeError(0.0f), numDataPoints(0) {
+	}
+
+	void registerErrorFor( const float3 &cpuResult, const float3 &cudaResult ) {
+		const float epsilon = 5.96e-06f;
+
+		const float3 delta = cpuResult - cudaResult;
+
+		const float cpuLength = length(cpuResult);
+		const float cudaLength = length(cudaResult);
+		const float deltaLength = length(delta);
+
+		totalCPUMagnitude += cpuLength;
+		totalCudaMagnitude += cudaLength;
+
+		totalError += deltaLength;
+		if( cpuLength > epsilon ) {
+			totalRelativeError += deltaLength / cpuLength;
+		}
+		numDataPoints++;
+	}
+
+	void report() {
+		printf( "%s:\n"
+				"  average CPU: %f\n"
+				"  average CUDA: %f\n"
+				"\n"
+				"  average error: %f; average relative error: %f\n",
+				name,
+				totalCPUMagnitude / numDataPoints, totalCudaMagnitude / numDataPoints,
+				totalError / numDataPoints, totalRelativeError / numDataPoints
+			);
+	}
+};
+
+void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces, const std::vector<float3> &torque ) {
+	CPUCudaVectorErrorMeasure forceErrorMeasure( "force statistics" ), torqueErrorMeasure( "torque statistics" );
 
 	const int numCells = _linkedCells.getCells().size();
 
@@ -135,53 +174,41 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces 
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
-			const Molecule &molecule = **iterator;
-			const float3 &cudaForce = forces[currentIndex++];
+			Molecule &molecule = **iterator;
+			const float3 &cudaForce = forces[currentIndex];
+			const float3 &cudaTorque = torque[currentIndex];
+			currentIndex++;
 
 			if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
 				continue;
 			}
 
-			const double *cpuForceD = molecule.ljcenter_F(0);
-			float3 cpuForce = make_float3( cpuForceD[0], cpuForceD[1], cpuForceD[2] );
-			float3 deltaForce = cudaForce - cpuForce;
+			// we are going to compare F and M
+			// TODO: make sure that we always overwrite F and M
+			molecule.calcFM();
 
-			double cpuForceLength = length( cpuForce );
-			double cudaForceLength = length( cudaForce );
-			double deltaForceLength = length( deltaForce );
+			const float3 cpuForce = make_float3( molecule.F(0), molecule.F(1), molecule.F(2) );
+			const float3 cpuTorque = make_float3( molecule.M(0), molecule.M(1), molecule.M(2) );
 
-			//if( isfinite(cpuForceLength) && isfinite( cudaForceLength ) && isfinite( deltaForceLength ) ) {
-				avgCPUMagnitude += cpuForceLength;
-				avgCUDAMagnitude += cudaForceLength;
-
-				totalError += deltaForceLength;
-
-				if( cpuForceLength > epsilon ) {
-					double relativeError = deltaForceLength / cpuForceLength;
-					totalRelativeError += relativeError;
-				}
-			/*}
-			else {
-				;
-			}*/
+			forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
+			torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
 		}
 	}
 
-	avgCPUMagnitude /= currentIndex;
-	avgCUDAMagnitude /= currentIndex;
-
-	printf( "Average CPU Mag:  %f\n"
-			"Average CUDA Mag: %f\n"
-			"Average Error: %f\n"
-			"Average Relative Error: %f\n", avgCPUMagnitude, avgCUDAMagnitude, totalError / currentIndex, totalRelativeError / currentIndex );
+	forceErrorMeasure.report();
+	torqueErrorMeasure.report();
 }
 
 void MoleculeStorage::downloadResults() {
 	std::vector<float3> forces;
+	std::vector<float3> torque;
 
 	_forceBuffer.copyToHost( forces );
+	_torqueBuffer.copyToHost( torque );
 
-	compareResultsToCPURef( forces );
+#ifdef COMPARE_TO_CPU
+	compareResultsToCPURef( forces, torque );
+#endif
 
 	const int numCells = _linkedCells.getCells().size();
 
@@ -193,7 +220,9 @@ void MoleculeStorage::downloadResults() {
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
 
-			molecule.Fljcenterset( 0, (float*) &forces[currentIndex++] );
+			molecule.setF((float*) &forces[currentIndex]);
+			molecule.setM((float*) &torque[currentIndex]);
+			currentIndex++;
 		}
 	}
 }

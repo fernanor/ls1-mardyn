@@ -43,7 +43,7 @@ protected:
 	void uploadState();
 	void downloadResults();
 
-	void compareResultsToCPURef( const std::vector<float3> &forces );
+	void compareResultsToCPURef( const std::vector<float3> &forces, const std::vector<float3> &torque );
 
 	CUDA::Global<float3 *> _moleculePositions, _moleculeForces, _moleculeTorque;
 	CUDA::Global<Matrix3x3Storage *> _moleculeRotations;
