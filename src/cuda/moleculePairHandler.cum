@@ -4,13 +4,14 @@
 
 __device__ float cutOffRadiusSquared;
 
-template<class GlobalStatsCollector>
+template<class GlobalStatsCollector, class ComponentDescriptorAccessor>
 struct MoleculePairHandler {
 	GlobalStatsCollector &globalStatsCollector;
+	ComponentDescriptorAccessor &componentDescriptorAccessor;
 
-	__device__ MoleculePairHandler( GlobalStatsCollector &globalStatsCollector ) : globalStatsCollector( globalStatsCollector ) {}
+	__device__ MoleculePairHandler( GlobalStatsCollector &globalStatsCollector, ComponentDescriptorAccessor &componentDescriptorAccessor ) : globalStatsCollector( globalStatsCollector ), componentDescriptorAccessor( componentDescriptorAccessor ) {}
 
-	__device__ void process( int threadIndex, Molecule &moleculeA, Molecule &moleculeB) {
+	__device__ void process( int threadIndex, Molecule &moleculeA, Molecule &moleculeB ) {
 		const float3 distanceAtoB = moleculeB.position - moleculeA.position;
 		const float distanceSquared = dot( distanceAtoB, distanceAtoB );
 
@@ -18,18 +19,48 @@ struct MoleculePairHandler {
 			return;
 		}
 
-		LJParameters ljParameters;
-		ljParameters.epsilon = 1.0f;
-		ljParameters.sigmaSquared = 1.0f;
+		const ComponentDescriptor &descriptorA = componentDescriptorAccessor.get(moleculeA.componentType);
+		const ComponentDescriptor &descriptorB = componentDescriptorAccessor.get(moleculeB.componentType);
 
-		float3 forceAtoB;
-		float potential;
-		calculateLennardJones( distanceAtoB, distanceSquared, ljParameters, forceAtoB, potential );
+		processLJCenters( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+	}
 
-		moleculeA.force += forceAtoB;
-		moleculeB.force -= forceAtoB;
+	__device__ void processLJCenters( int threadIndex,
+			Molecule &moleculeA, Molecule &moleculeB,
+			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
+			const float3 &distanceAtoB
+		) {
+		for( int ljIndexA = 0 ; ljIndexA < descriptorA.numLJCenters ; ljIndexA++ ) {
+			const ComponentDescriptor::LJCenter &ljCenterA = descriptorA.ljCenters[ljIndexA];
+			const float3 relativePositionA = moleculeA.rotation * ljCenterA.relativePosition;
 
-		const float virial = dot( distanceAtoB, forceAtoB );
-		globalStatsCollector.add( threadIndex, potential, virial );
+			for( int ljIndexB = 0 ; ljIndexB < descriptorB.numLJCenters ; ljIndexB++ ) {
+				const ComponentDescriptor::LJCenter &ljCenterB = descriptorB.ljCenters[ljIndexB];
+				const float3 relativePositionB = moleculeB.rotation * ljCenterB.relativePosition;
+
+				const float3 relativeDistance = relativePositionB - relativePositionA;
+
+				LJParameters mixedParameters;
+				mixedParameters.epsilon = sqrt( ljCenterA.ljParameters.epsilon * ljCenterB.ljParameters.epsilon );
+				mixedParameters.sigma = 0.5f * (ljCenterA.ljParameters.sigma + ljCenterB.ljParameters.sigma);
+
+				float3 forceAtoB;
+				float potential;
+
+				const float3 totalDistanceAtoB = distanceAtoB + relativeDistance;
+				const float totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
+				calculateLennardJones( totalDistanceAtoB, totalDistanceSquared, mixedParameters, forceAtoB, potential );
+
+				moleculeA.force += forceAtoB;
+				moleculeB.force -= forceAtoB;
+
+				moleculeA.torque += cross( relativePositionA, forceAtoB );
+				moleculeB.torque -= cross( relativePositionB, forceAtoB );
+
+				const float virial = dot( totalDistanceAtoB, forceAtoB );
+
+				globalStatsCollector.add( threadIndex, potential, virial );
+			}
+		}
 	}
 };

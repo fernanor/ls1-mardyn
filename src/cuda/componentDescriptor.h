@@ -10,12 +10,14 @@
 
 #include <vector>
 
+#include "cutil_math.h"
+
 #include "sharedDecls.h"
 
-class ComponentDescriptor : public CUDAStaticDataComponent {
+class ComponentDescriptorStorage : public CUDAStaticDataComponent {
 public:
-	ComponentDescriptor( const CUDAComponent &component ) :
-		CUDAForceCalculationComponent( component ), _componentDescriptors( module.getGlobal<ComponentDescriptor *>("componentDescriptors") ) {
+	ComponentDescriptorStorage( const CUDAComponent &component ) :
+		CUDAStaticDataComponent( component ), _componentDescriptors( _module.getGlobal<ComponentDescriptor *>("componentDescriptors") ) {
 	}
 
 	virtual void upload() {
@@ -23,17 +25,30 @@ public:
 		const std::vector<Component> &components = _domain.getComponents();
 
 		for( int i = 0 ; i < components.size() ; i++ ) {
+			const Component &component = components[i];
 			ComponentDescriptor componentDescriptor;
-			componentDescriptor.numLJCenters = components[i].numLJcenters();
+			componentDescriptor.numLJCenters = component.numLJcenters();
 
 			for( int ljCenterIndex = 0 ; ljCenterIndex < componentDescriptor.numLJCenters ; ljCenterIndex++ ) {
-				//componentDescriptor.relativeLJCenter[ljCenterIndex] = components[i].ljcenter(i)._r
+				ComponentDescriptor::LJCenter &ljCenter = componentDescriptor.ljCenters[ljCenterIndex];
+
+				const LJcenter &cLjCenter = component.ljcenter(i);
+				ljCenter.ljParameters.epsilon = cLjCenter.eps();
+				ljCenter.ljParameters.sigma = cLjCenter.sigma();
+				ljCenter.relativePosition = make_float3( cLjCenter.rx(), cLjCenter.ry(), cLjCenter.rz() );
 			}
+
+			componentDescriptors.push_back(componentDescriptor);
 		}
+
+		_componentDescriptorBuffer.copyToDevice(componentDescriptors);
+		_componentDescriptors.set( _componentDescriptorBuffer );
 	}
 
 protected:
-	CUDA::Global<ComponentDescriptor> _componentDescriptors;
+	CUDA::Global<ComponentDescriptor *> _componentDescriptors;
+
+	CUDA::DeviceBuffer<ComponentDescriptor> _componentDescriptorBuffer;
 };
 
 

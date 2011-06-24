@@ -4,6 +4,8 @@
 
 #include "moleculeStorage.cum"
 
+#include "componentDescriptor.cum"
+
 #include "pairTraverser.cum"
 
 #include "cellProcessor.cum"
@@ -76,9 +78,11 @@ __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffset
 	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );
 
+	ComponentDescriptorAccessor componentDescriptorAccessor;
+
 	MoleculeStorage moleculeStorage;
 
-	MoleculePairHandler<typeof(globalStatsCollector)> moleculePairHandler( globalStatsCollector );
+	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
 
 #ifndef REFERENCE_IMPLEMENTATION
 	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
@@ -99,9 +103,11 @@ __global__ void processCell() {
 	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );
 
+	ComponentDescriptorAccessor componentDescriptorAccessor;
+
 	MoleculeStorage moleculeStorage;
 
-	MoleculePairHandler<typeof(globalStatsCollector)> moleculePairHandler( globalStatsCollector );
+	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
 
 #ifndef REFERENCE_IMPLEMENTATION
 	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);

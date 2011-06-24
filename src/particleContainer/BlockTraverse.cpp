@@ -24,6 +24,8 @@
 #include "particleContainer/ParticleContainer.h"
 #include "utils/Logger.h"
 
+#include "cuda/behaviorProbe.h"
+
 #include <list>
 #include <cmath>
 #include <iostream>
@@ -109,10 +111,11 @@ void BlockTraverse::traversePairs() {
 				molecule1.setF(zeroVec);
 				molecule1.setM(zeroVec);
 				molecule1.clearTersoffNeighbourList();
-
 			}
 		}
 	}
+
+	BehaviorProbe::FMcleared();
 
 	vector<unsigned long>::iterator cellIndexIter;
 	vector<unsigned long>::iterator neighbourOffsetsIter;

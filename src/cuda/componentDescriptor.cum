@@ -17,12 +17,8 @@
 __device__ ComponentDescriptor *componentDescriptors;
 
 struct ComponentDescriptorAccessor {
-	float3 getRelativeLJCenter(Molecule::ComponentType type, int index ) {
-		return componentDescriptors[type].relativeLJCenter[index];
-	}
-
-	int getNumLJCenters(Molecule::ComponentType type) {
-		return componentDescriptors[type].numLJCenters;
+	__device__ const ComponentDescriptor & get(Molecule::ComponentType type) {
+		return componentDescriptors[type];
 	}
 };
 

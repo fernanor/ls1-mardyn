@@ -22,6 +22,7 @@
  ***************************************************************************/
 #include "molecules/Molecule.h"
 
+#include "cuda/behaviorProbe.h"
 
 #include <cmath>
 #include <fstream>
@@ -202,6 +203,8 @@ void Molecule::upd_postF(double dt_halve, double& summv2, double& sumIw2) {
 
 
 	calcFM();
+
+	BehaviorProbe::FMused();
 
 	//if(_id==1) cout << "Kraft: " << _F[0] << " / " << _F[1] << " / " << _F[2] << endl;
 
@@ -401,6 +404,8 @@ inline void Molecule::clearFM() {
 		_sites_F[i] = 0.;
 	_F[0] = _F[1] = _F[2] = 0.;
 	_M[0] = _M[1] = _M[2] = 0.;
+
+	BehaviorProbe::FMcleared();
 }
 
 inline void Molecule::calcFM() {

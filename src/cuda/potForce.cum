@@ -10,7 +10,7 @@
 __device__ void calculateLennardJones( const float3 distanceAtoB, const float distanceSquared, const LJParameters &ljParameters,
 		float3 &forceAtoB, float &potential) {
 	const float invdr2 = 1.f / distanceSquared;
-	const float lj2 = ljParameters.sigmaSquared * invdr2;
+	const float lj2 = ljParameters.sigma * ljParameters.sigma * invdr2;
 	const float lj6 = lj2 * lj2 * lj2;
 	const float lj12 = lj6 * lj6;
 	const float lj12m6 = lj12 - lj6;

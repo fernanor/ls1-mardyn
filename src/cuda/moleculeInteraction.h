@@ -11,6 +11,7 @@
 #include "helpers.h"
 
 #include "cudaComponent.h"
+#include "componentDescriptor.h"
 #include "globalStats.h"
 #include "moleculeStorage.h"
 #include "moleculePairHandler.h"
@@ -58,15 +59,19 @@ public:
 		_globalStats( *this ),
 		_moleculeStorage( *this ),
 
+		_componentDescriptorStorage( *this ),
 		_moleculePairHandler( *this ),
 
 		_cellPairProcessor( module.getFunction("processCellPair") ),
 		_cellProcessor( module.getFunction("processCell") )
 	{
+		// upload data from CUDAStaticDataComponents
 		_moleculePairHandler.upload();
+		_componentDescriptorStorage.upload();
 	}
 
 	void calculate(float &potential, float &virial) {
+		// pre-force calculation handling from CUDAForceCalculationComponents
 		_globalStats.preForceCalculation();
 		_moleculeStorage.preForceCalculation();
 
@@ -79,6 +84,7 @@ public:
 
 		_cellProcessor.call().setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).execute( _linkedCells.getCells().size(), 1 );
 
+		// post-force calculation handling from CUDAForceCalculationComponents
 		_globalStats.postForceCalculation();
 		_moleculeStorage.postForceCalculation();
 
@@ -92,6 +98,7 @@ protected:
 	GlobalStats _globalStats;
 	MoleculeStorage _moleculeStorage;
 	MoleculePairHandler _moleculePairHandler;
+	ComponentDescriptorStorage _componentDescriptorStorage;
 
 	int getDirectionOffset( const int3 &direction ) {
 		return _linkedCells.cellIndexOf3DIndex( direction.x, direction.y, direction.z );

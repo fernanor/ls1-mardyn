@@ -149,6 +149,7 @@ public:
 	 * @param M force vector (x,y,z)
 	 */
 	void setM(double M[3]) { for(int d = 0; d < 3; d++ ) { _M[d] = M[d]; } }
+	void setM(float M[3]) { for(int d = 0; d < 3; d++ ) { _M[d] = M[d]; } }
 
 	void scale_v(double s) { for(unsigned short d=0;d<3;++d) _v[d]*=s; }
 	void scale_v(double s, double offx, double offy, double offz);
@@ -283,6 +284,8 @@ private:
 	void setupCache(const std::vector<Component>* components);
 	// calculate forces and moments for already given site forces
 	void calcFM();
+
+	friend class MoleculeStorage;
 };
 
 #endif /*MOLECULE_H_*/

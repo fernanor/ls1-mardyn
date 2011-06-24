@@ -24,7 +24,7 @@ struct QuaternionStorage {
 
 struct LJParameters {
 	float epsilon;
-	float sigmaSquared;
+	float sigma;
 };
 
 struct ComponentDescriptor {
