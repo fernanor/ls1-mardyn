@@ -31,7 +31,7 @@ struct ComponentDescriptor {
 	int numLJCenters;
 
 	struct LJCenter {
-		float3 position;
+		float3 relativePosition;
 
 		LJParameters ljParameters;
 	};

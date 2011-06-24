@@ -21,6 +21,8 @@ public:
 		_moleculePositions( _module.getGlobal<float3 *>("moleculePositions") ),
 		_moleculeRotations( _module.getGlobal<Matrix3x3Storage *>("moleculeRotations") ),
 		_moleculeForces( _module.getGlobal<float3 *>("moleculeForces") ),
+		_moleculeTorque( _module.getGlobal<float3 *>("moleculeTorque") ),
+
 		_moleculeComponentTypes( _module.getGlobal<Molecule_ComponentType *>("moleculeComponentTypes") ),
 
 		_cellStartIndices( _module.getGlobal<int *>("cellStartIndices") ),
@@ -43,13 +45,13 @@ protected:
 
 	void compareResultsToCPURef( const std::vector<float3> &forces );
 
-	CUDA::Global<float3 *> _moleculePositions, _moleculeForces;
+	CUDA::Global<float3 *> _moleculePositions, _moleculeForces, _moleculeTorque;
 	CUDA::Global<Matrix3x3Storage *> _moleculeRotations;
 	CUDA::Global<Molecule_ComponentType *> _moleculeComponentTypes;
 
 	CUDA::Global<int *> _cellStartIndices;
 
-	CUDA::DeviceBuffer<float3> _positionBuffer, _forceBuffer;
+	CUDA::DeviceBuffer<float3> _positionBuffer, _forceBuffer, _torqueBuffer;
 	CUDA::DeviceBuffer<Matrix3x3Storage> _rotationBuffer;
 	CUDA::DeviceBuffer<Molecule_ComponentType> _componentTypeBuffer;
 	CUDA::DeviceBuffer<int> _startIndexBuffer;

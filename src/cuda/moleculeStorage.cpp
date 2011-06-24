@@ -92,6 +92,9 @@ void MoleculeStorage::uploadState() {
 	_forceBuffer.resize( currentIndex );
 	_forceBuffer.zeroDevice();
 
+	_torqueBuffer.resize( currentIndex );
+	_torqueBuffer.zeroDevice();
+
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
 	_rotationBuffer.resize( currentIndex );
 #else
@@ -102,6 +105,7 @@ void MoleculeStorage::uploadState() {
 	_moleculePositions.set( _positionBuffer );
 	_moleculeRotations.set( _rotationBuffer );
 	_moleculeForces.set( _forceBuffer );
+	_moleculeTorque.set( _torqueBuffer );
 	_moleculeComponentTypes.set( _componentTypeBuffer );
 
 	_cellStartIndices.set( _startIndexBuffer );

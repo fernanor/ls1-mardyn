@@ -10,6 +10,8 @@ __device__ float3 *moleculePositions;
 __device__ Matrix3x3 *moleculeRotations;
 
 __device__ float3 *moleculeForces;
+__device__ float3 *moleculeTorque;
+
 __device__ Molecule::ComponentType *moleculeComponentTypes;
 
 __device__ int *cellStartIndices;
@@ -21,21 +23,23 @@ __device__ CellInfo cellInfoFromCellIndex( int index ) {
 struct MoleculeStorage {
 	// straight-forward getter/setter
 	__device__ void get(int index, Molecule &molecule) {
-		molecule = Molecule( moleculePositions[index], moleculeRotations[index], moleculeForces[index], moleculeComponentTypes[index] );
+		molecule = Molecule( moleculePositions[index], moleculeRotations[index], moleculeForces[index], moleculeTorque[index], moleculeComponentTypes[index] );
 	}
 
 	__device__ 	void set(int index, const Molecule &molecule) {
 		moleculeForces[ index ] = molecule.force;
+		moleculeTorque[ index ] = molecule.force;
 	}
 
 	// get the molecule data but in a way that merge will be able to merge changes back into the storage
 	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 	__device__ void getMergable(int index, Molecule &molecule) {
-		molecule = Molecule( moleculePositions[index], moleculeRotations[index], make_float3( 0.0f ), moleculeComponentTypes[index] );
+		molecule = Molecule( moleculePositions[index], moleculeRotations[index], make_float3( 0.0f ), make_float3( 0.0f ), moleculeComponentTypes[index] );
 	}
 
 	__device__ void merge(int index, const Molecule &molecule) {
 		moleculeForces[ index ] += molecule.force;
+		moleculeTorque[ index ] += molecule.torque;
 	}
 
 	template<int blockSize>
@@ -44,36 +48,42 @@ struct MoleculeStorage {
 		Matrix3x3 rotations[blockSize];
 
 		float3 forces[blockSize];
+		float3 torque[blockSize];
+
 		Molecule::ComponentType componentTypes[blockSize];
 
 		// straight-forward getter/setter
 		__device__ void get(int index, Molecule &molecule) {
-			molecule = Molecule( positions[index], rotations[index], forces[index], componentTypes[index] );
+			molecule = Molecule( positions[index], rotations[index], forces[index], torque[index], componentTypes[index] );
 		}
 
 		__device__ void set(int index, const Molecule &molecule) {
 			forces[ index ] = molecule.force;
+			torque[ index ] = molecule.torque;
 		}
 
 		// get the molecule data but in a way that merge will be able to merge changes back into the storage
 		// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 		__device__ void getMergable(int index, Molecule &molecule) {
-			molecule = Molecule( positions[index], rotations[index], make_float3( 0.0f ), componentTypes[index]  );
+			molecule = Molecule( positions[index], rotations[index], make_float3( 0.0f ), make_float3( 0.0f ), componentTypes[index]  );
 		}
 
 		__device__ void merge(int index, const Molecule &molecule) {
 			forces[ index ] += molecule.force;
+			torque[ index ] += molecule.torque;
 		}
 
 		__device__ void load(int localIndex, MoleculeStorage &storage, int index) {
 			positions[localIndex] = moleculePositions[index];
 			rotations[localIndex] = moleculeRotations[index];
 			forces[localIndex] = moleculeForces[index];
+			torque[localIndex] = moleculeTorque[index];
 			componentTypes[localIndex] = moleculeComponentTypes[index];
 		}
 
 		__device__ void commit(int localIndex, MoleculeStorage &storage, int index) {
 			moleculeForces[index] = forces[localIndex];
+			moleculeTorque[index] = torque[localIndex];
 		}
 	};
 };
