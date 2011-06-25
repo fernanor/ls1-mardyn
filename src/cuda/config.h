@@ -8,6 +8,8 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+#include "cutil_double_math.h"
+
 #define MAX_BLOCK_SIZE 512
 
 #define REFERENCE_IMPLEMENTATION
@@ -28,6 +30,11 @@
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
 
 #define MAX_NUM_LJCENTERS 4
+
+typedef float floatType;
+typedef float3 floatType3;
+
+#define make_floatType3 make_float3
 
 // TODO: move this include into the referencing header files
 #include "sharedDecls.h"

@@ -134,7 +134,7 @@ struct CPUCudaVectorErrorMeasure {
 	void registerErrorFor( const float3 &cpuResult, const float3 &cudaResult ) {
 		const double epsilon = 5.96e-06f;
 
-		const double3 delta = cpuResult - cudaResult;
+		const double3 delta = make_double3(cpuResult) - make_double3(cudaResult);
 
 		const double cpuLength = length(cpuResult);
 		const double cudaLength = length(cudaResult);
