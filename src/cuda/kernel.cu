@@ -28,6 +28,10 @@
 #warning using reference cell processor
 #endif
 
+#ifdef CUDA_DOUBLE_MODE
+#warning using double precision
+#endif
+
 extern "C" {
 /* TODO: possible refactoring
  * create a prepare method in MoleculeStorage and make rawQuaternions a global pointer

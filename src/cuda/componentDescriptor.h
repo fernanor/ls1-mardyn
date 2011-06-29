@@ -32,7 +32,10 @@ public:
 			const Component &component = components[i];
 			ComponentDescriptor componentDescriptor;
 			componentDescriptor.numLJCenters = component.numLJcenters();
+			componentDescriptor.numCharges = component.numCharges();
+			componentDescriptor.numDipoles = component.numDipoles();
 
+			// TODO: use inheritance for relativePosition?
 			for( int ljCenterIndex = 0 ; ljCenterIndex < componentDescriptor.numLJCenters ; ljCenterIndex++ ) {
 				ComponentDescriptor::LJCenter &ljCenter = componentDescriptor.ljCenters[ljCenterIndex];
 
@@ -40,6 +43,25 @@ public:
 				ljCenter.ljParameters.epsilon = cLjCenter.eps();
 				ljCenter.ljParameters.sigma = cLjCenter.sigma();
 				ljCenter.relativePosition = make_floatType3( cLjCenter.rx(), cLjCenter.ry(), cLjCenter.rz() );
+			}
+
+			for( int chargeIndex = 0 ; chargeIndex < componentDescriptor.numCharges ; chargeIndex++ ) {
+				ComponentDescriptor::Charge &charge = componentDescriptor.charges[chargeIndex];
+
+				const Charge &cCharge = component.charge(chargeIndex);
+				charge.relativePosition = make_floatType3( cCharge.rx(), cCharge.ry(), cCharge.rz() );
+
+				charge.q = cCharge.q();
+			}
+
+			for( int dipoleIndex = 0 ; dipoleIndex < componentDescriptor.numDipoles ; dipoleIndex++ ) {
+				ComponentDescriptor::Dipole &dipole = componentDescriptor.dipoles[dipoleIndex];
+
+				const Dipole &cDipole = component.dipole(dipoleIndex);
+				dipole.relativePosition = make_floatType3( cDipole.rx(), cDipole.ry(), cDipole.rz() );
+				dipole.relativeE = make_floatType3( cDipole.ex(), cDipole.ey(), cDipole.ez() );
+
+				dipole.absMy = cDipole.absMy();
 			}
 
 			componentDescriptors.push_back(componentDescriptor);

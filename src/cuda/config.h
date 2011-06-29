@@ -32,6 +32,8 @@
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
 
 #define MAX_NUM_LJCENTERS 4
+#define MAX_NUM_DIPOLES 2
+#define MAX_NUM_CHARGES 2
 
 #ifndef CUDA_DOUBLE_MODE
 typedef float floatType;
@@ -43,7 +45,6 @@ typedef double floatType;
 typedef double3 floatType3;
 
 #define make_floatType3 make_double3
-
 #endif
 
 // TODO: move this include into the referencing header files
