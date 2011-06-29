@@ -12,6 +12,23 @@
 
 // TODO: use a namespace instead of the slightly stupid CUDA prefix
 
+namespace CUDADetail {
+	template<typename DataType> struct TypeInfo {
+		const static int size = sizeof( DataType );
+		const static int alignof = __alignof( DataType );
+	};
+
+	template<> struct TypeInfo<double3> {
+		const static int size = sizeof( double3 );
+		const static int alignof = 8;
+	};
+
+	template<typename DataType> struct TypeInfo<DataType *> {
+		const static int size = sizeof( CUdeviceptr );
+		const static int alignof = __alignof( CUdeviceptr );
+	};
+}
+
 class CUDA {
 public:
 	struct Exception : public std::exception {
@@ -201,10 +218,27 @@ public:
 	public:
 		template<typename T>
 		FunctionCall & parameter( const T &param ) {
+			using namespace CUDADetail;
+
 			// align with parameter size
-			_offset = (_offset + (__alignof(T) - 1)) & ~(__alignof(T) - 1);
-			CUDA_THROW_ON_ERROR( cuParamSetv( _function, _offset, (void *) &param, sizeof(T) ) );
-			_offset += sizeof(T);
+			_offset = (_offset + (TypeInfo<T>::alignof - 1)) & ~(TypeInfo<T>::alignof - 1);
+			CUDA_THROW_ON_ERROR( cuParamSetv( _function, _offset, (void *) &param, TypeInfo<T>::size ) );
+			_offset += TypeInfo<T>::size;
+
+			return *this;
+		}
+
+		template<typename T>
+		FunctionCall & parameter( const DeviceBuffer<T> &param ) {
+			using namespace CUDADetail;
+
+			// align with parameter size
+			_offset = (_offset + (TypeInfo<CUdeviceptr>::alignof - 1)) & ~(TypeInfo<CUdeviceptr>::alignof - 1);
+
+			CUdeviceptr devicePtr = param.devicePtr();
+			CUDA_THROW_ON_ERROR( cuParamSetv( _function, _offset, (void *) &devicePtr, TypeInfo<CUdeviceptr>::size ) );
+
+			_offset += TypeInfo<CUdeviceptr>::size;
 
 			return *this;
 		}
@@ -248,14 +282,6 @@ public:
 		}
 	};
 
-	template<typename DataType> struct TypeInfo {
-		const static int size = sizeof( DataType );
-	};
-
-	template<typename DataType> struct TypeInfo<DataType *> {
-		const static int size = sizeof( CUdeviceptr );
-	};
-
 	class Module {
 	protected:
 		CUmodule _module;
@@ -273,7 +299,7 @@ public:
 
 			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &dataSize, _module, name ) );
 
-			assert( dataSize == TypeInfo<DataType>::size );
+			assert( dataSize == CUDADetail::TypeInfo<DataType>::size );
 
 			return Global<DataType>(dptr);
 		}

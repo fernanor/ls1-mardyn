@@ -46,7 +46,7 @@ __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuate
 		const Matrix3x3 convertedQuaternion = quaternions[ moleculeIndex ].toRotMatrix3x3();
 		const Matrix3x3 &correctRotation = moleculeRotations[ moleculeIndex ];
 
-		const float error = length( convertedQuaternion.rows[0] - correctRotation.rows[0] ) +
+		const floatType error = length( convertedQuaternion.rows[0] - correctRotation.rows[0] ) +
 				length( convertedQuaternion.rows[1] - correctRotation.rows[1] ) +
 				length( convertedQuaternion.rows[2] - correctRotation.rows[2] );
 

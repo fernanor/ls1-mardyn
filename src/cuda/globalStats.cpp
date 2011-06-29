@@ -14,7 +14,7 @@ void GlobalStats::preForceCalculation() {
 }
 
 void GlobalStats::postForceCalculation() {
-	std::vector<CellStats> cellStats;
+	std::vector<CellStatsStorage> cellStats;
 	_cellStatsBuffer.copyToHost( cellStats );
 
 	const std::vector<unsigned long> &innerCellIndices = _linkedCells.getInnerCellIndices();

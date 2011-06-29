@@ -24,6 +24,8 @@ struct ComponentDescriptorAccessor {
 
 extern "C" {
 __global__ void debugComponentDescriptors( int numDescriptors ) {
+	printf( "%i %i\n", sizeof( double3 ), __alignof__(double3) );
+
 	printf( "CUDA component descriptor dump:\n" );
 
 	for( int i = 0 ; i < numDescriptors ; i++ ) {

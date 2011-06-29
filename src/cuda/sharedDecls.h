@@ -14,24 +14,31 @@
 
 typedef char Molecule_ComponentType;
 
+struct CellStatsStorage {
+	floatType potential;
+	floatType virial;
+};
+
 struct Matrix3x3Storage {
-	float3 rows[3];
+	floatType3 rows[3];
 };
 
 struct QuaternionStorage {
-	float w, x, y, z;
+	floatType w, x, y, z;
 };
 
 struct LJParameters {
-	float epsilon;
-	float sigma;
+	floatType epsilon;
+	floatType sigma;
 };
 
 struct ComponentDescriptor {
 	int numLJCenters;
 
+	int padding;
+
 	struct LJCenter {
-		float3 relativePosition;
+		floatType3 relativePosition;
 
 		LJParameters ljParameters;
 	};

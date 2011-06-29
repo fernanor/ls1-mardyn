@@ -6,11 +6,11 @@
 #include "cellInfo.cum"
 
 // global shared data pointers
-__device__ float3 *moleculePositions;
+__device__ floatType3 *moleculePositions;
 __device__ Matrix3x3 *moleculeRotations;
 
-__device__ float3 *moleculeForces;
-__device__ float3 *moleculeTorque;
+__device__ floatType3 *moleculeForces;
+__device__ floatType3 *moleculeTorque;
 
 __device__ Molecule::ComponentType *moleculeComponentTypes;
 
@@ -34,7 +34,7 @@ struct MoleculeStorage {
 	// get the molecule data but in a way that merge will be able to merge changes back into the storage
 	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 	__device__ void getMergable(int index, Molecule &molecule) {
-		molecule = Molecule( moleculePositions[index], moleculeRotations[index], make_float3( 0.0f ), make_float3( 0.0f ), moleculeComponentTypes[index] );
+		molecule = Molecule( moleculePositions[index], moleculeRotations[index], make_floatType3( 0.0 ), make_floatType3( 0.0 ), moleculeComponentTypes[index] );
 	}
 
 	__device__ void merge(int index, const Molecule &molecule) {
@@ -44,11 +44,11 @@ struct MoleculeStorage {
 
 	template<int blockSize>
 	struct MoleculeLocalStorage {
-		float3 positions[blockSize];
+		floatType3 positions[blockSize];
 		Matrix3x3 rotations[blockSize];
 
-		float3 forces[blockSize];
-		float3 torque[blockSize];
+		floatType3 forces[blockSize];
+		floatType3 torque[blockSize];
 
 		Molecule::ComponentType componentTypes[blockSize];
 
@@ -65,7 +65,7 @@ struct MoleculeStorage {
 		// get the molecule data but in a way that merge will be able to merge changes back into the storage
 		// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 		__device__ void getMergable(int index, Molecule &molecule) {
-			molecule = Molecule( positions[index], rotations[index], make_float3( 0.0f ), make_float3( 0.0f ), componentTypes[index]  );
+			molecule = Molecule( positions[index], rotations[index], make_floatType3( 0.0 ), make_floatType3( 0.0 ), componentTypes[index]  );
 		}
 
 		__device__ void merge(int index, const Molecule &molecule) {

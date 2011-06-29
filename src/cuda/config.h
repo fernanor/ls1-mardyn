@@ -12,6 +12,8 @@
 
 #define MAX_BLOCK_SIZE 512
 
+#define CUDA_DOUBLE_MODE
+
 #define REFERENCE_IMPLEMENTATION
 #define TEST_QUATERNION_MATRIX_CONVERSION
 #define COMPARE_TO_CPU
@@ -31,10 +33,18 @@
 
 #define MAX_NUM_LJCENTERS 4
 
+#ifndef CUDA_DOUBLE_MODE
 typedef float floatType;
 typedef float3 floatType3;
 
 #define make_floatType3 make_float3
+#else
+typedef double floatType;
+typedef double3 floatType3;
+
+#define make_floatType3 make_double3
+
+#endif
 
 // TODO: move this include into the referencing header files
 #include "sharedDecls.h"

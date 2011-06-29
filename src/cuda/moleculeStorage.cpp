@@ -5,15 +5,16 @@
  *      Author: andreas
  */
 
+#include "config.h"
+
 #include "moleculeStorage.h"
 
 #include "molecules/Molecule.h"
-#include "cutil_math.h"
 
 #include "math.h"
 
 void MoleculeStorage::uploadState() {
-	std::vector<float3> positions;
+	std::vector<floatType3> positions;
 	std::vector<QuaternionStorage> quaternions;
 	std::vector<Molecule_ComponentType> componentTypes;
 #ifdef TEST_QUATERNION_MATRIX_CONVERSION
@@ -34,7 +35,7 @@ void MoleculeStorage::uploadState() {
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
 
-			float3 position = make_float3( molecule.r(0), molecule.r(1), molecule.r(2) );
+			floatType3 position = make_floatType3( molecule.r(0), molecule.r(1), molecule.r(2) );
 			positions.push_back( position );
 
 			const Quaternion &dQuaternion = molecule.q();
@@ -49,16 +50,16 @@ void MoleculeStorage::uploadState() {
 			{
 				Matrix3x3Storage rot;
 
-				float ww=quaternion.w*quaternion.w;
-				float xx=quaternion.x*quaternion.x;
-				float yy=quaternion.y*quaternion.y;
-				float zz=quaternion.z*quaternion.z;
-				float xy=quaternion.x*quaternion.y;
-				float zw=quaternion.z*quaternion.w;
-				float xz=quaternion.x*quaternion.z;
-				float yw=quaternion.y*quaternion.w;
-				float yz=quaternion.y*quaternion.z;
-				float xw=quaternion.x*quaternion.w;
+				const floatType ww=quaternion.w*quaternion.w;
+				const floatType xx=quaternion.x*quaternion.x;
+				const floatType yy=quaternion.y*quaternion.y;
+				const floatType zz=quaternion.z*quaternion.z;
+				const floatType xy=quaternion.x*quaternion.y;
+				const floatType zw=quaternion.z*quaternion.w;
+				const floatType xz=quaternion.x*quaternion.z;
+				const floatType yw=quaternion.y*quaternion.w;
+				const floatType yz=quaternion.y*quaternion.z;
+				const floatType xw=quaternion.x*quaternion.w;
 
 				rot.rows[0].x=ww+xx-yy-zz;
 				rot.rows[0].y=2*(xy-zw);
@@ -131,10 +132,15 @@ struct CPUCudaVectorErrorMeasure {
 	: name(name), totalCPUMagnitude(0.0f), totalCudaMagnitude(0.0f), totalError(0.0f), totalRelativeError(0.0f), numDataPoints(0) {
 	}
 
-	void registerErrorFor( const float3 &cpuResult, const float3 &cudaResult ) {
+	void registerErrorFor( const floatType3 &cpuResult, const floatType3 &cudaResult ) {
 		const double epsilon = 5.96e-06f;
 
+		// TODO: add convert_double3 macro/define!
+#ifndef CUDA_DOUBLE_MODE
 		const double3 delta = make_double3(cpuResult) - make_double3(cudaResult);
+#else
+		const double3 delta = cpuResult - cudaResult;
+#endif
 
 		const double cpuLength = length(cpuResult);
 		const double cudaLength = length(cudaResult);
@@ -163,7 +169,7 @@ struct CPUCudaVectorErrorMeasure {
 	}
 };
 
-void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces, const std::vector<float3> &torque ) {
+void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &forces, const std::vector<floatType3> &torque ) {
 	CPUCudaVectorErrorMeasure forceErrorMeasure( "force statistics" ), torqueErrorMeasure( "torque statistics" );
 
 	const int numCells = _linkedCells.getCells().size();
@@ -175,8 +181,8 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces,
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
-			const float3 &cudaForce = forces[currentIndex];
-			const float3 &cudaTorque = torque[currentIndex];
+			const floatType3 &cudaForce = forces[currentIndex];
+			const floatType3 &cudaTorque = torque[currentIndex];
 			currentIndex++;
 
 			if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
@@ -187,8 +193,8 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces,
 			// TODO: make sure that we always overwrite F and M
 			molecule.calcFM();
 
-			const float3 cpuForce = make_float3( molecule.F(0), molecule.F(1), molecule.F(2) );
-			const float3 cpuTorque = make_float3( molecule.M(0), molecule.M(1), molecule.M(2) );
+			const floatType3 cpuForce = make_floatType3( molecule.F(0), molecule.F(1), molecule.F(2) );
+			const floatType3 cpuTorque = make_floatType3( molecule.M(0), molecule.M(1), molecule.M(2) );
 
 			forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
 			torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
@@ -200,8 +206,8 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<float3> &forces,
 }
 
 void MoleculeStorage::downloadResults() {
-	std::vector<float3> forces;
-	std::vector<float3> torque;
+	std::vector<floatType3> forces;
+	std::vector<floatType3> torque;
 
 	_forceBuffer.copyToHost( forces );
 	_torqueBuffer.copyToHost( torque );
@@ -220,8 +226,8 @@ void MoleculeStorage::downloadResults() {
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
 
-			molecule.setF((float*) &forces[currentIndex]);
-			molecule.setM((float*) &torque[currentIndex]);
+			molecule.setF((floatType*) &forces[currentIndex]);
+			molecule.setM((floatType*) &torque[currentIndex]);
 			currentIndex++;
 		}
 	}

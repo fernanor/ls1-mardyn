@@ -5,8 +5,8 @@
 #include "sharedDecls.h"
 
 struct Matrix3x3 : Matrix3x3Storage {
-	__device__ inline float3 operator *(const float3 &vector) const {
-		return make_float3( dot( rows[0], vector ), dot( rows[1], vector ), dot( rows[2], vector ) );
+	__device__ inline floatType3 operator *(const floatType3 &vector) const {
+		return make_floatType3( dot( rows[0], vector ), dot( rows[1], vector ), dot( rows[2], vector ) );
 	}
 };
 
@@ -17,16 +17,16 @@ struct Quaternion : QuaternionStorage {
 	__device__ inline Matrix3x3 toRotMatrix3x3() const {
 		Matrix3x3 rot;
 
-		float ww=w*w;
-		float xx=x*x;
-		float yy=y*y;
-		float zz=z*z;
-		float xy=x*y;
-		float zw=z*w;
-		float xz=x*z;
-		float yw=y*w;
-		float yz=y*z;
-		float xw=x*w;
+		const floatType ww=w*w;
+		const floatType xx=x*x;
+		const floatType yy=y*y;
+		const floatType zz=z*z;
+		const floatType xy=x*y;
+		const floatType zw=z*w;
+		const floatType xz=x*z;
+		const floatType yw=y*w;
+		const floatType yz=y*z;
+		const floatType xw=x*w;
 
 		rot.rows[0].x=ww+xx-yy-zz;
 		rot.rows[0].y=2*(xy-zw);

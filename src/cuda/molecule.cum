@@ -9,17 +9,17 @@
 
 struct Molecule {
 	typedef Molecule_ComponentType ComponentType;
-	float3 position;
+	floatType3 position;
 	Matrix3x3 rotation; // R: relative->global coord system
 
-	float3 force;
-	float3 torque;
+	floatType3 force;
+	floatType3 torque;
 
 	ComponentType componentType;
 
 	__device__ Molecule() {}
 
-	__device__ Molecule(const float3 &position, const Matrix3x3 &rotation, const float3 &force, const float3 &torque, const ComponentType &componentType) : position( position ), rotation( rotation ), force( force ), torque( torque ), componentType( componentType ) {}
+	__device__ Molecule(const floatType3 &position, const Matrix3x3 &rotation, const floatType3 &force, const floatType3 &torque, const ComponentType &componentType) : position( position ), rotation( rotation ), force( force ), torque( torque ), componentType( componentType ) {}
 };
 
 #endif

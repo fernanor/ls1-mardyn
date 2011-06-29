@@ -1,11 +1,10 @@
 #ifndef GLOBALSTATS_CUM_H__
 #define GLOBALSTATS_CUM_H__
 
-struct CellStats {
-	float potential;
-	float virial;
+#include "sharedDecls.h"
 
-	__device__ void add( float potential, float virial ) {
+struct CellStats : CellStatsStorage {
+	__device__ void add( floatType potential, floatType virial ) {
 		this->potential += potential;
 		this->virial += virial;
 	}
@@ -16,8 +15,8 @@ __device__ CellStats *cellStats;
 
 template<int blockSize>
 struct CellStatsCollector {
-	float threadPotential[blockSize];
-	float threadVirial[blockSize];
+	floatType threadPotential[blockSize];
+	floatType threadVirial[blockSize];
 
 	__device__ void initThreadLocal(int threadIndex) {
 		threadPotential[threadIndex] = 0.0f;
@@ -26,7 +25,7 @@ struct CellStatsCollector {
 		__syncthreads();
 	}
 
-	__device__ void add(int threadIndex, float potential, float virial) {
+	__device__ void add(int threadIndex, floatType potential, floatType virial) {
 		threadPotential[threadIndex] += potential;
 		threadVirial[threadIndex] += virial;
 		//printf( "CUDA:: pot: %f, virial: %f\n", potential, virial );
@@ -48,7 +47,7 @@ struct CellStatsCollector {
 		}
 
 		if( threadIndex == 0 ) {
-			float potential, virial;
+			floatType potential, virial;
 
 			potential = threadPotential[0];
 			virial = threadVirial[0];

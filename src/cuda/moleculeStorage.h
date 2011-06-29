@@ -18,10 +18,10 @@ class MoleculeStorage : public CUDAForceCalculationComponent {
 public:
 	MoleculeStorage( const CUDAComponent &component ) :
 		CUDAForceCalculationComponent( component ),
-		_moleculePositions( _module.getGlobal<float3 *>("moleculePositions") ),
+		_moleculePositions( _module.getGlobal<floatType3 *>("moleculePositions") ),
 		_moleculeRotations( _module.getGlobal<Matrix3x3Storage *>("moleculeRotations") ),
-		_moleculeForces( _module.getGlobal<float3 *>("moleculeForces") ),
-		_moleculeTorque( _module.getGlobal<float3 *>("moleculeTorque") ),
+		_moleculeForces( _module.getGlobal<floatType3 *>("moleculeForces") ),
+		_moleculeTorque( _module.getGlobal<floatType3 *>("moleculeTorque") ),
 
 		_moleculeComponentTypes( _module.getGlobal<Molecule_ComponentType *>("moleculeComponentTypes") ),
 
@@ -43,15 +43,15 @@ protected:
 	void uploadState();
 	void downloadResults();
 
-	void compareResultsToCPURef( const std::vector<float3> &forces, const std::vector<float3> &torque );
+	void compareResultsToCPURef( const std::vector<floatType3> &forces, const std::vector<floatType3> &torque );
 
-	CUDA::Global<float3 *> _moleculePositions, _moleculeForces, _moleculeTorque;
+	CUDA::Global<floatType3 *> _moleculePositions, _moleculeForces, _moleculeTorque;
 	CUDA::Global<Matrix3x3Storage *> _moleculeRotations;
 	CUDA::Global<Molecule_ComponentType *> _moleculeComponentTypes;
 
 	CUDA::Global<int *> _cellStartIndices;
 
-	CUDA::DeviceBuffer<float3> _positionBuffer, _forceBuffer, _torqueBuffer;
+	CUDA::DeviceBuffer<floatType3> _positionBuffer, _forceBuffer, _torqueBuffer;
 	CUDA::DeviceBuffer<Matrix3x3Storage> _rotationBuffer;
 	CUDA::DeviceBuffer<Molecule_ComponentType> _componentTypeBuffer;
 	CUDA::DeviceBuffer<int> _startIndexBuffer;

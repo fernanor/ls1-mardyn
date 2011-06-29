@@ -9,36 +9,32 @@
 #define GLOBALSTATS_H_
 
 #include "cudaComponent.h"
+#include "sharedDecls.h"
 
 class GlobalStats : public CUDAForceCalculationComponent {
 public:
 	GlobalStats( const CUDAComponent &component ) :
-		CUDAForceCalculationComponent(component), _cellStats( _module.getGlobal<CellStats *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
+		CUDAForceCalculationComponent(component), _cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
 	}
 
 	virtual void preForceCalculation();
 	virtual void postForceCalculation();
 
-	float getPotential() const {
+	floatType getPotential() const {
 		return _potential;
 	}
 
-	float getVirial() const {
+	floatType getVirial() const {
 		return _virial;
 	}
 
 protected:
-	float _potential;
-	float _virial;
+	floatType _potential;
+	floatType _virial;
 
-	struct CellStats {
-		float potential;
-		float virial;
-	};
+	CUDA::Global<CellStatsStorage *> _cellStats;
 
-	CUDA::Global<CellStats *> _cellStats;
-
-	CUDA::DeviceBuffer<CellStats> _cellStatsBuffer;
+	CUDA::DeviceBuffer<CellStatsStorage> _cellStatsBuffer;
 };
 
 

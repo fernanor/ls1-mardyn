@@ -39,7 +39,7 @@ public:
 				const LJcenter &cLjCenter = component.ljcenter(ljCenterIndex);
 				ljCenter.ljParameters.epsilon = cLjCenter.eps();
 				ljCenter.ljParameters.sigma = cLjCenter.sigma();
-				ljCenter.relativePosition = make_float3( cLjCenter.rx(), cLjCenter.ry(), cLjCenter.rz() );
+				ljCenter.relativePosition = make_floatType3( cLjCenter.rx(), cLjCenter.ry(), cLjCenter.rz() );
 			}
 
 			componentDescriptors.push_back(componentDescriptor);
