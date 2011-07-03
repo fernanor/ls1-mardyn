@@ -70,7 +70,7 @@ public:
 		_componentDescriptorStorage.upload();
 	}
 
-	void calculate(float &potential, float &virial) {
+	void calculate(double &potential, double &virial) {
 		// pre-force calculation handling from CUDAForceCalculationComponents
 		_globalStats.preForceCalculation();
 		_moleculeStorage.preForceCalculation();

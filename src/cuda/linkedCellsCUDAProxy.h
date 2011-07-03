@@ -122,13 +122,11 @@ public:
 #ifdef COMPARE_TO_CPU
 		_linkedCells.traversePairs();
 
-		float cpuPotential = _domain.getLocalUpot();
-		float cpuVirial = _domain.getLocalVirial();
-		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
-
+		double cpuPotential = _domain.getLocalUpot();
+		double cpuVirial = _domain.getLocalVirial();
 #endif
-		float potential;
-		float virial;
+		double potential;
+		double virial;
 		_moleculeInteraction.calculate( potential, virial );
 
 		BehaviorProbe::FMset();
@@ -137,10 +135,10 @@ public:
 		_domain.setLocalUpot( potential );
 		_domain.setLocalVirial( virial );
 
-		printf( "Potential: %f Virial: %f\n", potential, virial );
-
-		const int numCells = _linkedCells.getCells().size();
-		printf( "Average Potential: %f Average Virial: %f\n", potential / numCells, virial / numCells );
+#ifdef COMPARE_TO_CPU
+		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
+#endif
+		printf( "CUDA Potential: %f CUDA Virial: %f\n", potential, virial );
 	}
 
 	//! @return the number of particles stored in this container

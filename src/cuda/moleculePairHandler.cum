@@ -23,6 +23,7 @@ struct MoleculePairHandler {
 		const ComponentDescriptor &descriptorB = componentDescriptorAccessor.get(moleculeB.componentType);
 
 		processLJCenters( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+		processCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
 	}
 
 	__device__ void processLJCenters( int threadIndex,
@@ -30,6 +31,7 @@ struct MoleculePairHandler {
 			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 			const floatType3 &distanceAtoB
 		) {
+#if MAX_NUM_LJCENTERS > 0
 		for( int ljIndexA = 0 ; ljIndexA < descriptorA.numLJCenters ; ljIndexA++ ) {
 			const ComponentDescriptor::LJCenter &ljCenterA = descriptorA.ljCenters[ljIndexA];
 			const floatType3 relativePositionA = moleculeA.rotation * ljCenterA.relativePosition;
@@ -61,5 +63,43 @@ struct MoleculePairHandler {
 				globalStatsCollector.add( threadIndex, potential, virial );
 			}
 		}
+#endif
+	}
+
+	__device__ void processCharges( int threadIndex,
+			Molecule &moleculeA, Molecule &moleculeB,
+			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
+			const floatType3 &distanceAtoB
+		) {
+#if MAX_NUM_CHARGES > 0
+		for( int chargeIndexA = 0 ; chargeIndexA < descriptorA.numCharges ; chargeIndexA++ ) {
+			const ComponentDescriptor::Charge &chargeA = descriptorA.charges[chargeIndexA];
+			const floatType3 relativePositionA = moleculeA.rotation * chargeA.relativePosition;
+
+			for( int chargeIndexB = 0 ; chargeIndexB < descriptorB.numCharges ; chargeIndexB++ ) {
+				const ComponentDescriptor::Charge &chargeB = descriptorB.charges[chargeIndexB];
+				const floatType3 relativePositionB = moleculeB.rotation * chargeB.relativePosition;
+
+				const float Q1Q2Per4PiE0 = chargeA.q * chargeB.q;
+
+				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
+				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
+
+				floatType3 forceAtoB;
+				floatType potential;
+				calculateCharges( totalDistanceAtoB, totalDistanceSquared, Q1Q2Per4PiE0, forceAtoB, potential );
+
+				moleculeA.force += forceAtoB;
+				moleculeB.force -= forceAtoB;
+
+				moleculeA.torque += cross( relativePositionA, forceAtoB );
+				moleculeB.torque -= cross( relativePositionB, forceAtoB );
+
+				const floatType virial = dot( distanceAtoB, forceAtoB );
+
+				globalStatsCollector.add( threadIndex, potential, virial );
+			}
+		}
+#endif
 	}
 };

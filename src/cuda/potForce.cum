@@ -9,15 +9,24 @@
 
 __device__ void calculateLennardJones( const floatType3 distanceAtoB, const floatType distanceSquared, const LJParameters &ljParameters,
 		floatType3 &forceAtoB, floatType &potential) {
-	const floatType invdr2 = 1.f / distanceSquared;
+	const floatType invdr2 = 1. / distanceSquared;
 	const floatType lj2 = ljParameters.sigma * ljParameters.sigma * invdr2;
 	const floatType lj6 = lj2 * lj2 * lj2;
 	const floatType lj12 = lj6 * lj6;
 	const floatType lj12m6 = lj12 - lj6;
 	potential = 4.0f * ljParameters.epsilon * lj12m6;
 	// result: force = fac * distance = fac * |distance| * normalized(distance)
-	const floatType fac = -24.0f * ljParameters.epsilon * (lj12 + lj12m6) * invdr2;
-	forceAtoB = fac * distanceAtoB;
+	// - sign because the force is repulsive
+	forceAtoB = -24.0f * ljParameters.epsilon * (lj12 + lj12m6) * invdr2 * distanceAtoB;
+}
+
+__device__ void calculateCharges( const floatType3 distanceAtoB, const floatType distanceSquared, const floatType &Q1Q2Per4PiE0,
+		floatType3 &forceAtoB, floatType &potential) {
+	const floatType invdr2 = 1. / distanceSquared;
+	const floatType invdr = rsqrt( distanceSquared );
+	potential = Q1Q2Per4PiE0 * invdr;
+	// - because the force is repulsive
+	forceAtoB = -potential * invdr2 * distanceAtoB;
 }
 
 #endif

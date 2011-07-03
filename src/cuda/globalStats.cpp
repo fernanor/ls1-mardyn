@@ -49,7 +49,7 @@ void GlobalStats::postForceCalculation() {
 	_potential /= 2.0f;
 	_virial /= 2.0f;
 
-	// TODO: I have no idea why the sign is different in the GPU code...
+	// TODO: I have no idea why the sign is different in the GPU code compared to the CPU code..
 	_virial = -_virial;
 }
 
