@@ -20,12 +20,17 @@ public:
 		CUDAStaticDataComponent( component ),
 
 		_componentDescriptors( _module.getGlobal<ComponentDescriptor *>("componentDescriptors") ),
+		_componentMixXis( _module.getGlobal<floatType *>("componentMixXis") ),
+		_componentMixEtas( _module.getGlobal<floatType *>("componentMixEtas") ),
 
 		_debugComponentDescriptors( _module.getFunction("debugComponentDescriptors") ) {
 	}
 
 	virtual void upload() {
+		floatType xis[MAX_NUM_COMPONENTS][MAX_NUM_COMPONENTS];
+		floatType etas[MAX_NUM_COMPONENTS][MAX_NUM_COMPONENTS];
 		std::vector<ComponentDescriptor> componentDescriptors;
+
 		const std::vector<Component> &components = _domain.getComponents();
 
 		for( int i = 0 ; i < components.size() ; i++ ) {
@@ -67,8 +72,28 @@ public:
 			componentDescriptors.push_back(componentDescriptor);
 		}
 
+		// set mix coeff tables
+		std::vector<double> &dmixcoeff = _domain.getmixcoeff();
+		int index = 0;
+		for( int i = 0 ; i < components.size() ; i++ ) {
+			xis[i][i] = etas[i][i] = 1.0;
+			for( int j = i + 1 ; j < components.size() ; j++ ) {
+				floatType xi = dmixcoeff[index++];
+				floatType eta = dmixcoeff[index++];
+
+				xis[i][j] = xis[j][i] = xi;
+				etas[i][j] = etas[j][i] = eta;
+			}
+		}
+
 		_componentDescriptorBuffer.copyToDevice(componentDescriptors);
 		_componentDescriptors.set( _componentDescriptorBuffer );
+
+		_componentMixXiBuffer.copyToDevice( (floatType*) xis, MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS );
+		_componentMixXis.set( _componentMixXiBuffer );
+
+		_componentMixEtaBuffer.copyToDevice( (floatType*) etas, MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS );
+		_componentMixEtas.set( _componentMixEtaBuffer );
 
 #ifdef DEBUG_COMPONENT_DESCRIPTORS
 		_debugComponentDescriptors.call().parameter( componentDescriptors.size() ).execute();
@@ -77,8 +102,10 @@ public:
 
 protected:
 	CUDA::Global<ComponentDescriptor *> _componentDescriptors;
+	CUDA::Global<floatType *> _componentMixXis, _componentMixEtas;
 
 	CUDA::DeviceBuffer<ComponentDescriptor> _componentDescriptorBuffer;
+	CUDA::DeviceBuffer<floatType> _componentMixXiBuffer, _componentMixEtaBuffer;
 
 	CUDA::Function _debugComponentDescriptors;
 };

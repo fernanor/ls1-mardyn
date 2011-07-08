@@ -15,6 +15,8 @@
 #include "sharedDecls.h"
 
 __device__ ComponentDescriptor *componentDescriptors;
+__device__ floatType *componentMixXis;
+__device__ floatType *componentMixEtas;
 
 struct ComponentDescriptorAccessor {
 	__device__ const ComponentDescriptor & get(Molecule::ComponentType type) {
@@ -64,6 +66,17 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 		}
 		printf( "\n" );
 	}
+
+	printf( "\n"
+			"Mix coefficients:\n\n" );
+	for( int i = 0 ; i < numDescriptors ; i++ ) {
+		for( int j = 0 ; j < numDescriptors ; j++ ) {
+			const int index = i * MAX_NUM_COMPONENTS + j;
+			printf( "%f, %f\t", componentMixXis[index], componentMixEtas[index] );
+		}
+		printf( "\n" );
+	}
+	printf( "\n" );
 }
 }
 

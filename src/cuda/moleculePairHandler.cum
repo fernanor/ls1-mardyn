@@ -41,6 +41,10 @@ struct MoleculePairHandler {
 			const floatType3 &distanceAtoB
 		) {
 #if MAX_NUM_LJCENTERS > 0
+		const int mixIndex = moleculeA.componentType * MAX_NUM_COMPONENTS + moleculeB.componentType;
+		const floatType xi = componentMixXis[ mixIndex ];
+		const floatType eta = componentMixEtas[ mixIndex ];
+
 		for( int ljIndexA = 0 ; ljIndexA < descriptorA.numLJCenters ; ljIndexA++ ) {
 			const ComponentDescriptor::LJCenter &ljCenterA = descriptorA.ljCenters[ljIndexA];
 			const floatType3 relativePositionA = moleculeA.rotation * ljCenterA.relativePosition;
@@ -51,8 +55,8 @@ struct MoleculePairHandler {
 
 				LJParameters mixedParameters;
 				// TODO: add support for eta and xi!
-				mixedParameters.epsilon = sqrt( ljCenterA.ljParameters.epsilon * ljCenterB.ljParameters.epsilon );
-				mixedParameters.sigma = 0.5f * (ljCenterA.ljParameters.sigma + ljCenterB.ljParameters.sigma);
+				mixedParameters.epsilon = xi * sqrt( ljCenterA.ljParameters.epsilon * ljCenterB.ljParameters.epsilon );
+				mixedParameters.sigma = eta * 0.5f * (ljCenterA.ljParameters.sigma + ljCenterB.ljParameters.sigma);
 
 				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
 				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
