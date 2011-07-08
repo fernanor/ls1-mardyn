@@ -29,43 +29,44 @@ __device__ void calculateCharges( const floatType3 &distanceAtoB, const floatTyp
 	forceAtoB = -potential * invdr2 * distanceAtoB;
 }
 
-__device__ void calculateChargeDipole( const floatType3 &distanceAtoB, const floatType distanceSquared, const floatType3 &eB, const floatType minusQMyPer4PiE0,
-		floatType3 &forceAtoB, floatType &potential, floatType3 &torqueB ) {
+__device__ void calculateDipoleCharge( const floatType3 &distanceAtoB, const floatType distanceSquared, const floatType3 &eA, const floatType qMyPer4PiE0,
+		floatType3 &forceAtoB, floatType &potential, floatType3 &torqueA ) {
 	const floatType invdr2 = 1. / distanceSquared;
 	const floatType invdr = rsqrt( distanceSquared );
 
-	const floatType uInvcostB = minusQMyPer4PiE0 * invdr2;
-	potential = uInvcostB * dot( eB, distanceAtoB ) * invdr;
-	const floatType partialTBInvdr1 = uInvcostB * invdr;
+	const floatType uInvcostA = -qMyPer4PiE0 * invdr2;
+	potential = uInvcostA * dot( eA, distanceAtoB ) * invdr;
 
-	forceAtoB = partialTBInvdr1 * eB - 3.0 * potential * invdr * invdr2 * distanceAtoB;
+	const floatType partialTAInvdr1 = uInvcostA * invdr;
 
-	torqueB = partialTBInvdr1 * cross( distanceAtoB, eB );
+	forceAtoB = partialTAInvdr1 * eA - 3.0 * potential * invdr * invdr2 * distanceAtoB;
+
+	torqueA = partialTAInvdr1 * cross( distanceAtoB, eA );
 }
 
 __device__ void calculateDipoleDipole( const floatType3 &distanceAtoB, const floatType distanceSquared, const floatType3 &eA, const floatType3 &eB, const floatType my2, const floatType rffac,
-		floatType3 &forceAtoB, floatType &potential, floatType3 &torqueA, floatType3 &torqueB ) {
+		floatType3 &forceAtoB, floatType &potential, floatType &myRF, floatType3 &torqueA, floatType3 &torqueB ) {
 	const floatType invdr2 = 1. / distanceSquared;
-	const floatType invdr = rsqrt( distanceSquared );
+	const floatType invdr = sqrt( invdr2 );
 
-	const floatType partialGAB = my2 * invdr2 * invdr;
+	const floatType partialGAB = -my2 * invdr2 * invdr;
 
 	const floatType costA = dot( eA, distanceAtoB ) * invdr;
 	const floatType costB = dot( eB, distanceAtoB ) * invdr;
 	const floatType cosgAB = dot( eA, eB );
-	potential = partialGAB * ( cosgAB - 3. * costA * costB );
-	// MyRF missing here
+	potential = partialGAB * (3. * costA * costB - cosgAB);
+	myRF = -rffac * cosgAB;
 
-	const floatType partialABInvdr = -3. * potential * invdr2;
-	const floatType partialAInvdr = -partialGAB * 3. * costB * invdr;
-	const floatType partialBInvdr = -partialGAB * 3. * costA * invdr;
+	const floatType partialRABInvdr = 3. * potential * invdr2;
+	const floatType partialTAInvdr = partialGAB * 3. * costB * invdr;
+	const floatType partialTBInvdr = partialGAB * 3. * costA * invdr;
 
-	const floatType fac = -partialABInvdr + (costA * partialAInvdr + costB * partialBInvdr) * invdr;
-	forceAtoB = partialAInvdr * eA + partialBInvdr * eB - fac * distanceAtoB;
+	const floatType fac = partialRABInvdr + (costA * partialTAInvdr + costB * partialTBInvdr) * invdr;
+	forceAtoB = partialTAInvdr * eA + partialTBInvdr * eB - fac * distanceAtoB;
 
-	const floatType3 eAxeB = (rffac - partialGAB) * cross( eA, eB );
-	torqueA = -partialAInvdr * cross( eA, distanceAtoB ) + eAxeB;
-	torqueB = -partialBInvdr * cross( eB, distanceAtoB ) - eAxeB;
+	const floatType3 eAxeB = (rffac + partialGAB) * cross( eA, eB );
+	torqueA = partialTAInvdr * cross( distanceAtoB, eA ) + eAxeB;
+	torqueB = partialTBInvdr * cross( distanceAtoB, eB ) - eAxeB;
 }
 
 #endif

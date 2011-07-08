@@ -9,23 +9,24 @@
 
 #include <assert.h>
 #include <string>
+#include <stddef.h>
 
 // TODO: use a namespace instead of the slightly stupid CUDA prefix
 
 namespace CUDADetail {
 	template<typename DataType> struct TypeInfo {
-		const static int size = sizeof( DataType );
-		const static int alignof = __alignof( DataType );
+		const static size_t size = sizeof( DataType );
+		const static size_t alignof = __alignof( DataType );
 	};
 
 	template<> struct TypeInfo<double3> {
-		const static int size = sizeof( double3 );
-		const static int alignof = 8;
+		const static size_t size = sizeof( double3 );
+		const static size_t alignof = 8;
 	};
 
 	template<typename DataType> struct TypeInfo<DataType *> {
-		const static int size = sizeof( CUdeviceptr );
-		const static int alignof = __alignof( CUdeviceptr );
+		const static size_t size = sizeof( CUdeviceptr );
+		const static size_t alignof = __alignof( CUdeviceptr );
 	};
 }
 

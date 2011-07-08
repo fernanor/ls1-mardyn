@@ -87,11 +87,11 @@ inline __host__ __device__ double4 make_double4(uint4 a){
 // negate
 ////////////////////////////////////////////////////////////////////////////////
 
-inline __host__ __device__ double3 operator-(double3 &a){
+inline __host__ __device__ double3 operator-(const double3 &a){
     return make_double3(-a.x, -a.y, -a.z);
 }
 
-inline __host__ __device__ double4 operator-(double4 &a){
+inline __host__ __device__ double4 operator-(const double4 &a){
     return make_double4(-a.x, -a.y, -a.z, -a.w);
 }
 
