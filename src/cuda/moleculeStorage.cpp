@@ -7,6 +7,8 @@
 
 #include "config.h"
 
+#include "Domain.h"
+
 #include "moleculeStorage.h"
 
 #include "molecules/Molecule.h"
@@ -32,55 +34,67 @@ void MoleculeStorage::uploadState() {
 		startIndices.push_back( currentIndex );
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
-		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
-			Molecule &molecule = **iterator;
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+		for( int componentType = 0 ; componentType < _domain.getComponents().size() ; componentType++ ) {
+#endif
+			for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
+				Molecule &molecule = **iterator;
 
-			floatType3 position = make_floatType3( molecule.r(0), molecule.r(1), molecule.r(2) );
-			positions.push_back( position );
-
-			const Quaternion &dQuaternion = molecule.q();
-			QuaternionStorage quaternion;
-			quaternion.w = dQuaternion.qw();
-			quaternion.x = dQuaternion.qx();
-			quaternion.y = dQuaternion.qy();
-			quaternion.z = dQuaternion.qz();
-			quaternions.push_back( quaternion );
-
-#ifdef TEST_QUATERNION_MATRIX_CONVERSION
-			{
-				Matrix3x3Storage rot;
-
-				const floatType ww=quaternion.w*quaternion.w;
-				const floatType xx=quaternion.x*quaternion.x;
-				const floatType yy=quaternion.y*quaternion.y;
-				const floatType zz=quaternion.z*quaternion.z;
-				const floatType xy=quaternion.x*quaternion.y;
-				const floatType zw=quaternion.z*quaternion.w;
-				const floatType xz=quaternion.x*quaternion.z;
-				const floatType yw=quaternion.y*quaternion.w;
-				const floatType yz=quaternion.y*quaternion.z;
-				const floatType xw=quaternion.x*quaternion.w;
-
-				rot.rows[0].x=ww+xx-yy-zz;
-				rot.rows[0].y=2*(xy-zw);
-				rot.rows[0].z=2*(xz+yw);
-
-				rot.rows[1].x=2*(xy+zw);
-				rot.rows[1].y=ww-xx+yy-zz;
-				rot.rows[1].z=2*(yz-xw);
-
-				rot.rows[2].x=2*(xz-yw);
-				rot.rows[2].y=2*(yz+xw);
-				rot.rows[2].z=ww-xx-yy+zz;
-
-				rotations.push_back(rot);
-			}
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+				if( molecule.componentid() != componentType ) {
+					continue;
+				}
 #endif
 
-			componentTypes.push_back( molecule.componentid() );
+				componentTypes.push_back( molecule.componentid() );
 
-			currentIndex++;
+				floatType3 position = make_floatType3( molecule.r(0), molecule.r(1), molecule.r(2) );
+				positions.push_back( position );
+
+				const Quaternion &dQuaternion = molecule.q();
+				QuaternionStorage quaternion;
+				quaternion.w = dQuaternion.qw();
+				quaternion.x = dQuaternion.qx();
+				quaternion.y = dQuaternion.qy();
+				quaternion.z = dQuaternion.qz();
+				quaternions.push_back( quaternion );
+
+#ifdef TEST_QUATERNION_MATRIX_CONVERSION
+				{
+					Matrix3x3Storage rot;
+
+					const floatType ww=quaternion.w*quaternion.w;
+					const floatType xx=quaternion.x*quaternion.x;
+					const floatType yy=quaternion.y*quaternion.y;
+					const floatType zz=quaternion.z*quaternion.z;
+					const floatType xy=quaternion.x*quaternion.y;
+					const floatType zw=quaternion.z*quaternion.w;
+					const floatType xz=quaternion.x*quaternion.z;
+					const floatType yw=quaternion.y*quaternion.w;
+					const floatType yz=quaternion.y*quaternion.z;
+					const floatType xw=quaternion.x*quaternion.w;
+
+					rot.rows[0].x=ww+xx-yy-zz;
+					rot.rows[0].y=2*(xy-zw);
+					rot.rows[0].z=2*(xz+yw);
+
+					rot.rows[1].x=2*(xy+zw);
+					rot.rows[1].y=ww-xx+yy-zz;
+					rot.rows[1].z=2*(yz-xw);
+
+					rot.rows[2].x=2*(xz-yw);
+					rot.rows[2].y=2*(yz+xw);
+					rot.rows[2].z=ww-xx-yy+zz;
+
+					rotations.push_back(rot);
+				}
+#endif
+
+				currentIndex++;
+			}
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
+#endif
 	}
 
 	startIndices.push_back( currentIndex );
@@ -179,6 +193,8 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 		const Cell &cell = _linkedCells.getCells()[i];
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
+
+		// stupid sorting but it works
 		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 			Molecule &molecule = **iterator;
 			const floatType3 &cudaForce = forces[currentIndex];

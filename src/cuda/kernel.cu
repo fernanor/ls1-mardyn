@@ -32,6 +32,12 @@
 #warning using double precision
 #endif
 
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+#warning sorting cells by component type
+#else
+#warning cells are *not* sorted by component type
+#endif
+
 extern "C" {
 /* TODO: possible refactoring
  * create a prepare method in MoleculeStorage and make rawQuaternions a global pointer
