@@ -194,27 +194,39 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 
-		// stupid sorting but it works
-		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
-			Molecule &molecule = **iterator;
-			const floatType3 &cudaForce = forces[currentIndex];
-			const floatType3 &cudaTorque = torque[currentIndex];
-			currentIndex++;
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+		for( int componentType = 0 ; componentType < _domain.getComponents().size() ; componentType++ ) {
+#endif
+			for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
+				Molecule &molecule = **iterator;
 
-			if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
-				continue;
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+				if( molecule.componentid() != componentType ) {
+					continue;
+				}
+#endif
+
+				const floatType3 &cudaForce = forces[currentIndex];
+				const floatType3 &cudaTorque = torque[currentIndex];
+				currentIndex++;
+
+				if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
+					continue;
+				}
+
+				// we are going to compare F and M
+				// TODO: make sure that we always overwrite F and M
+				molecule.calcFM();
+
+				const floatType3 cpuForce = make_floatType3( molecule.F(0), molecule.F(1), molecule.F(2) );
+				const floatType3 cpuTorque = make_floatType3( molecule.M(0), molecule.M(1), molecule.M(2) );
+
+				forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
+				torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
 			}
-
-			// we are going to compare F and M
-			// TODO: make sure that we always overwrite F and M
-			molecule.calcFM();
-
-			const floatType3 cpuForce = make_floatType3( molecule.F(0), molecule.F(1), molecule.F(2) );
-			const floatType3 cpuTorque = make_floatType3( molecule.M(0), molecule.M(1), molecule.M(2) );
-
-			forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
-			torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
+#endif
 	}
 
 	forceErrorMeasure.report();
@@ -239,12 +251,24 @@ void MoleculeStorage::downloadResults() {
 		const Cell &cell = _linkedCells.getCells()[i];
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
-		for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
-			Molecule &molecule = **iterator;
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+		for( int componentType = 0 ; componentType < _domain.getComponents().size() ; componentType++ ) {
+#endif
+			for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
+				Molecule &molecule = **iterator;
 
-			molecule.setF((floatType*) &forces[currentIndex]);
-			molecule.setM((floatType*) &torque[currentIndex]);
-			currentIndex++;
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+				if( molecule.componentid() != componentType ) {
+					continue;
+				}
+#endif
+
+				molecule.setF((floatType*) &forces[currentIndex]);
+				molecule.setM((floatType*) &torque[currentIndex]);
+				currentIndex++;
+			}
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
+#endif
 	}
 }
