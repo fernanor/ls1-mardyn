@@ -25,6 +25,7 @@
 #include "Domain.h"
 #include "molecules/Molecule.h"
 #include "particleContainer/LinkedCells.h"
+#include "cuda/config.h"
 #include "cuda/linkedCellsCUDAProxy.h"
 //#include "particleContainer/LinkedCellsCUDAold.h"
 #include "particleContainer/AdaptiveSubCells.h"
@@ -355,7 +356,7 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				}
 				if (this->_LJCutoffRadius == 0.0)
 					_LJCutoffRadius = this->_cutoffRadius;
-#if 0
+#ifdef NO_CUDA
 				_moleculeContainer = new LinkedCells(bBoxMin, bBoxMax,
 				                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
 				                                     cellsInCutoffRadius, _particlePairsHandler);

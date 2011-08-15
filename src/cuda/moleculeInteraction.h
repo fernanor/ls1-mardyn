@@ -71,25 +71,39 @@ public:
 	}
 
 	void calculate(double &potential, double &virial) {
+		CUDAFrameTimer.begin();
+
 		// pre-force calculation handling from CUDAForceCalculationComponents
+		CUDAPreTimer.begin();
 		_globalStats.preForceCalculation();
 		_moleculeStorage.preForceCalculation();
+		CUDAPreTimer.end();
 
+		CUDATotalProcessingTimer.begin();
 		const int *raw_dimensions = _linkedCells.getCellDimensions();
 		assert( raw_dimensions[0] >= 2 && raw_dimensions[1] >= 2 && raw_dimensions[2] >=2 );
 
+		CUDAPairProcessingTimer.begin();
 		const int3 dimensions = make_int3( raw_dimensions[0], raw_dimensions[1], raw_dimensions[2] );
 		const CellPairTraverserTemplate cellInterface(*this);
-		cellPairTraverser( dimensions, cellInterface );
+		traverseCellPairs( dimensions, cellInterface );
+		CUDAPairProcessingTimer.end();
 
+		CUDASingleProcessingTimer.begin();
 		_cellProcessor.call().setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).execute( _linkedCells.getCells().size(), 1 );
+		CUDASingleProcessingTimer.end();
+		CUDATotalProcessingTimer.end();
 
 		// post-force calculation handling from CUDAForceCalculationComponents
+		CUDAPostTimer.begin();
 		_globalStats.postForceCalculation();
 		_moleculeStorage.postForceCalculation();
+		CUDAPostTimer.end();
 
 		potential = _globalStats.getPotential();
 		virial = _globalStats.getVirial();
+
+		CUDAFrameTimer.end();
 	}
 
 protected:
@@ -99,6 +113,8 @@ protected:
 	MoleculeStorage _moleculeStorage;
 	MoleculePairHandler _moleculePairHandler;
 	ComponentDescriptorStorage _componentDescriptorStorage;
+
+	CUDA::EventTimer CUDAFrameTimer, CUDAPreTimer, CUDATotalProcessingTimer, CUDAPairProcessingTimer, CUDASingleProcessingTimer, CUDAPostTimer;
 
 	int getDirectionOffset( const int3 &direction ) {
 		return _linkedCells.cellIndexOf3DIndex( direction.x, direction.y, direction.z );

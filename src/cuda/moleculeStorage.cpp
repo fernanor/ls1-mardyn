@@ -113,7 +113,7 @@ void MoleculeStorage::uploadState() {
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
 	_rotationBuffer.resize( currentIndex );
 #else
-#warning CPU testing quaternion matrix conversion
+#	warning CPU testing quaternion matrix conversion
 	_rotationBuffer.copyToDevice( rotations );
 #endif
 

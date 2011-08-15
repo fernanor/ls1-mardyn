@@ -23,7 +23,7 @@ struct CellPairTraverserTemplate {
 #endif
 
 template<class CellPairTraverserTemplate>
- void cellPairTraverser(const int3 &dimensions, const CellPairTraverserTemplate &cellInterface ) {
+ void traverseCellPairs(const int3 &dimensions, const CellPairTraverserTemplate &cellInterface ) {
 	assert( dimensions.x >= 2 && dimensions.y >= 2 && dimensions.z >=2 );
 
 	// intra cell forces

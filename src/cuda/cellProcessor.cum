@@ -215,6 +215,8 @@ struct FastCellProcessor {
 					moleculeA
 				);
 
+			//assert: everything is synced here because of the __syncthreads calls in processBlock
+
 			for( int blockIndexB = 0 ; blockIndexB < blockIndexA; blockIndexB++ ) {
 				// blockIndexB < blockIndexA - 1  < numBlocks - 1 implies numCellsInBlock = BLOCK_SIZE
 				const int numMoleculesInBlockB = (blockIndexB < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
