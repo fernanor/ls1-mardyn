@@ -354,6 +354,15 @@ public:
 
 		return Module( module );
 	}
+
+	Module loadModuleData(const char *imageStart, const char *imageEnd) {
+		std::string image(imageStart, imageEnd);
+
+		CUmodule module;
+		CUDA_THROW_ON_ERROR( cuModuleLoadData( &module, image.c_str() ) );
+
+		return Module( module );
+	}
 };
 
 inline CUDA &cuda() {

@@ -19,6 +19,10 @@
 
 #include "moleculeInteraction.h"
 
+extern "C" {
+	extern char _binary_cuda_kernel_ptx_start, _binary_cuda_kernel_ptx_end;
+}
+
 class LinkedCellsCUDAProxy : public ParticleContainer {
 	// null handler
 	class Handler : public ParticlePairsHandler {
@@ -62,7 +66,7 @@ public:
 	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax),
 	  _domain( domain ),
 	  _linkedCells(bBoxMin, bBoxMax, cutoffRadius, cutoffRadius, cutoffRadius, 1.0, partPairsHandler),
-	  _moleculeInteraction( cuda().loadModule("kernel.ptx"), _linkedCells, _domain )
+	  _moleculeInteraction( cuda().loadModuleData( &_binary_cuda_kernel_ptx_start, &_binary_cuda_kernel_ptx_end ), _linkedCells, _domain )
 	{}
 
 	//! @brief The destructor

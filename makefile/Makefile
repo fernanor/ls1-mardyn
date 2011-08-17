@@ -47,7 +47,7 @@ SOURCES_PAR = $(shell find parallel/ -name "*.cpp" | grep -v "Dummy" | grep -v "
 SOURCES = $(SOURCES_COMMON) $(SOURCES_$(PARTYPE)) 
 
 
-OBJECTS = $(SOURCES:.cpp=.o)
+OBJECTS = $(SOURCES:.cpp=.o) $(SOURCES_CUDA:.cu=.o)
 # ptx files are stored in the output directory
 PTXS = $(SOURCES_CUDA:.cu=.ptx)
 
@@ -80,7 +80,7 @@ endif
 VTK_MAKEFILE := $(realpath $(MAKEFILEDIR)vtkwriter.mk ) 
 include $(VTK_MAKEFILE)
 
-$(BINARY): .deps $(OBJECTS) $(PTXS) cppunit
+$(BINARY): .deps $(OBJECTS) cppunit
 	@echo "building $(BINARY)"
 	$(CXX) $(LINKFLAGS) -o $@ $(OBJECTS)
 	$(shell if [ ! -f $(BINARYbasename) -o -L $(BINARYbasename) ]; then ln -sf $(BINARY) $(BINARYbasename); fi)
@@ -100,6 +100,9 @@ cuda/kernel.ptx: $(SOURCES_CUDA_MODULES) cuda/config.h cuda/sharedDecls.h
 %.ptx: %.cu 
 	$(NVCC) -arch=sm_21 --ptx -Xptxas -v -Xcompiler $(SHARED_OPTIONS) $< --output-directory $(<D)
 	cp $@ $(@F)
+	
+%.o: %.ptx
+	ld -r -b binary -o $@ $<
 
 #$(foreach cufile,$(SOURCES_CUDA),$(eval $(call CU_BUILDER,$(cufile:.cu=.ptx),$(cufile))))
  
