@@ -12,10 +12,21 @@
 
 #define MAX_BLOCK_SIZE 512
 
-#define CUDA_DOUBLE_MODE
+#ifdef CONFIG_NO_CUDA
+#	define CONFIG_NAME "no_cuda"
+#	define NO_CUDA
+#endif
 
-#define NO_CUDA
+#ifdef CONFIG_CUDA_DOUBLE_SORTED
+#	define CONFIG_NAME "cuda_double_sorted"
 
+#	define CUDA_DOUBLE_MODE
+#	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+#endif
+
+//#define NO_CUDA
+
+//#define CUDA_DOUBLE_MODE
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
 //#define COMPARE_TO_CPU
@@ -24,7 +35,7 @@
 //#define DEBUG_COMPONENT_DESCRIPTORS
 
 // TODO: either use warpSize or WARP_SIZE!
-#define MAX_NUM_WARPS 6
+//#define MAX_NUM_WARPS 6
 
 #define MAX_NUM_COMPONENTS 4
 

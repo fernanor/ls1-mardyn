@@ -9,20 +9,15 @@
 #define BENCHMARK_H_
 
 #include <vector>
-#include <algorithm>
+#include <numeric>
+#include <string>
+
+#include "config.h"
 
 class Measure {
 protected:
-	const char *name;
-
 	std::vector< double > values;
 public:
-	Measure( const char *name ) : name( name ) {}
-
-	const char *getName() const {
-		return name;
-	}
-
 	void addDataPoint(const double value) {
 		values.push_back( value );
 	}
@@ -30,6 +25,43 @@ public:
 	double getAverage() const {
 		return std::accumulate( values.begin(), values.end(), 0.0 ) / values.size();
 	}
+
+	bool isUsed() const {
+		return !values.empty();
+	}
+
+	int getCount() const {
+		return values.size();
+	}
+
+	double operator [] (int index) const {
+		return values[index];
+	}
+
+	operator double() const {
+		return getAverage();
+	}
 };
+
+struct SimulationStats {
+	// run measurements
+	Measure totalTime;
+#ifndef NO_CUDA
+	Measure CUDA_frameTime, CUDA_preTime, CUDA_postTime, CUDA_singleTime, CUDA_pairTime, CUDA_processingTime;
+#endif
+
+	// frame measurements
+	Measure potentials, virials;
+
+	// run/build info
+	int timeSteps;
+	int numWarps;
+	int moleculeCount;
+
+	void writeFrameStats( const std::string &frameFile );
+	void writeRunStats( const std::string &buildFile );
+};
+
+extern SimulationStats simulationStats;
 
 #endif /* BENCHMARK_H_ */

@@ -26,6 +26,7 @@
 #include "molecules/Molecule.h"
 #include "particleContainer/LinkedCells.h"
 #include "cuda/config.h"
+#include "cuda/benchmark.h"
 #include "cuda/linkedCellsCUDAProxy.h"
 //#include "particleContainer/LinkedCellsCUDAold.h"
 #include "particleContainer/AdaptiveSubCells.h"
@@ -803,8 +804,9 @@ void Simulation::initialize() {
 }
 
 void Simulation::simulate() {
-
-	Molecule* tM;
+	simulationStats.moleculeCount = _domain->getglobalNumMolecules();
+	simulationStats.numWarps = NUM_WARPS;
+	simulationStats.timeSteps = _numberOfTimesteps;
 
 	global_log->info() << "Started simulation" << endl;
 
@@ -943,7 +945,8 @@ void Simulation::simulate() {
 		if (!_domain->NVE()) {
 			global_log->debug() << "Velocity scaling" << endl;
 			if (_domain->severalThermostats()) {
-				for (tM = _moleculeContainer->begin(); tM != _moleculeContainer->end(); tM = _moleculeContainer->next()) {
+
+				for (Molecule* tM = _moleculeContainer->begin(); tM != _moleculeContainer->end(); tM = _moleculeContainer->next()) {
 					int thermostat = _domain->getThermostat(tM->componentid());
 					if (0 >= thermostat)
 						continue;
@@ -961,7 +964,7 @@ void Simulation::simulate() {
 				}
 			}
 			else {
-				for (tM = _moleculeContainer->begin(); tM != _moleculeContainer->end(); tM = _moleculeContainer->next()) {
+				for (Molecule* tM = _moleculeContainer->begin(); tM != _moleculeContainer->end(); tM = _moleculeContainer->next()) {
 					tM->scale_v(_domain->getGlobalBetaTrans());
 					tM->scale_D(_domain->getGlobalBetaRot());
 				}
@@ -1011,6 +1014,10 @@ void Simulation::simulate() {
 	global_log->info() << "Computation in main loop took: " << loopTimer.get_etime() << " sec" << endl;
 	global_log->info() << "IO in main loop  took:         " << perStepIoTimer.get_etime() << " sec" << endl;
 	global_log->info() << "Final IO took:                 " << ioTimer.get_etime() << " sec" << endl;
+
+	simulationStats.totalTime.addDataPoint(loopTimer.get_etime());
+	simulationStats.writeFrameStats( "benchmark/" + _outputPrefix + "-results.csv" );
+	simulationStats.writeRunStats( "benchmark/" CONFIG_NAME "-results.csv" );
 
 	delete _domainDecomposition;
 	delete _domain;

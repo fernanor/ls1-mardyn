@@ -104,6 +104,13 @@ public:
 		virial = _globalStats.getVirial();
 
 		CUDAFrameTimer.end();
+
+		simulationStats.CUDA_frameTime.addDataPoint(CUDAFrameTimer.getElapsedTime());
+		simulationStats.CUDA_preTime.addDataPoint(CUDAPreTimer.getElapsedTime());
+		simulationStats.CUDA_postTime.addDataPoint(CUDAPostTimer.getElapsedTime());
+		simulationStats.CUDA_pairTime.addDataPoint(CUDAPairProcessingTimer.getElapsedTime());
+		simulationStats.CUDA_singleTime.addDataPoint(CUDASingleProcessingTimer.getElapsedTime());
+		simulationStats.CUDA_processingTime.addDataPoint(CUDATotalProcessingTimer.getElapsedTime());
 	}
 
 protected:

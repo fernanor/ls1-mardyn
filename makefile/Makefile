@@ -19,6 +19,9 @@ TESTS ?= 0
 
 VTK ?= 0
 
+CUDA_CONFIG ?= CUDA_DOUBLE_SORTED
+NUM_WARPS ?= 4
+
 CURDIR ?= $(realpath $(PWD) )
 ifeq ($(findstring src,$(CURDIR)),)
   $(error ERROR: current directory $(CURDIR) seems not to be a source directory)
@@ -50,7 +53,7 @@ PTXS = $(SOURCES_CUDA:.cu=.ptx)
 
 INCLUDES = -I$(CURDIR) -I$(CURDIR)/External $(CPPUNIT_INCLUDES) -I../dependencies-external/nvidia
 
-BINARYbasename = MarDyn
+BINARYbasename = MarDyn.$(CUDA_CONFIG).$(NUM_WARPS)
 ifneq ($(realpath .svn),)
   $(info Building from a svn version.)
   svnVERSION = $(shell svnversion | sed -e "s/:/-/")
@@ -63,8 +66,9 @@ else
   BINARY = $(BINARYbasename).$(PARTYPE)_$(TARGET)
 endif
 
+SHARED_OPTIONS=-DCONFIG_$(CUDA_CONFIG) -DMAX_NUM_WARPS=$(NUM_WARPS)
 CXX = $(CXX_$(PARTYPE))
-CXXFLAGS = $(CXXFLAGS_$(PARTYPE)_$(TARGET)) -DMPICH_IGNORE_CXX_SEEK 
+CXXFLAGS = $(CXXFLAGS_$(PARTYPE)_$(TARGET)) -DMPICH_IGNORE_CXX_SEEK $(SHARED_OPTIONS)
 LINKFLAGS = $(LINKFLAGS_$(PARTYPE)_$(TARGET)) $(CPPUNIT_LINK_ARGS) -lrt -lcuda
 
 ifeq ($(DEPS),1)
@@ -91,10 +95,10 @@ endef
 $(call CU_BUILDER,./cuda/kernel.ptx,./cuda/kernel.cu)
 #include ./cuda/kernel.deps
 
-cuda/kernel.ptx: $(SOURCES_CUDA_MODULES) cuda/config.h
+cuda/kernel.ptx: $(SOURCES_CUDA_MODULES) cuda/config.h cuda/sharedDecls.h
 
 %.ptx: %.cu 
-	$(NVCC) -arch=sm_21 --ptx $< --output-directory $(<D)
+	$(NVCC) -arch=sm_21 --ptx -Xptxas -v -Xcompiler $(SHARED_OPTIONS) $< --output-directory $(<D)
 	cp $@ $(@F)
 
 #$(foreach cufile,$(SOURCES_CUDA),$(eval $(call CU_BUILDER,$(cufile:.cu=.ptx),$(cufile))))
