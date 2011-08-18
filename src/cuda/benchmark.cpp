@@ -35,7 +35,7 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 #ifndef NO_CUDA
 		fprintf( file, ", CUDA_totalTime, CUDA_preTime, CUDA_postTime, CUDA_singleTime, CUDA_pairTime, CUDA_processingTime" );
 #endif
-		fprintf( file, "\n" );
+		fprintf( file, ", name\n" );
 	}
 
 
@@ -45,7 +45,7 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 			(double) CUDA_frameTime, (double) CUDA_preTime, (double) CUDA_postTime, (double) CUDA_singleTime, (double) CUDA_pairTime, (double) CUDA_processingTime
 			);
 #endif
-	fprintf( file, "\n" );
+	fprintf( file, ", %s\n", name.c_str() );
 }
 
 SimulationStats simulationStats;

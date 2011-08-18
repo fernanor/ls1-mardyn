@@ -807,6 +807,7 @@ void Simulation::simulate() {
 	simulationStats.moleculeCount = _domain->getglobalNumMolecules();
 	simulationStats.numWarps = NUM_WARPS;
 	simulationStats.timeSteps = _numberOfTimesteps;
+	simulationStats.name = _outputPrefix;
 
 	global_log->info() << "Started simulation" << endl;
 
@@ -993,6 +994,9 @@ void Simulation::simulate() {
 		output(_simstep);
 		perStepIoTimer.stop();
 		loopTimer.start();
+
+		simulationStats.potentials.addDataPoint( _domain->getLocalUpot() );
+		simulationStats.virials.addDataPoint( _domain->getLocalVirial() );
 	}
 	loopTimer.stop();
 	/***************************************************************************/
@@ -1016,8 +1020,11 @@ void Simulation::simulate() {
 	global_log->info() << "Final IO took:                 " << ioTimer.get_etime() << " sec" << endl;
 
 	simulationStats.totalTime.addDataPoint(loopTimer.get_etime());
-	simulationStats.writeFrameStats( "benchmark/" + _outputPrefix + "-results.csv" );
-	simulationStats.writeRunStats( "benchmark/" CONFIG_NAME "-results.csv" );
+
+#ifdef BENCHMARKING
+	simulationStats.writeFrameStats( "benchmark/" + _outputPrefix + ".results.csv" );
+	simulationStats.writeRunStats( "benchmark/" CONFIG_NAME ".results.csv" );
+#endif
 
 	delete _domainDecomposition;
 	delete _domain;

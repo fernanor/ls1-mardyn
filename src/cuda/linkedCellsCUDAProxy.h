@@ -144,9 +144,6 @@ public:
 		printf( "CPU Potential: %f CPU Virial: %f\n", cpuPotential, cpuVirial );
 #endif
 		printf( "CUDA Potential: %f CUDA Virial: %f\n", potential, virial );
-
-		simulationStats.potentials.addDataPoint(potential);
-		simulationStats.virials.addDataPoint(virial);
 	}
 
 	//! @return the number of particles stored in this container

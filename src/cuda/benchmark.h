@@ -46,9 +46,7 @@ public:
 struct SimulationStats {
 	// run measurements
 	Measure totalTime;
-#ifndef NO_CUDA
 	Measure CUDA_frameTime, CUDA_preTime, CUDA_postTime, CUDA_singleTime, CUDA_pairTime, CUDA_processingTime;
-#endif
 
 	// frame measurements
 	Measure potentials, virials;
@@ -57,6 +55,8 @@ struct SimulationStats {
 	int timeSteps;
 	int numWarps;
 	int moleculeCount;
+
+	std::string name;
 
 	void writeFrameStats( const std::string &frameFile );
 	void writeRunStats( const std::string &buildFile );

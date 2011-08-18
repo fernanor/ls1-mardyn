@@ -12,9 +12,23 @@
 
 #define MAX_BLOCK_SIZE 512
 
+#define BENCHMARKING
+
+//#define CONFIG_CUDA_DOUBLE_SORTED
+
 #ifdef CONFIG_NO_CUDA
 #	define CONFIG_NAME "no_cuda"
 #	define NO_CUDA
+#endif
+
+#ifdef CONFIG_CUDA_FLOAT_UNSORTED
+#	define CONFIG_NAME "cuda_float_unsorted"
+#endif
+
+#ifdef CONFIG_CUDA_DOUBLE_UNSORTED
+#	define CONFIG_NAME "cuda_double_unsorted"
+
+#	define CUDA_DOUBLE_MODE
 #endif
 
 #ifdef CONFIG_CUDA_DOUBLE_SORTED
@@ -23,6 +37,7 @@
 #	define CUDA_DOUBLE_MODE
 #	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 #endif
+
 
 //#define NO_CUDA
 
