@@ -12,7 +12,7 @@
 
 #define MAX_BLOCK_SIZE 512
 
-#define BENCHMARKING
+//#define BENCHMARKING
 
 //#define CONFIG_CUDA_DOUBLE_SORTED
 
@@ -41,10 +41,12 @@
 
 //#define NO_CUDA
 
+#define USE_CONSTANT_MEMORY
+
 //#define CUDA_DOUBLE_MODE
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-//#define COMPARE_TO_CPU
+#define COMPARE_TO_CPU
 //#define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 
 //#define DEBUG_COMPONENT_DESCRIPTORS
@@ -60,25 +62,31 @@
 
 
 #ifndef REFERENCE_IMPLEMENTATION
-#define WARP_SIZE 32
-#define NUM_WARPS MAX_NUM_WARPS
+#	define WARP_SIZE 32
+#	define NUM_WARPS MAX_NUM_WARPS
 #else
-#define WARP_SIZE 1
-#define NUM_WARPS 1
+#	define WARP_SIZE 1
+#	define NUM_WARPS 1
 #endif
 
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
 
 #ifndef CUDA_DOUBLE_MODE
-typedef float floatType;
-typedef float3 floatType3;
+	typedef float floatType;
+	typedef float3 floatType3;
 
-#define make_floatType3 make_float3
+#	define make_floatType3 make_float3
 #else
-typedef double floatType;
-typedef double3 floatType3;
+	typedef double floatType;
+	typedef double3 floatType3;
 
-#define make_floatType3 make_double3
+#	define make_floatType3 make_double3
+#endif
+
+#ifdef USE_CONSTANT_MEMORY
+#	define CONSTANT __constant__
+#else
+#	define CONSTANT
 #endif
 
 // TODO: move this include into the referencing header files

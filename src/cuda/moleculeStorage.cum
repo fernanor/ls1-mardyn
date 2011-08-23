@@ -6,15 +6,15 @@
 #include "cellInfo.cum"
 
 // global shared data pointers
-__device__ floatType3 *moleculePositions;
-__device__ Matrix3x3 *moleculeRotations;
+CONSTANT __device__ floatType3 *moleculePositions;
+CONSTANT __device__ Matrix3x3 *moleculeRotations;
 
-__device__ floatType3 *moleculeForces;
-__device__ floatType3 *moleculeTorque;
+CONSTANT __device__ floatType3 *moleculeForces;
+CONSTANT __device__ floatType3 *moleculeTorque;
 
-__device__ Molecule::ComponentType *moleculeComponentTypes;
+CONSTANT __device__ Molecule::ComponentType *moleculeComponentTypes;
 
-__device__ int *cellStartIndices;
+CONSTANT __device__ int *cellStartIndices;
 
 __device__ CellInfo cellInfoFromCellIndex( int index ) {
 	return CellInfo( cellStartIndices[index], cellStartIndices[index+1] );

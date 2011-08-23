@@ -11,7 +11,7 @@ struct CellStats : CellStatsStorage {
 };
 
 // should be: __device__ CellStats cellStats[CellCount]
-__device__ CellStats *cellStats;
+CONSTANT __device__ CellStats *cellStats;
 
 template<int blockSize>
 struct CellStatsCollector {

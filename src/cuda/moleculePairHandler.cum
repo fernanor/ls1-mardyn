@@ -2,8 +2,8 @@
 
 #include "globalStats.cum"
 
-__device__ floatType cutOffRadiusSquared;
-__device__ floatType epsRFInvrc3;
+CONSTANT __device__ floatType cutOffRadiusSquared;
+CONSTANT __device__ floatType epsRFInvrc3;
 
 template<class GlobalStatsCollector, class ComponentDescriptorAccessor>
 struct MoleculePairHandler {
