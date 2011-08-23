@@ -223,6 +223,9 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 
 				forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
 				torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
+
+				// clear the molecule after comparing the values to make sure that only the GPU values are applied
+				molecule.clearFM();
 			}
 #ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
