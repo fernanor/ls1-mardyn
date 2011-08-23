@@ -117,6 +117,7 @@ Simulation::Simulation(optparse::Values& options, vector<string>& args)
 	_doRecordRDF = false;
 	_RDFOutputTimesteps = 25000;
 	_RDFOutputPrefix = "out";
+	_initSimulation = 0;
 	_initCanonical = 5000;
 	_initGrandCanonical = 10000000;
 	_initStatistics = 20000;
@@ -801,6 +802,10 @@ void Simulation::initialize() {
 		this->_domain->tickRDF();
 
 	global_log->info() << "System initialised\n" << endl;
+
+	// 110822 AK - try to match behavior
+	// clear FM
+	_moleculeContainer->updateMoleculeCaches();
 }
 
 void Simulation::simulate() {

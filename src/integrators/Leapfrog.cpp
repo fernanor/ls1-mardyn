@@ -24,7 +24,9 @@ void Leapfrog::eventForcesCalculated(ParticleContainer* molCont, Domain* domain)
 	map<int, unsigned long> rotDOF;
 	map<int, double> summv2;
 	map<int, double> sumIw2;
+
 	double dt_half = 0.5 * this->_timestepLength;
+
 	if (domain->severalThermostats()) {
 		for (tM = molCont->begin(); tM != molCont->end(); tM = molCont->next()) {
 			int cid = tM->componentid();
