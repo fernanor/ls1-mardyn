@@ -95,7 +95,8 @@ __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffset
 	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
 
 #ifndef REFERENCE_IMPLEMENTATION
-	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
+	__shared__ MoleculeStorage::MoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
 #else
 	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 #endif
@@ -120,7 +121,8 @@ __global__ void processCell() {
 	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
 
 #ifndef REFERENCE_IMPLEMENTATION
-	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
+	__shared__ MoleculeStorage::MoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
 #else
 	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 #endif

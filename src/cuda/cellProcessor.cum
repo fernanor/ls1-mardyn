@@ -88,11 +88,12 @@ template<int blockSize, class Molecule, class MoleculeStorage, class MoleculePai
 struct FastCellProcessor {
 	MoleculeStorage &moleculeStorage;
 	typedef typename MoleculeStorage::template MoleculeLocalStorage<blockSize> MoleculeLocalStorage;
+	MoleculeLocalStorage &moleculeLocalStorageB;
 
 	MoleculePairHandler &moleculePairHandler;
 
-	__device__ FastCellProcessor(MoleculeStorage &moleculeStorage, MoleculePairHandler &moleculePairHandler)
-			: moleculeStorage( moleculeStorage ), moleculePairHandler( moleculePairHandler ) {}
+	__device__ FastCellProcessor(MoleculeStorage &moleculeStorage, MoleculeLocalStorage &moleculeLocalStorage, MoleculePairHandler &moleculePairHandler)
+			: moleculeStorage( moleculeStorage ), moleculeLocalStorageB( moleculeLocalStorage ), moleculePairHandler( moleculePairHandler ) {}
 
 	enum BlockPairType {
 		BPT_UNRELATED,
@@ -108,8 +109,6 @@ struct FastCellProcessor {
 			const int blockOffsetB,
 			Molecule &moleculeA
 			) {
-		__shared__ MoleculeLocalStorage moleculeLocalStorageB;
-
 		// load B data into cache
 		if( threadIndex < numMoleculesInBlockB ) {
 			moleculeLocalStorageB.load( threadIndex, moleculeStorage, blockOffsetB + threadIndex );
