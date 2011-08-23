@@ -3,5 +3,5 @@
 int BehaviorProbe::counter;
 BehaviorProbe::Type BehaviorProbe::lastType;
 const char *BehaviorProbe::msg[BPT_COUNT] = {
-		"FM cleared", "FM used", "FM set"
+		"", "FM cleared", "FM used", "FM set"
 };

@@ -5,10 +5,10 @@
 
 struct BehaviorProbe {
 	enum Type {
+		BPT_NONE,
 		BPT_CLEARED,
 		BPT_USED,
 		BPT_SET,
-		BPT_NONE,
 		BPT_COUNT
 	};
 	static int counter;
