@@ -31,6 +31,6 @@ Additionally there is a 16 KB big L1 cache in each multiprocessor for global mem
 
 The register count used by one thread and the amount of shared memory used per thread block determine how many threads and thread blocks can be executed on the same multiprocessor concurrently.
 
-Most importantly \cuda{} uses other threads and thread blocks to hide the high latency of memory accesses. Thus it is imperative to keep the multiprocessors busy with a high amount of threads.
+Most importantly \cuda{} uses threads and thread blocks to hide the high latency of memory accesses. Thus it is imperative to keep the multiprocessors busy with a high amount of threads, so a multiprocessor can resume a different warp, while the current one is waiting for a memory access to finish.
 
 For more information see \TODO{cuda manual and the best practices guide}.
