@@ -10,16 +10,19 @@
 \title{\foreignlanguage{ngerman}{Effiziente Implementierung von mehrzentrigen molekulardynamischen Potentialmodellen mit Cuda} \linebreak --- Efficient implementation of multi-center molecular dynamic potentials in Cuda}
 
 \newcommand{\cuda}{Cuda}
+\newcommand{\TODO}[1]{-TODO-\footnote{#1}}
 
 \begin{document}
 
 \begin{abstract}
-This IDP discusses the parallelization of the force calculation in the molecular dynamics simulator MarDyn with \cuda. It describes the performed optimizations on the code and how support for more advanced potential models was added. It concludes with benchmarking results and suggestions for further work.
+This paper discusses the parallelization of the force calculation in the molecular dynamics simulator MarDyn with \cuda. It describes the performed optimizations on the code and how support for more advanced potential models was added. It concludes with benchmarking results and suggestions for further work.
 \end{abstract}
 
 \maketitle
 
 \section{Introduction}
+
+\input{introduction}
 
 \section{Chronology of the Project}
 

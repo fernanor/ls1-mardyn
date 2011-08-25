@@ -1,0 +1,36 @@
+Molecular dynamics deals with the simulation of atoms and molecules. It estimates the interaction between a high number of molecules and atoms using force fields which are modeled after quantum mechanics equations. 
+Such simulations are important for many different areas in biology, chemistry and material sciences. For example you can examine the folding of proteins or the nanoscopic behavior of materials.
+
+The simulations are sped up using sophisticated approximations and algorithms. I have used MarDynm, a molecular dynamics application, for my work. It has been co-developed by the Chair of Scientific Computing at the Technische Universit\"at M\"unchen and a description of it can be found in \TODO{}.
+
+\subsection{Parallelization}
+Molecules only have strong interactions with molecules that are nearby. One of the first approximations is to take into account this strong interactions only and ignore weaker long-distances ones.
+This space locality of the calculations leads to the Linked Cell-algorithm. It divides the simluation space into many cells. Only interactions between molecules inside each cell and with nearby cells have to be calculated. This reduces \footnote{assuming an upper density limit of the molecules}  
+ the complexity from $ \mathcal{O} \left( N^2 \right) $ to $ \mathcal{O} \left( N \right) $.
+Thus different cells that are not neighbors either show a data inpendency which can be used for parallelization.
+
+One way of parallelizing the calculations is using clusters of processing units which is also discussed in \TODO{}. Another option is the parallization is using modern GPUs which offer multiple processing cores and high parallelity in a single computer.
+
+There are two programming frameworks for GPUs: \cuda{} and OpenCL. \TODO{add links to nvidia and opencl}
+\TODO{reference to Orend} describes using OpenCL to parallelize MarDyn on a GPU. I am using \cuda{}.
+
+\subsection{\cuda{}}
+In \cuda{}\footnote{this paper always talks about \cuda{} 2.x, unless explicitly stated otherwise} the GPU is modeled as having multiple \textbf{streaming multiprocessors} (\textbf{SM}) which execute multiple threads of so-called kernels. A \textbf{kernel} is the term used in \cuda{} for a GPU program.
+
+Each kernel can have many \textbf{threads} that are run in real parallel or in a time sharing fashion. The threads are grouped in \textbf{thread blocks} of at most 1024 threads and launched in a \textbf{grid} of at most $65535^2$ thread blocks\footnote{which makes for a huge total possible number of threads per kernel}.
+
+Each multiprocessor has at most 1536 \textbf{resident threads} which can be resumed with almost no overhead and run one or multiple thread blocks. That is all threads of one thread block run on the same multiprocessor. 32 threads (belonging to the same thread block and kernel) constitute a warp. A \textbf{warp} is executed in real parallel by the multiprocessor. Internally the multiprocessor uses a principle called \textbf{SIMT} which stands for \textit{Single-Instruction Multiple-Thread}.
+
+This means that the instructions of a GPU program run in lock-step for all threads of warp. If there is a branch that is taken differently by different threads of a warp, both code paths are executed by the multiprocessor. Register and memory operations are only \textit{masked out} for the different threads. 
+
+There are different types of memory: \textbf{global memory} and \textbf{constant memory} are shared between all kernels and thread blocks; \textbf{shared memory} is on-chip memory on a multiprocessor and only shared between threads of a single threadblock; \textbf{local memory} and \textbf{registers} only belong to one thread.
+
+There are 64 KB of constant memory available and 48 KB of shared memory available per multiprcoessor. Each thread has access to 512 KB of local memory. There are 32768 registers that are divided up between the threads.
+
+Additionally there is a 16 KB big L1 cache in each multiprocessor for global memory. There is a second cache mode, in which there are only 16 KB of shared memory available and 48 KB of L1 cache instead.
+
+The register count used by one thread and the amount of shared memory used per thread block determine how many threads and thread blocks can be executed on the same multiprocessor concurrently.
+
+Most importantly \cuda{} uses other threads and thread blocks to hide the high latency of memory accesses. Thus it is imperative to keep the multiprocessors busy with a high amount of threads.
+
+For more information see \TODO{cuda manual and the best practices guide}.
