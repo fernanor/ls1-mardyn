@@ -1,0 +1,105 @@
+The code resides in src/cuda/ and only minor changes have been made to the original MarDyn code. These changes will be described in great detail later as well.
+
+The \cuda{} code moves the force calculation to the GPU. It calculates the forces between different molecules using different potential models as specified in the component description\TODO{reference to Mardyn docs}.
+A \cuda{} application performs basically three steps:
+\begin{compactenum}
+\item upload data to the GPU
+\item process data on the GPU
+\item download results from the GPU
+\end{compactenum} 
+Different information has to be uploaded in MarDyn. Information about the different molecule types (\textbf{component descriptions}) has to be uploaded only once. The position and orientation of every molecule has to be uploaded for each force calculation. 
+Later the calculated forces have to be downloaded, as well as the calculated potential and virial statistics.
+
+The Linked Cells-algorithm is used in MarDyn. The simulation space is divided into cells and the interaction between molecules of the same and of neighboring cells have to be calculated.
+This leads to a natural parallelization approach:
+\begin{compactitem}
+\item for intra-cell molecule interactions each thread can process the molecules of one cell, and
+\item for inter-cell molecule interactions each thread can process a different pair of neighboring cells.
+\end{compactitem}
+
+\subsection{General Architecture}
+The \cuda{} coda is split up in different components. Each component has exactly one responsibility.
+The intention to make it clear where changes go and make it easier to navigate the code.
+
+A \textbf{component} usually consists of CPU and \cuda{} code which interact somehow. For this there usually are a \filename{component.cpp} and \filename{component.h}, which contain the CPU-side code, and a \filename{component.cum}, which contains the \cuda{} code\footnote{\filename{.cum} stands for \textbf{cu}da \textbf{m}odule}.
+
+Normally you pass parameters as kernel parameters to \cuda{}. Separation of responsibilities is the main goal of having different components. Thus passing all paramaters as kernel parameters is not a good approach. The CPU code of each component needs a way to interact with the \cuda{} code and the 'glue' code should be part of the components and not be kept somewhere else\footnote{the first implementation used kernel parameters and the parameter count quickly became unacceptable}.
+
+The solution is simple: \cuda{} supports global variables and the CPU/\cuda{} interface in each component uses global variables to exchange data\footnote{using a different namespace for each component would be preferable to guarantee no naming conflicts}.
+
+Moreover, instead of global variables constant\footnote{\TODO{see the Cuda docs!}} variables could be used, which reside in constant memory. Constant memory has its own on-chip cache, so this is desirable, too\footnote{generally speaking, the more cache memory can be used, the better the preformance}.
+
+\TODO{add diagrams showing the architectural principles and code examples}
+
+\subsection{Component Overview}
+Most components implement a \lstinline!CUDAComponent! interface. There are two of them:
+\begin{compactitem}
+\item \lstinline!CUDAForceCalculationComponent! is used by components that perform data exchange operations on each force calculation, and
+\item \lstinline!CUDAStaticDataComponent! is used by components that only need to upload data once.
+\end{compactitem}
+
+There are quite a few different components:
+\begin{compactdesc}
+\item[CellProcessor] contains logic to efficiently loop through the molecules of a single cell or a cell pair
+\item[ComponentDescriptor] manages the molecule component descriptions such as how many Lennard-Jones centers a molecule has.
+\item[ForceCalculation] links all components together and calculates the forces
+\item[GlobalStats] keeps track of the total potential and virial statistics
+\item[MoleculePairHandler] calculates the force between two given molecules
+\item[MoleculeStorage] manages all per-molecule data like positions, forces or orientations
+\item[PairTraverser] enumerates all cell pairs in a way that allows for maximum parallelization
+\item[PotForce] calculates the force between Lennard-Jones centers, dipoles, etc
+\end{compactdesc}
+
+\TODO{add diagram showing the inter-dependencies between the different modules}
+
+There are additional \cuda{} modules that contain helper and utility functions.
+All the \filename{.cum} files are included in \filename{kernel.cu}, which also contains the two kernel entrance functions \lstinline!processCellPair! and \lstinline!processCell!, which are called by the \textbf{ForceCalculation} to calculate the forces between all the molecules in a cell pair or in a single cell.
+
+\subsection{\cuda{} Helper Classes and Functions}
+\filename{helpers.cpp/h} contain C++ wrappers for all \cuda{} functionality that is used in the project.
+It implements an in-language DSL\footnote{domain-specific language} to simplify working with the \cuda{} API.
+
+\TODO{add class diagram of helpers.h}
+
+\subsubsection{Device Buffers and Global Variables}
+Managing device memory is done by creating instances \lstinline!CUDA::DeviceBuffer<DataType>!. Methods are provided to resize the buffer and to copy data from and to the GPU.
+Global variables are mapped to \lstinline!CUDA::Global<DataType>! objects. They provide a \lstinline!set! method that is specialized for pointer global variables to take \lstinline!CUDA::DeviceBuffer<DataType>! objects.
+Example:
+\begin{lstlisting}[label=cudamemoryhelpers,caption=CUDA helper classes for Device Memory and Globals]
+class GlobalStats : public CUDAForceCalculationComponent {
+	CUDA::Global<CellStatsStorage *> _cellStats;
+	CUDA::DeviceBuffer<CellStatsStorage> _cellStatsBuffer;
+	
+	GlobalStats( const CUDAComponent &component ) :
+		_cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") )
+	/* ... */
+	
+		_cellStatsBuffer.resize( _linkedCells.getCells().size() );
+		_cellStatsBuffer.zeroDevice();
+		_cellStats.set( _cellStatsBuffer );		
+	/* ... */		
+};	
+\end{lstlisting}
+
+\subsubsection{Calling \cuda{} Functions}
+The \lstinline!Function! class wraps \cuda{} functions. It has a \lstinline!call! method that returns a \lstinline!FunctionCall! object that can be used to specify the grid and block sizes and parameters before running the \cuda{} kernel by calling its \lstinline!execute! method.
+Example:
+\begin{lstlisting}[label=cudafunctionhelpers,caption=CUDA helper classes for Function Calls]
+	CUDA::Function _convertQuaternionsToRotations;
+/* ... */		
+	MoleculeStorage( const CUDAComponent &component ) :
+		_convertQuaternionsToRotations( _module.getFunction( "convertQuaternionsToRotations" ) )
+/* ... */
+		_convertQuaternionsToRotations.call().
+			parameter(quaternionBuffer.devicePtr()).
+			parameter(currentIndex).
+			setBlockShape(MAX_BLOCK_SIZE, 1, 1).
+			execute(currentIndex / MAX_BLOCK_SIZE + 1, 1);
+\end{lstlisting}
+
+\subsubsection{\filename{cutil\_double\_math.h}}
+The \cuda{} SDK provides a helper file called \filename{cutil\_math.h} which adds overloaded operators and functions for most \cuda{} datatypes except \lstinline!double2!, \lstinline!double3! and \lstinline!double4!.
+\filename{cutil\_double\_math.h} adds support for these datatypes.
+This makes it possible to switch between single- and double-precision using a simple preprocessor \#define.
+
+\subsection{MarDyn Integration}

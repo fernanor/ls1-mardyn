@@ -1,24 +1,28 @@
-\documentclass[11pt,a4paper,onecolumn,notitlepage]{elsarticle}
+\documentclass[11pt,a4paper,onecolumn,notitlepage]{scrartcl}
 \usepackage[latin1]{inputenc}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
 \usepackage[ngerman,english]{babel}
 
+\usepackage{paralist}
+\input{listingsconfig}
+
 \author{Andreas Kirsch}
 
-\title{\foreignlanguage{ngerman}{Effiziente Implementierung von mehrzentrigen molekulardynamischen Potentialmodellen mit Cuda} \linebreak --- \linebreak Efficient Implementation of Multi-Center Molecular Dynamic Potentials with Cuda}
+\title{\foreignlanguage{ngerman}{Effiziente Implementierung von mehrzentrigen molekulardynamischen Potentialmodellen mit Cuda} \linebreak --- \linebreak Efficient Implementation of Multi-Center Molecular Dynamic Potential Models with Cuda}
 
 \newcommand{\cuda}{Cuda}
 \newcommand{\TODO}[1]{-TODO-\footnote{#1}}
+\newcommand{\filename}[1]{\texttt{#1}}
 
 \begin{document}
+
+\maketitle
 
 \begin{abstract}
 This paper discusses the parallelization of the force calculation in the molecular dynamics simulator MarDyn with \cuda. It describes the performed optimizations on the code and how support for more advanced potential models was added. It concludes with benchmarking results and suggestions for further work.
 \end{abstract}
-
-\maketitle
 
 \section{Introduction}
 
@@ -28,7 +32,9 @@ This paper discusses the parallelization of the force calculation in the molecul
 
 \input{chronology}
 
-\section{Code Architecture}
+\section{Code Design and Architecture}
+
+\input{code}
 
 \section{Optimizations and Results}
 
