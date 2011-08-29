@@ -27,7 +27,7 @@
 #include "particleContainer/LinkedCells.h"
 #include "cuda/config.h"
 #include "cuda/benchmark.h"
-#include "cuda/linkedCellsCUDAProxy.h"
+#include "cuda/linkedCellsCUDADecorator.h"
 //#include "particleContainer/LinkedCellsCUDAold.h"
 #include "particleContainer/AdaptiveSubCells.h"
 #include "parallel/DomainDecompBase.h"

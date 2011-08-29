@@ -119,18 +119,28 @@ struct FastCellProcessor {
 		__syncthreads();
 
 		// process block
-		const int numShifts = max( numMoleculesInBlockA, numMoleculesInBlockB );
-		const int numWarps = iceil( numShifts, warpSize );
-		const int numWarpsInBlockB = iceil( numMoleculesInBlockB, warpSize );
+		/* divide the block into warp blocks
+		 * each warp of the thread block (corresponds to a warp block of block A) interacts with
+		 * one unique warp block of block B
+		 *
+		 * if there are more warp blocks in block B than block A,
+		 * we need to iterate #warp blocks in B often
+		 *
+		 * if there are more warp blocks in block A than block B,
+		 * we need to iterate #warp blocks in A often
+		 */
+		const int numWarpBlocks = iceil( max( numMoleculesInBlockA, numMoleculesInBlockB ), warpSize );
+		const int numWarpBlocksInBlockB = iceil( numMoleculesInBlockB, warpSize );
 
 		const int indexA = threadIndex;
 
-		for( int warpShiftIndex = 0 ; warpShiftIndex < numWarps ; warpShiftIndex++ ) {
-			const int warpIndexB = (threadIdx.y + warpShiftIndex) % numWarps;
+		for( int warpShiftIndex = 0 ; warpShiftIndex < numWarpBlocks ; warpShiftIndex++ ) {
+			const int warpIndexB = (threadIdx.y + warpShiftIndex) % numWarpBlocks;
 
-			if( indexA < numMoleculesInBlockA && warpIndexB < numWarpsInBlockB ) {
-				for( int cellShiftIndex = 0 ; cellShiftIndex < warpSize ; cellShiftIndex++ ) {
-					const int indexB = warpIndexB * warpSize + ((threadIdx.x + cellShiftIndex) % warpSize);
+			// only do something when there is a molecule from A and a warp block to interact with
+			if( indexA < numMoleculesInBlockA && warpIndexB < numWarpBlocksInBlockB ) {
+				for( int moleculeShiftIndex = 0 ; moleculeShiftIndex < warpSize ; moleculeShiftIndex++ ) {
+					const int indexB = warpIndexB * warpSize + ((threadIdx.x + moleculeShiftIndex) % warpSize);
 					if( indexB >= numMoleculesInBlockB ) {
 						continue;
 					}
