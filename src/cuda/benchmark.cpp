@@ -16,7 +16,7 @@ void SimulationStats::writeFrameStats( const std::string &frameFile ) {
 	fprintf( file, "potential, virial\n" );
 
 	for( int i = 0 ; i < potentials.getCount() ; i++ ) {
-		fprintf( file, "%e, %e\n", potentials[i], virials[i] );
+		fprintf( file, "%.18e, %.18e\n", potentials[i], virials[i] );
 	}
 
 	fclose( file );
