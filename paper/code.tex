@@ -128,7 +128,9 @@ The molecule storage component manages everything related to molecule data. The 
 
 The molecule data such as position, orientation, total force and torque, and molecule type, are stored non-interleaved into different buffers: \lstinline!moleculePositions!, \lstinline!moleculeRotations!, \lstinline!moleculeForces!, \lstinline!moleculeTorque! and \lstinline!moleculeComponentTypes!.
 
-The \cuda{} part wraps accesses to the data through a \lstinline!MoleculeStorage! class, which has \lstinline!get! and \lstinline!set! methods, which operate on a \lstinline!Molecule! structure. So the abstraction is, that the data is interleaved or rather stored as an array of \lstinline!Molecule!s.
+The molecule orientation is stored and uploaded as quaternions, but converted to conventional $ 3 \times 3 $-matrices on the GPU.
+
+The \cuda{} code wraps accesses to the data through a \lstinline!MoleculeStorage! class, which has \lstinline!get! and \lstinline!set! methods, which operate on a \lstinline!Molecule! structure. So the abstraction is that the data is interleaved or rather stored as an array of \lstinline!Molecule!s. This makes it possible to write the molecule interaction code without having to care for the actual implementation.
 
 There is also a \lstinline!MoleculeLocalStorage<blockSize>! class. It provides a cache for frequently used molecules. Its objects are supposed to be instanciated as \lstinline!__shared__! objects and there are methods to load, merge and commit molecules from the cache to the regular storage.
 
@@ -213,3 +215,21 @@ Again there is a special case when interactions of molecules of the same warp-bl
 \TODO{add schematic picture}
 
 \subsection{MarDyn Integration}
+The \cuda{} calculations are intergrated MarDyn through the \lstinline!LinkedCellsCUDADecorator! class. It implements the \lstinline!ParticleContainer! interface and decorates an internal \lstinline!LinkedCells! object to calculate the molecule interactions using the GPU instead of the CPU.
+The main assumption of the code is that the cut-off radius is exactly the size of a cell, so that only interactions between moleculs of the same cell or direct neighbors have to be calculated.
+
+There are only few changes to MarDyn's code. The \lstinline!MoleculeStorage! class is a friend of \lstinline!Molecule!, a \lstinline!setStats! method has been added to \lstinline!ParticlePairs2PotForceAdapter! and additional accessor methods were needed in \lstinline!LinkedCell!.
+
+\subsection{Debug and Testing Code}
+To verify that the \cuda{} implementation works correctly, there is code to run the CPU and \cuda{} interaction code in parallel and compare the calculated forces and torque.
+This option can be enabled by uncommenting \lstinline!#define COMPARE_TO_CPU! in \filename{cuda/config.h}.
+
+Likewise there is code to disable the fast cell processor and use the reference implementation which is not parallelized at all and simple iterates over all molecules in the cells.
+It can be enabled by uncommenting \lstinline!#define REFERENCE_IMPLEMENTATION! in \filename{cude/config.h}.
+
+To output the component descriptors as uploaded to the GPU, uncomment \lstinline!#define DEBUG_COMPONENT_DESCRIPTORS! and to verify that the quaternion to matrix conversion works properly uncomment \lstinline!#define TEST_QUATERNION_MATRIX_CONVERSION!.
+
+\subsection{\filename{cuda/config.h}}
+The config header allows you to customize and choose different code paths. It is possible to switch between single-precision and double-precision calculations on the GPU and to configure the number of supported component sites such as the number of Lennard-Jones centers or dipoles.
+
+
