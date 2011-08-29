@@ -18,14 +18,14 @@ protected:
 		: _module( component._module ), _linkedCells( component._linkedCells ), _domain( component._domain ) {}
 };
 
-struct CUDAForceCalculationComponent : public CUDAComponent {
+struct CUDAInteractionCalculationComponent : public CUDAComponent {
 protected:
-	CUDAForceCalculationComponent( const CUDAComponent &component ) : CUDAComponent( component ) {}
+	CUDAInteractionCalculationComponent( const CUDAComponent &component ) : CUDAComponent( component ) {}
 
-	virtual void preForceCalculation() = 0;
-	virtual void postForceCalculation() = 0;
+	virtual void preInteractionCalculation() = 0;
+	virtual void postInteractionCalculation() = 0;
 
-	virtual ~CUDAForceCalculationComponent() {}
+	virtual ~CUDAInteractionCalculationComponent() {}
 };
 
 struct CUDAStaticDataComponent: public CUDAComponent {

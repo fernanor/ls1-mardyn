@@ -14,10 +14,10 @@
 
 #include "sharedDecls.h"
 
-class MoleculeStorage : public CUDAForceCalculationComponent {
+class MoleculeStorage : public CUDAInteractionCalculationComponent {
 public:
 	MoleculeStorage( const CUDAComponent &component ) :
-		CUDAForceCalculationComponent( component ),
+		CUDAInteractionCalculationComponent( component ),
 		_moleculePositions( _module.getGlobal<floatType3 *>("moleculePositions") ),
 		_moleculeRotations( _module.getGlobal<Matrix3x3Storage *>("moleculeRotations") ),
 		_moleculeForces( _module.getGlobal<floatType3 *>("moleculeForces") ),
@@ -31,11 +31,11 @@ public:
 		{
 	}
 
-	void preForceCalculation() {
+	void preInteractionCalculation() {
 		uploadState();
 	}
 
-	void postForceCalculation() {
+	void postInteractionCalculation() {
 		downloadResults();
 	}
 

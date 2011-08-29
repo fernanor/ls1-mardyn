@@ -11,14 +11,14 @@
 #include "cudaComponent.h"
 #include "sharedDecls.h"
 
-class GlobalStats : public CUDAForceCalculationComponent {
+class GlobalStats : public CUDAInteractionCalculationComponent {
 public:
 	GlobalStats( const CUDAComponent &component ) :
-		CUDAForceCalculationComponent(component), _cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
+		CUDAInteractionCalculationComponent(component), _cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
 	}
 
-	virtual void preForceCalculation();
-	virtual void postForceCalculation();
+	virtual void preInteractionCalculation();
+	virtual void postInteractionCalculation();
 
 	floatType getPotential() const {
 		return _potential;

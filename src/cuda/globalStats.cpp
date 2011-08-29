@@ -7,13 +7,13 @@
 
 #include "globalStats.h"
 
-void GlobalStats::preForceCalculation() {
+void GlobalStats::preInteractionCalculation() {
 	_cellStatsBuffer.resize( _linkedCells.getCells().size() );
 	_cellStatsBuffer.zeroDevice();
 	_cellStats.set( _cellStatsBuffer );
 }
 
-void GlobalStats::postForceCalculation() {
+void GlobalStats::postInteractionCalculation() {
 	std::vector<CellStatsStorage> cellStats;
 	_cellStatsBuffer.copyToHost( cellStats );
 

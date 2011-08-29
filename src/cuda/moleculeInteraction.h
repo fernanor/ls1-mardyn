@@ -75,8 +75,8 @@ public:
 
 		// pre-force calculation handling from CUDAForceCalculationComponents
 		CUDAPreTimer.begin();
-		_globalStats.preForceCalculation();
-		_moleculeStorage.preForceCalculation();
+		_globalStats.preInteractionCalculation();
+		_moleculeStorage.preInteractionCalculation();
 		CUDAPreTimer.end();
 
 		CUDATotalProcessingTimer.begin();
@@ -96,8 +96,8 @@ public:
 
 		// post-force calculation handling from CUDAForceCalculationComponents
 		CUDAPostTimer.begin();
-		_globalStats.postForceCalculation();
-		_moleculeStorage.postForceCalculation();
+		_globalStats.postInteractionCalculation();
+		_moleculeStorage.postInteractionCalculation();
 		CUDAPostTimer.end();
 
 		potential = _globalStats.getPotential();
