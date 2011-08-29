@@ -23,7 +23,7 @@ extern "C" {
 	extern char _binary_cuda_kernel_ptx_start, _binary_cuda_kernel_ptx_end;
 }
 
-class LinkedCellsCUDAProxy : public ParticleContainer {
+class LinkedCellsCUDADecorator : public ParticleContainer {
 	// null handler
 	class Handler : public ParticlePairsHandler {
 	public:
@@ -61,7 +61,7 @@ public:
 	//! @param partPairsHandler specified concrete action to be done for each pair
 	//! @param bBoxMin coordinates of the lowest (in all coordinates) corner of the bounding box
 	//! @param bBoxMax coordinates of the highest (in all coordinates) corner of the bounding box
-	LinkedCellsCUDAProxy(Domain &domain, double bBoxMin[3], double bBoxMax[3], double cutoffRadius,
+	LinkedCellsCUDADecorator(Domain &domain, double bBoxMin[3], double bBoxMax[3], double cutoffRadius,
 			 ParticlePairsHandler* partPairsHandler)
 	: ParticleContainer(partPairsHandler, bBoxMin, bBoxMax),
 	  _domain( domain ),
@@ -70,7 +70,7 @@ public:
 	{}
 
 	//! @brief The destructor
-	virtual ~LinkedCellsCUDAProxy() {
+	virtual ~LinkedCellsCUDADecorator() {
 	}
 
 	//! @brief rebuild the datastructure

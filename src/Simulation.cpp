@@ -364,7 +364,7 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				                                     cellsInCutoffRadius, _particlePairsHandler);
 #else
 				CUDA::create(0);
-				_moleculeContainer = new LinkedCellsCUDAProxy(*_domain, bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
+				_moleculeContainer = new LinkedCellsCUDADecorator(*_domain, bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
 #endif
 			}
 			else if (token == "AdaptiveSubCells") {
