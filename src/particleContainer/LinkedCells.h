@@ -223,9 +223,6 @@ public:
 	friend class VTKGridWriter;
 #endif
 
-	// TODO: remove this hack that is needed to make orend's code work for now
-	friend class LinkedCellsOpenCL;
-
 	// TODO: consider adding a pure LinkedCells data container class
 	// that only manages the cells and doesn't contain too much additional functionality!
 	const int* getCellDimensions() const {

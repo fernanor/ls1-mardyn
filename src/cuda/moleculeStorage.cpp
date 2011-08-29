@@ -214,8 +214,7 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 					continue;
 				}
 
-				// we are going to compare F and M
-				// TODO: make sure that we always overwrite F and M
+				// we are going to compare F and M, so combine the sites
 				molecule.calcFM();
 
 				const floatType3 cpuForce = make_floatType3( molecule.F(0), molecule.F(1), molecule.F(2) );

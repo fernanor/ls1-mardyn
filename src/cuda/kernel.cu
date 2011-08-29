@@ -43,7 +43,7 @@ extern "C" {
  * create a prepare method in MoleculeStorage and make rawQuaternions a global pointer
  * and forward the kernel call to it
  */
-// TODO: interesting to benchmark: unrolled loop in this kernel vs the way it is now---overhead?
+// TODO: interesting to benchmark idea: unrolled loop in this kernel vs the way it is now---overhead?
 __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuaternions, int numMolecules ) {
 	const Quaternion *quaternions = (Quaternion*) rawQuaternions;
 
