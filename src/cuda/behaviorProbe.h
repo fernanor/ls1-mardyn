@@ -4,6 +4,29 @@
 #include <stdio.h>
 
 struct BehaviorProbe {
+#ifdef USE_BEHAVIOR_PROBE
+	static void FMcleared() {
+		message( BPT_CLEARED );
+	}
+
+	static void FMused() {
+		message( BPT_USED );
+	}
+
+	static void FMset() {
+		message( BPT_SET );
+	}
+#else
+	static void FMcleared() {
+	}
+
+	static void FMused() {
+	}
+
+	static void FMset() {
+	}
+#endif
+private:
 	enum Type {
 		BPT_NONE,
 		BPT_CLEARED,
@@ -27,18 +50,6 @@ struct BehaviorProbe {
 			counter = 1;
 			printf( "!!BP!! %s\n", msg[type] );
 		}
-	}
-
-	static void FMcleared() {
-		message( BPT_CLEARED );
-	}
-
-	static void FMused() {
-		message( BPT_USED );
-	}
-
-	static void FMset() {
-		message( BPT_SET );
 	}
 };
 

@@ -10,9 +10,10 @@
 
 #include "cutil_double_math.h"
 
-#define MAX_BLOCK_SIZE 512
+#define MAX_BLOCK_SIZE 1024
+#define QUATERNION_BLOCK_SIZE MAX_BLOCK_SIZE
 
-//#define BENCHMARKING
+#define BENCHMARKING
 
 //#define CONFIG_CUDA_DOUBLE_SORTED
 
@@ -41,11 +42,12 @@
 
 //#define NO_CUDA
 
-#define USE_CONSTANT_MEMORY
+//#define USE_CONSTANT_MEMORY
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-#define COMPARE_TO_CPU
+//#define COMPARE_TO_CPU
+//#define USE_BEHAVIOR_PROBE
 
 //#define DEBUG_COMPONENT_DESCRIPTORS
 
@@ -81,10 +83,8 @@
 #	define make_floatType3 make_double3
 #endif
 
-#ifdef USE_CONSTANT_MEMORY
-#	define CONSTANT __constant__
-#else
-#	define CONSTANT
+#ifndef USE_CONSTANT_MEMORY
+#	define __constant__
 #endif
 
 // TODO: move this include into the referencing header files

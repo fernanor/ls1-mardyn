@@ -27,11 +27,11 @@ void MoleculeStorage::uploadState() {
 
 	int numCells = _linkedCells.getCells().size();
 
-	int currentIndex = 0;
+	int numMolecules = 0;
 	for( int i = 0 ; i < numCells ; i++ ) {
 		const Cell &cell = _linkedCells.getCells()[i];
 
-		startIndices.push_back( currentIndex );
+		startIndices.push_back( numMolecules );
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 #ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
@@ -90,28 +90,28 @@ void MoleculeStorage::uploadState() {
 				}
 #endif
 
-				currentIndex++;
+				numMolecules++;
 			}
 #ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
 #endif
 	}
 
-	startIndices.push_back( currentIndex );
+	startIndices.push_back( numMolecules );
 
 	_startIndexBuffer.copyToDevice( startIndices );
 
 	_positionBuffer.copyToDevice( positions );
 	_componentTypeBuffer.copyToDevice( componentTypes );
 
-	_forceBuffer.resize( currentIndex );
+	_forceBuffer.resize( numMolecules );
 	_forceBuffer.zeroDevice();
 
-	_torqueBuffer.resize( currentIndex );
+	_torqueBuffer.resize( numMolecules );
 	_torqueBuffer.zeroDevice();
 
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
-	_rotationBuffer.resize( currentIndex );
+	_rotationBuffer.resize( numMolecules );
 #else
 #	warning CPU testing quaternion matrix conversion
 	_rotationBuffer.copyToDevice( rotations );
@@ -130,9 +130,9 @@ void MoleculeStorage::uploadState() {
 
 	_convertQuaternionsToRotations.call().
 			parameter(quaternionBuffer.devicePtr()).
-			parameter(currentIndex).
-			setBlockShape(MAX_BLOCK_SIZE, 1, 1).
-			execute(currentIndex / MAX_BLOCK_SIZE + 1, 1);
+			parameter(numMolecules).
+			setBlockShape(QUATERNION_BLOCK_SIZE, 1, 1).
+			execute((numMolecules + QUATERNION_BLOCK_SIZE - 1) / QUATERNION_BLOCK_SIZE);
 }
 
 struct CPUCudaVectorErrorMeasure {

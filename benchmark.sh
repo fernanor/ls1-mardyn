@@ -2,6 +2,8 @@
 
 # CUDA_CONFIG NUM_WARPS
 function build {
+	echo -e "Building $1 with $2 warps:\n"
+	make -C src clean
 	make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$2
 
 	if [ $? != "0" ]; then
@@ -17,22 +19,24 @@ function benchmark {
 	build $1 $2
 
 	for cfg in $CFGs; do
-		outputPrefix=$( echo $1_$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
+		outputPrefix=$( echo $1_$2_$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
 		if [ ! -f benchmark/$outputPrefix.results.csv ]; then
+			echo -e "\nBenchmarking $outputPrefix:\n"
 			./src/MarDyn.$1.$2 $cfg 10 $outputPrefix
-			#echo $outputPrefix doesn\'t exist
+			if [ $? != "0" ]; then
+				echo $outputPrefix benchmark failed!
+				exit 1
+			fi
 		else
 			echo $outputPrefix has been benchmarked already 
 		fi
 	done
 }
 
-benchmark NO_CUDA 1
-
-exit
-
-for numWarps in {1..6}; do
+for numWarps in {2..6}; do
 	benchmark CUDA_DOUBLE_SORTED $numWarps
 	benchmark CUDA_DOUBLE_UNSORTED $numWarps
 	benchmark CUDA_FLOAT_UNSORTED $numWarps
 done
+
+benchmark NO_CUDA 1

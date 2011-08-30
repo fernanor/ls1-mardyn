@@ -14,9 +14,9 @@
 
 #include "sharedDecls.h"
 
-CONSTANT __device__ ComponentDescriptor *componentDescriptors;
-CONSTANT __device__ floatType *componentMixXis;
-CONSTANT __device__ floatType *componentMixEtas;
+__constant__ __device__ ComponentDescriptor *componentDescriptors;
+__constant__ __device__ floatType *componentMixXis;
+__constant__ __device__ floatType *componentMixEtas;
 
 struct ComponentDescriptorAccessor {
 	__device__ const ComponentDescriptor & get(Molecule::ComponentType type) {

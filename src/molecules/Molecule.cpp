@@ -399,7 +399,7 @@ inline void Molecule::setupCache(const vector<Component>* components) {
 	this->clearFM();
 }
 
-inline void Molecule::clearFM() {
+void Molecule::clearFM() {
 	for (unsigned int i = 0; i < _numsites * 3; ++i)
 		_sites_F[i] = 0.;
 	_F[0] = _F[1] = _F[2] = 0.;
@@ -408,7 +408,7 @@ inline void Molecule::clearFM() {
 	BehaviorProbe::FMcleared();
 }
 
-inline void Molecule::calcFM() {
+void Molecule::calcFM() {
 	unsigned int ns = numSites();
 	for (unsigned int si = 0; si < ns; ++si) {
 		const double* Fsite = site_F(si);

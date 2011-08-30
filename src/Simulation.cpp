@@ -142,11 +142,18 @@ Simulation::Simulation(optparse::Values& options, vector<string>& args)
 	if (options.is_set("verbose") && options.get("verbose"))
 		global_log->set_log_level(Log::All);
 
+#ifndef NO_CUDA
+	CUDA::create(0);
+#endif
+
 	string inputfilename(args[0]);
 	initConfigFile(inputfilename);
 }
 
 Simulation::~Simulation() {
+#ifndef NO_CUDA
+	CUDA::destruct();
+#endif
 }
 
 void Simulation::exit(int exitcode) {
@@ -363,7 +370,6 @@ void Simulation::initConfigOldstyle(const string& inputfilename) {
 				                                     _cutoffRadius, _LJCutoffRadius, _tersoffCutoffRadius,
 				                                     cellsInCutoffRadius, _particlePairsHandler);
 #else
-				CUDA::create(0);
 				_moleculeContainer = new LinkedCellsCUDADecorator(*_domain, bBoxMin, bBoxMax, _cutoffRadius, _particlePairsHandler);
 #endif
 			}

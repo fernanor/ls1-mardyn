@@ -48,14 +48,15 @@ public:
 		}
 	};
 
-	#define CUDA_THROW_ON_ERROR( expr ) do {\
+	#define CUDA_THROW_ON_ERROR_EX( expr, msgformat, ... ) do {\
 			CUresult result = (expr);\
 			if( result != CUDA_SUCCESS ) {\
-				printf( "CUDA error %i in '" #expr "'!\n", result );\
+				printf( "CUDA error %i in '" #expr "'!\n" msgformat, result, ##__VA_ARGS__ );\
 				throw CUDA::Exception( result, #expr ); \
 			}\
 		} while(false)
 
+	#define CUDA_THROW_ON_ERROR( expr ) CUDA_THROW_ON_ERROR_EX( expr, "" )
 
 	template<typename DataType>
 	class DeviceBuffer {
@@ -79,7 +80,7 @@ public:
 
 			_byteSize = count * sizeof( DataType );
 			if( _byteSize > 0 ) {
-				CUDA_THROW_ON_ERROR( cuMemAlloc( &_deviceBuffer, _byteSize ) );
+				CUDA_THROW_ON_ERROR_EX( cuMemAlloc( &_deviceBuffer, _byteSize ), "\twhile allocating %i MB\n", _byteSize / (1<<20) );
 			}
 			else {
 				_deviceBuffer = 0;
@@ -95,7 +96,7 @@ public:
 		void copyToDevice(const DataType *data, int count) {
 			const int byteSize = count * sizeof( DataType );
 			if( _byteSize < byteSize )
-				resize( byteSize );
+				resize( count );
 
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, data, byteSize ) );
 		}
@@ -259,7 +260,11 @@ public:
 		void execute(int gridWidth, int gridHeight) const {
 			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
 
-			CUDA_THROW_ON_ERROR( cuLaunchGrid( _function, gridWidth, gridHeight ) );
+			CUDA_THROW_ON_ERROR_EX( cuLaunchGrid( _function, gridWidth, gridHeight ), "\twhile launching a grid of size %i x %i\n", gridWidth, gridHeight );
+		}
+
+		void execute(int numJobs) const {
+			execute( numJobs, 1 );
 		}
 
 		void execute() const {
@@ -315,11 +320,39 @@ public:
 	};
 
 protected:
+	CUdevice device;
 	CUcontext context;
+
+	CUDA(int deviceIndex) {
+		CUDA_THROW_ON_ERROR( cuInit( 0 ) );
+
+		CUDA_THROW_ON_ERROR( cuDeviceGet( &device, deviceIndex ) );
+
+		printMemoryInfo();
+
+		CUDA_THROW_ON_ERROR( cuCtxCreate( &context, 0, device ) );
+	}
+
+	~CUDA() {
+		CUDA_THROW_ON_ERROR( cuCtxDestroy( context ) );
+
+		printMemoryInfo();
+	}
+
+	void printMemoryInfo() {
+		CUcontext infoContext;
+		CUDA_THROW_ON_ERROR( cuCtxCreate( &infoContext, 0, device ) );
+
+		size_t free, total;
+		CUDA_THROW_ON_ERROR( cuMemGetInfo( &free, &total ) );
+
+		CUDA_THROW_ON_ERROR( cuCtxDestroy( infoContext ) );
+
+		printf( "CUDA memory info: %i MB free (%i MB total); %f%% free\n", free / (1<<20), total / (1<<20), (float) free / total );
+	}
 
 	static CUDA *singleton;
 
-	CUDA(CUcontext context) : context(context) {}
 public:
 
 	static CUDA &get() {
@@ -329,21 +362,10 @@ public:
 
 	static void create(int deviceIndex) {
 		assert( !singleton );
-
-		CUDA_THROW_ON_ERROR( cuInit( 0 ) );
-
-		CUdevice device;
-		CUDA_THROW_ON_ERROR( cuDeviceGet( &device, deviceIndex ) );
-
-		CUcontext context;
-		CUDA_THROW_ON_ERROR( cuCtxCreate( &context, 0, device ) );
-
-		singleton = new CUDA( context );
+		singleton = new CUDA(deviceIndex);
 	}
 
 	static void destruct() {
-		CUDA_THROW_ON_ERROR( cuCtxDestroy( singleton->context ) );
-
 		delete singleton;
 		singleton = NULL;
 	}
