@@ -29,6 +29,10 @@ The solution is simple: \cuda{} supports global variables and the CPU/\cuda{} in
 
 Moreover, instead of global variables constant\footnote{\TODO{see the Cuda docs!}} variables could be used, which reside in constant memory. Constant memory has its own on-chip cache, so this is desirable, too\footnote{generally speaking, the more cache memory can be used, the better the preformance}.
 
+\begin{figure}
+\caption{Components and \cuda{} modules}
+\includegraphics{figures/component_architecture.pdf}
+\end{figure}
 \TODO{add diagrams showing the architectural principles and code examples}
 
 \subsection{Component Overview}
@@ -50,7 +54,10 @@ There are quite a few different components:
 \item[PotForce] calculates the force between Lennard-Jones centers, dipoles, etc
 \end{compactdesc}
 
-\TODO{add diagram showing the inter-dependencies between the different modules}
+\begin{figure}
+\caption{Component dependencies}
+\includegraphics{figures/component_dependencies.pdf}
+\end{figure}
 
 There are additional \cuda{} modules that contain helper and utility functions.
 All the \filename{.cum} files are included in \filename{kernel.cu}, which also contains the two kernel entrance functions \lstinline!processCellPair! and \lstinline!processCell!, which are called by \textbf{MoleculeInteraction} to calculate the forces between all the molecules in a cell pair or in a single cell.
@@ -144,6 +151,14 @@ There is also an implementation difference to the regular MarDyn code: the force
 \subsubsection{Cell Processor}
 The cell processor processes all molecules in the same cell (intra-cell) or between two cells (intra-cell).
 The reference approach is to iterate through all molecule pairs in both cells and calculate the interactions between them:
+\begin{figure}
+  \centering
+  \subfloat[First eight molecule interactions]{\includegraphics[width=0.3\textwidth]{figures/cellprocessor_first_iteration.pdf} }                
+  \subfloat[All inter-cell interactions]{\includegraphics[width=0.3\textwidth]{figures/cellprocessor_all_iterations_inter_cell.pdf} }
+  \subfloat[All intra-cell interactions]{\includegraphics[width=0.3\textwidth]{figures/cellprocessor_all_iterations_intra_cell.pdf}}
+  \caption{Schematic of molecule interactions between two cells}
+\end{figure}
+
 \begin{lstlisting}[label=intercellreferenceloop,caption=Reference Inter-Cell Block Processing]
 __device__ void processCellPair(const int threadIndex, const CellInfo & cellA, const CellInfo & cellB) {
 	for( int indexA = cellA.startIndex ; indexA < cellA.endIndex ; indexA++ ) {
@@ -205,14 +220,18 @@ Likewise, the calculation of interactions inside the same block (ie intra-block)
 There is one molecule per thread in a thread block in each block. Since there are as many threads as molecules in a block, each thread can be assigned a fixed molecule of block A (outer block loop). This molecule can be stored in registers or in local memory.
 The molecules of block B (inner block loop) can be stored in shared memory, since they are only accessed by diffferent threads of the same thread block.
 
+\begin{figure}
+\caption{Schematic of one block iteration (with a thread blocks of size 8 and warps of size 4, and all 8 parallel molecule pair iterations are shown for the block pair)}
+\centering
+\includegraphics{figures/cellprocessor_block_iteration_1.pdf}
+\end{figure}
+
 Straight-forward block processing would simply loop over all molecules in block B and each thread would calculate the interactions of its fixed molecule from block A with one molecule from block B.
 Again this is not the best solution. Instead a block is divided into \textbf{warp-blocks}. Each warp-block contains 32 molecules\footnote{exactly the warp size}.
 The aim here is not to improve cache usage, but to require less explicit synchronization.
 In the naive approach there would have to be a barrier after each interaction calculation to make sure that each thread is done with processing its molecule pair because another thread will access the molecule from block B in shared memory next.
 Threads in the same warp are synchronized by design, because they are executed in lockstep, so processing  molecule interactions warp-block by warp-block improves parallelism.
 Again there is a special case when interactions of molecules of the same warp-block are calculated.
-
-\TODO{add schematic picture}
 
 \subsection{MarDyn Integration}
 The \cuda{} calculations are intergrated MarDyn through the \lstinline!LinkedCellsCUDADecorator! class. It implements the \lstinline!ParticleContainer! interface and decorates an internal \lstinline!LinkedCells! object to calculate the molecule interactions using the GPU instead of the CPU.
