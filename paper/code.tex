@@ -66,7 +66,11 @@ All the \filename{.cum} files are included in \filename{kernel.cu}, which also c
 \filename{helpers.cpp/h} contain C++ wrappers for all \cuda{} functionality that is used in the project.
 It implements an in-language DSL\footnote{domain-specific language} to simplify working with the \cuda{} API.
 
-\TODO{add class diagram of helpers.h}
+\begin{figure}
+\caption{Main \cuda{} helper classes}
+\centering
+\includegraphics{figures/helpers_classes.pdf}
+\end{figure}
 
 \subsubsection{Device Buffers and Global Variables}
 Managing device memory is done by creating instances \lstinline!CUDA::DeviceBuffer<DataType>!. Methods are provided to resize the buffer and to copy data from and to the GPU.
@@ -110,6 +114,12 @@ The \cuda{} SDK provides a helper file called \filename{cutil\_math.h} which add
 This makes it possible to switch between single- and double-precision using a simple preprocessor \#define.
 
 \subsubsection{Pair Traverser}
+\begin{figure}
+  \centering
+  \subfloat[Even start plane]{\includegraphics[width=0.5\textwidth]{figures/pairtraverser_even.pdf} }                
+  \subfloat[Odd start plane]{\includegraphics[width=0.5\textwidth]{figures/pairtraverser_odd.pdf} }
+  \caption{Schematic of the two steps the pair traverser performs}
+\end{figure}
 The simulation space is divided into a grid of cells. \TODO{add picture} The pair traverser iterates over all neighbors pairings in the volume while maximizing parallelism. Each cell inside the volume has 26 neighbors. There are 13 directions, so that two neighbors always lie on a line. It doesn't matter if you calculate the interactions between cell A and B or cells B and A. This symmetry allows for a straight-forward parallelization.
 I am going to introduce it using the special case of the direction along the x-axis:
 \begin{compactenum}
