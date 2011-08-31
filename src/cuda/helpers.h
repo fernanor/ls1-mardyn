@@ -267,6 +267,19 @@ public:
 			execute( numJobs, 1 );
 		}
 
+		void executeAtLeast( int numJobs ) const {
+			for( int log2_y = 0 ; log2_y < 15 ; log2_y++ ) {
+				int y = 1 << log2_y;
+				int x = numJobs >> log2_y;
+				if( x < 65536 ) {
+					execute( x, y );
+					return;
+				}
+			}
+
+			CUDA_THROW_ON_ERROR_EX( CUDA_ERROR_INVALID_VALUE, "\tnumJobs = %i > 65535^2\n", numJobs );
+		}
+
 		void execute() const {
 			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
 

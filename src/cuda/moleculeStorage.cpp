@@ -132,7 +132,7 @@ void MoleculeStorage::uploadState() {
 			parameter(quaternionBuffer.devicePtr()).
 			parameter(numMolecules).
 			setBlockShape(QUATERNION_BLOCK_SIZE, 1, 1).
-			execute((numMolecules + QUATERNION_BLOCK_SIZE - 1) / QUATERNION_BLOCK_SIZE);
+			executeAtLeast((numMolecules + QUATERNION_BLOCK_SIZE - 1) / QUATERNION_BLOCK_SIZE);
 }
 
 struct CPUCudaVectorErrorMeasure {

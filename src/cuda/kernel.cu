@@ -47,30 +47,37 @@ extern "C" {
 __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuaternions, int numMolecules ) {
 	const Quaternion *quaternions = (Quaternion*) rawQuaternions;
 
-	int moleculeIndex = blockIdx.x * blockDim.x + threadIdx.x;
-	if( moleculeIndex < numMolecules ) {
-#ifndef TEST_QUATERNION_MATRIX_CONVERSION
-		moleculeRotations[ moleculeIndex ] = quaternions[ moleculeIndex ].toRotMatrix3x3();
-#else
-#warning CUDA: testing quaternion matrix conversion
-		const Matrix3x3 convertedQuaternion = quaternions[ moleculeIndex ].toRotMatrix3x3();
-		const Matrix3x3 &correctRotation = moleculeRotations[ moleculeIndex ];
-
-		const floatType error = length( convertedQuaternion.rows[0] - correctRotation.rows[0] ) +
-				length( convertedQuaternion.rows[1] - correctRotation.rows[1] ) +
-				length( convertedQuaternion.rows[2] - correctRotation.rows[2] );
-
-		if( error > 1e-9 ) {
-			printf( "bad quaternion conversion (molecule %i)\n", moleculeIndex );
-		}
-#endif
+	int moleculeIndex = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
+	if( moleculeIndex >= numMolecules ) {
+		return;
 	}
+
+#ifndef TEST_QUATERNION_MATRIX_CONVERSION
+	moleculeRotations[ moleculeIndex ] = quaternions[ moleculeIndex ].toRotMatrix3x3();
+#else
+#	warning CUDA: testing quaternion matrix conversion
+	const Matrix3x3 convertedQuaternion = quaternions[ moleculeIndex ].toRotMatrix3x3();
+	const Matrix3x3 &correctRotation = moleculeRotations[ moleculeIndex ];
+
+	const floatType error = length( convertedQuaternion.rows[0] - correctRotation.rows[0] ) +
+			length( convertedQuaternion.rows[1] - correctRotation.rows[1] ) +
+			length( convertedQuaternion.rows[2] - correctRotation.rows[2] );
+
+	if( error > 1e-9 ) {
+		printf( "bad quaternion conversion (molecule %i)\n", moleculeIndex );
+	}
+#endif
 }
 
-__global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
+__global__ void processCellPair( int numCellPairs, int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
 	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
-	int cellIndex = getCellIndex( startIndex, dimension, gridOffsets );
+	const int idx = blockIdx.y * gridDim.x + blockIdx.x;
+	if( threadIndex >= numCellPairs ) {
+		return;
+	}
+
+	int cellIndex = getCellIndex( idx, startIndex, dimension, gridOffsets );
 	int neighborIndex = cellIndex + neighborOffset;
 
 	// TODO: move the swapping bit into the cell processor!
@@ -106,10 +113,13 @@ __global__ void processCellPair( int startIndex, int2 dimension, int3 gridOffset
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, neighborIndex );
 }
 
-__global__ void processCell() {
+__global__ void processCell(int numCells) {
 	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
-	int cellIndex = blockIdx.x;
+	int cellIndex = blockIdx.y * gridDim.x + blockIdx.x;
+	if( cellIndex >= numCells ) {
+		return;
+	}
 
 	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );

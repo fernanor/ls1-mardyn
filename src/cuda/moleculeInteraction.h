@@ -36,11 +36,12 @@ class MoleculeInteraction : public CUDAComponent {
 		void processTask(const CellPairTraverserTemplate::TaskInfo &taskInfo) const {
 			_parent._cellPairProcessor.call().
 					setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
+					parameter( taskInfo.numPairs ).
 					parameter( taskInfo.startIndex ).
 					parameter( taskInfo.localDimensions ).
 					parameter( taskInfo.gridOffsets ).
 					parameter( taskInfo.neighborOffset ).
-					execute( taskInfo.numPairs, 1 );
+					executeAtLeast( taskInfo.numPairs );
 		}
 
 		int getDirectionOffset( const int3 &direction ) const {
@@ -90,7 +91,11 @@ public:
 		CUDAPairProcessingTimer.end();
 
 		CUDASingleProcessingTimer.begin();
-		_cellProcessor.call().setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).execute( _linkedCells.getCells().size(), 1 );
+		int numCells = _linkedCells.getCells().size();
+		_cellProcessor.call().
+				setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
+				parameter( numCells ).
+				executeAtLeast( numCells );
 		CUDASingleProcessingTimer.end();
 		CUDATotalProcessingTimer.end();
 

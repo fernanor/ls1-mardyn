@@ -1,7 +1,6 @@
 #include "host_defines.h"
 
-inline __device__ int getCellIndex( int startIndex, int2 dimension, int3 gridOffsets ) {
-	const int idx = blockIdx.x;
+inline __device__ int getCellIndex( int idx, int startIndex, int2 dimension, int3 gridOffsets ) {
 	const int3 gridIndex = make_int3(
 			idx % dimension.x,
 			(idx / dimension.x) % dimension.y,
