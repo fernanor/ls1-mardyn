@@ -1,14 +1,29 @@
 #!/bin/bash
 
+LOGFILE="benchmark.$(date +%Y.%m.%d.%H.%M.%S).log"
+
+function log {
+	echo -e $1
+	echo -e $1 >> $LOGFILE
+}
+
+function fatal_error {
+	log $1
+	
+	# dump log
+	cat $LOGFILE
+	exit 1
+}
+
 # CUDA_CONFIG NUM_WARPS
 function build {
-	echo -e "Building $1 with $2 warps:\n"
+	echo "Building $1 with $2 warps:\n"
 	make -C src clean
 	make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$2
 
 	if [ $? != "0" ]; then
-		exit 1
-	fi	
+		fatal_error "make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$2 failed"
+	fi
 }
 
 # find all cfg files and use them to execute all chosen builds with them
@@ -24,14 +39,16 @@ function benchmark {
 			echo -e "\nBenchmarking $outputPrefix:\n"
 			./src/MarDyn.$1.$2 $cfg 10 $outputPrefix
 			if [ $? != "0" ]; then
-				echo $outputPrefix benchmark failed!
-				exit 1
+				log "$outputPrefix benchmark failed!"
+				echo "continuing"
 			fi
 		else
-			echo $outputPrefix has been benchmarked already 
+			log "$outputPrefix has been benchmarked already" 
 		fi
 	done
 }
+
+log "Log:"
 
 for numWarps in {2..6}; do
 	benchmark CUDA_DOUBLE_SORTED $numWarps
@@ -40,3 +57,8 @@ for numWarps in {2..6}; do
 done
 
 benchmark NO_CUDA 1
+
+echo -e "\n\n"
+# dump log
+cat $LOGFILE
+exit 0

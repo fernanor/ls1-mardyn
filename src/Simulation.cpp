@@ -143,7 +143,11 @@ Simulation::Simulation(optparse::Values& options, vector<string>& args)
 		global_log->set_log_level(Log::All);
 
 #ifndef NO_CUDA
-	CUDA::create(0);
+#	ifdef CUDA_HW_CACHE_ONLY
+	CUDA::create(0, true);
+#	else
+	CUDA::create(0, false);
+#	endif
 #endif
 
 	string inputfilename(args[0]);

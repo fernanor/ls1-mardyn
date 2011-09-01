@@ -86,4 +86,22 @@ struct MoleculeStorage {
 			moleculeTorque[index] = torque[localIndex];
 		}
 	};
+
+	template<int blockSize>
+	struct NoMoleculeLocalStorage {
+			// straight-forward getter/setter
+			__device__ void get(int index, Molecule &molecule) {}
+
+			__device__ void set(int index, const Molecule &molecule) {}
+
+			// get the molecule data but in a way that merge will be able to merge changes back into the storage
+			// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
+			__device__ void getMergable(int index, Molecule &molecule) {}
+
+			__device__ void merge(int index, const Molecule &molecule) {}
+
+			__device__ void load(int localIndex, MoleculeStorage &storage, int index) {}
+
+			__device__ void commit(int localIndex, MoleculeStorage &storage, int index) {}
+	};
 };

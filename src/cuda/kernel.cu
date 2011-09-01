@@ -29,13 +29,21 @@
 #endif
 
 #ifdef CUDA_DOUBLE_MODE
-#warning using double precision
+#	warning using double precision
+#else
+#	warning using float precision
 #endif
 
 #ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
-#warning sorting cells by component type
+#	warning sorting cells by component type
 #else
-#warning cells are *not* sorted by component type
+#	warning cells are *not* sorted by component type
+#endif
+
+#ifdef CUDA_HW_CACHE_ONLY
+#	warning no shared local storage cache
+#else
+#	warning shared local storage active
 #endif
 
 extern "C" {
@@ -102,8 +110,12 @@ __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimensio
 	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
 
 #ifndef REFERENCE_IMPLEMENTATION
-	__shared__ MoleculeStorage::MoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
-	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
+#	ifndef CUDA_HW_CACHE_ONLY
+	__shared__ MoleculeStorage::MoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
+#	else
+	MoleculeStorage::NoMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
+#	endif
+	FastCellProcessor<BLOCK_SIZE, LOCAL_STORAGE_BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
 #else
 	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 #endif
@@ -131,8 +143,12 @@ __global__ void processCell(int numCells) {
 	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
 
 #ifndef REFERENCE_IMPLEMENTATION
+#	ifndef CUDA_HW_CACHE_ONLY
 	__shared__ MoleculeStorage::MoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
-	FastCellProcessor<BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
+#	else
+	MoleculeStorage::NoMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
+#	endif
+	FastCellProcessor<BLOCK_SIZE, BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
 #else
 	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 #endif

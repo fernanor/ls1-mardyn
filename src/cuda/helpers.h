@@ -336,7 +336,7 @@ protected:
 	CUdevice device;
 	CUcontext context;
 
-	CUDA(int deviceIndex) {
+	CUDA(int deviceIndex, bool preferL1Cache) {
 		CUDA_THROW_ON_ERROR( cuInit( 0 ) );
 
 		CUDA_THROW_ON_ERROR( cuDeviceGet( &device, deviceIndex ) );
@@ -344,6 +344,8 @@ protected:
 		printMemoryInfo();
 
 		CUDA_THROW_ON_ERROR( cuCtxCreate( &context, 0, device ) );
+
+		CUDA_THROW_ON_ERROR( cuCtxSetCacheConfig( preferL1Cache ? CU_FUNC_CACHE_PREFER_L1 : CU_FUNC_CACHE_PREFER_SHARED ) );
 	}
 
 	~CUDA() {
@@ -373,9 +375,9 @@ public:
 		return *singleton;
 	}
 
-	static void create(int deviceIndex) {
+	static void create(int deviceIndex, bool preferL1Cache) {
 		assert( !singleton );
-		singleton = new CUDA(deviceIndex);
+		singleton = new CUDA(deviceIndex, preferL1Cache);
 	}
 
 	static void destruct() {
@@ -390,11 +392,12 @@ public:
 		return Module( module );
 	}
 
-	Module loadModuleData(const char *imageStart, const char *imageEnd) {
+	Module loadModuleData(const char *imageStart, const char *imageEnd, int maxRegisterCount) {
 		std::string image(imageStart, imageEnd);
 
 		CUmodule module;
-		CUDA_THROW_ON_ERROR( cuModuleLoadData( &module, image.c_str() ) );
+		CUjit_option options = CU_JIT_MAX_REGISTERS;
+		CUDA_THROW_ON_ERROR( cuModuleLoadDataEx( &module, image.c_str(), 1, &options, (void**) &maxRegisterCount ) );
 
 		return Module( module );
 	}

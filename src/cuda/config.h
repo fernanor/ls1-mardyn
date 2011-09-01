@@ -39,10 +39,18 @@
 #	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_SORTED_HWCACHEONLY
+#	define CONFIG_NAME "cuda_double_sorted_hwcacheonly"
+
+#	define CUDA_DOUBLE_MODE
+#	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+
+#	define CUDA_HW_CACHE_ONLY
+#endif
 
 //#define NO_CUDA
 
-//#define USE_CONSTANT_MEMORY
+#define USE_CONSTANT_MEMORY
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
@@ -56,10 +64,9 @@
 
 #define MAX_NUM_COMPONENTS 4
 
-#define MAX_NUM_LJCENTERS 4
-#define MAX_NUM_DIPOLES 2
-#define MAX_NUM_CHARGES 2
-
+#define MAX_NUM_LJCENTERS 1
+#define MAX_NUM_DIPOLES 0
+#define MAX_NUM_CHARGES 0
 
 #ifndef REFERENCE_IMPLEMENTATION
 #	define WARP_SIZE 32
@@ -69,18 +76,32 @@
 #	define NUM_WARPS 1
 #endif
 
+#ifndef MAX_REGISTER_COUNT
+#	define MAX_REGISTER_COUNT 63
+#endif
+
+#ifndef NUM_LOCAL_STORAGE_WARPS
+#	define NUM_LOCAL_STORAGE_WARPS NUM_WARPS
+# 	warning set NUM_LOCAL_STORAGE_WARPS = NUM_WARPS
+#endif
+
+#if NUM_LOCAL_STORAGE_WARPS > NUM_WARPS
+#	error NUM_LOCAL_STORAGE_WARPS > NUM_WARPS
+#endif
+
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
+#define LOCAL_STORAGE_BLOCK_SIZE (WARP_SIZE*NUM_LOCAL_STORAGE_WARPS)
 
-#ifndef CUDA_DOUBLE_MODE
-	typedef float floatType;
-	typedef float3 floatType3;
-
-#	define make_floatType3 make_float3
-#else
+#ifdef CUDA_DOUBLE_MODE
 	typedef double floatType;
 	typedef double3 floatType3;
 
 #	define make_floatType3 make_double3
+#else
+	typedef float floatType;
+	typedef float3 floatType3;
+
+#	define make_floatType3 make_float3
 #endif
 
 #ifndef USE_CONSTANT_MEMORY

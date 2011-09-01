@@ -3,6 +3,7 @@
 CFG ?= gcc
 
 NVCC ?= /usr/local/cuda/bin/nvcc
+PTXAS ?= /usr/local/cuda/bin/ptxas
 
 # machine type: SEQ or PAR
 PARTYPE ?= SEQ
@@ -21,6 +22,10 @@ VTK ?= 0
 
 CUDA_CONFIG ?= CUDA_DOUBLE_SORTED
 NUM_WARPS ?= 4
+
+NUM_LOCAL_STORAGE_WARPS ?= $(NUM_WARPS)
+
+MAX_REGISTER_COUNT ?= 63 
 
 CURDIR ?= $(realpath $(PWD) )
 ifeq ($(findstring src,$(CURDIR)),)
@@ -53,7 +58,7 @@ PTXS = $(SOURCES_CUDA:.cu=.ptx)
 
 INCLUDES = -I$(CURDIR) -I$(CURDIR)/External $(CPPUNIT_INCLUDES) -I../dependencies-external/nvidia
 
-BINARYbasename = MarDyn.$(CUDA_CONFIG).$(NUM_WARPS)
+BINARYbasename = MarDyn.$(CUDA_CONFIG).$(NUM_WARPS).$(NUM_LOCAL_STORAGE_WARPS).$(MAX_REGISTER_COUNT)
 ifneq ($(realpath .svn),)
   $(info Building from a svn version.)
   svnVERSION = $(shell svnversion | sed -e "s/:/-/")
@@ -66,7 +71,7 @@ else
   BINARY = $(BINARYbasename).$(PARTYPE)_$(TARGET)
 endif
 
-SHARED_OPTIONS=-DCONFIG_$(CUDA_CONFIG) -DMAX_NUM_WARPS=$(NUM_WARPS)
+SHARED_OPTIONS=-DCONFIG_$(CUDA_CONFIG) -DMAX_NUM_WARPS=$(NUM_WARPS) -DNUM_LOCAL_STORAGE_WARPS=$(NUM_LOCAL_STORAGE_WARPS) -DMAX_REGISTER_COUNT=$(MAX_REGISTER_COUNT)
 CXX = $(CXX_$(PARTYPE))
 CXXFLAGS = $(CXXFLAGS_$(PARTYPE)_$(TARGET)) -DMPICH_IGNORE_CXX_SEEK $(SHARED_OPTIONS)
 LINKFLAGS = $(LINKFLAGS_$(PARTYPE)_$(TARGET)) $(CPPUNIT_LINK_ARGS) -lrt -lcuda
@@ -99,8 +104,7 @@ cuda/kernel.ptx: $(SOURCES_CUDA_MODULES) cuda/config.h cuda/sharedDecls.h
 
 %.ptx: %.cu 
 	$(NVCC) -arch=sm_21 --ptx -Xptxas -v -Xcompiler $(SHARED_OPTIONS) $< --output-directory $(<D)
-	cp $@ $(@F)
-	
+	$(PTXAS) -arch=sm_21 -maxrregcount $(MAX_REGISTER_COUNT) -v $@
 %.o: %.ptx
 	ld -r -b binary -o $@ $<
 
@@ -140,6 +144,7 @@ clean:
 	find -type f -name '*.o' -delete
 	find -path '*/.deps/*' -type f -delete
 	find -type d -name .deps -delete
+	find -type f -name '*.ptx' -delete
 
 clear: cleanall
 
