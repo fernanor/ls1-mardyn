@@ -19,28 +19,30 @@ public:
 	ComponentDescriptorStorage( const CUDAComponent &component ) :
 		CUDAStaticDataComponent( component ),
 
-		_componentDescriptors( _module.getGlobal<ComponentDescriptor *>("componentDescriptors") ),
-		_componentMixXis( _module.getGlobal<floatType *>("componentMixXis") ),
-		_componentMixEtas( _module.getGlobal<floatType *>("componentMixEtas") ),
+		_componentDescriptors( _module.getGlobal<ComponentDescriptors>("componentDescriptors") ),
+		_componentMixXis( _module.getGlobal<ComponentMixCoefficients>("componentMixXis") ),
+		_componentMixEtas( _module.getGlobal<ComponentMixCoefficients>("componentMixEtas") ),
 
 		_debugComponentDescriptors( _module.getFunction("debugComponentDescriptors") ) {
 	}
 
 	virtual void upload() {
-		floatType xis[MAX_NUM_COMPONENTS][MAX_NUM_COMPONENTS];
-		floatType etas[MAX_NUM_COMPONENTS][MAX_NUM_COMPONENTS];
-		std::vector<ComponentDescriptor> componentDescriptors;
+		ComponentMixCoefficients xis;
+		ComponentMixCoefficients etas;
+		ComponentDescriptors componentDescriptors;
 
 		const std::vector<Component> &components = _domain.getComponents();
 
 		for( int i = 0 ; i < components.size() ; i++ ) {
 			const Component &component = components[i];
-			ComponentDescriptor componentDescriptor;
+			ComponentDescriptor &componentDescriptor = componentDescriptors[i];
+
 			componentDescriptor.numLJCenters = component.numLJcenters();
 			componentDescriptor.numCharges = component.numCharges();
 			componentDescriptor.numDipoles = component.numDipoles();
 
 			// TODO: use inheritance for relativePosition?
+#if MAX_NUM_LJCENTERS > 0
 			for( int ljCenterIndex = 0 ; ljCenterIndex < componentDescriptor.numLJCenters ; ljCenterIndex++ ) {
 				ComponentDescriptor::LJCenter &ljCenter = componentDescriptor.ljCenters[ljCenterIndex];
 
@@ -49,7 +51,9 @@ public:
 				ljCenter.ljParameters.sigma = cLjCenter.sigma();
 				ljCenter.relativePosition = make_floatType3( cLjCenter.rx(), cLjCenter.ry(), cLjCenter.rz() );
 			}
+#endif
 
+#if MAX_NUM_CHARGES > 0
 			for( int chargeIndex = 0 ; chargeIndex < componentDescriptor.numCharges ; chargeIndex++ ) {
 				ComponentDescriptor::Charge &charge = componentDescriptor.charges[chargeIndex];
 
@@ -58,7 +62,9 @@ public:
 
 				charge.q = cCharge.q();
 			}
+#endif
 
+#if MAX_NUM_DIPOLES > 0
 			for( int dipoleIndex = 0 ; dipoleIndex < componentDescriptor.numDipoles ; dipoleIndex++ ) {
 				ComponentDescriptor::Dipole &dipole = componentDescriptor.dipoles[dipoleIndex];
 
@@ -68,8 +74,7 @@ public:
 
 				dipole.absMy = cDipole.absMy();
 			}
-
-			componentDescriptors.push_back(componentDescriptor);
+#endif
 		}
 
 		// set mix coeff tables
@@ -86,14 +91,11 @@ public:
 			}
 		}
 
-		_componentDescriptorBuffer.copyToDevice(componentDescriptors);
-		_componentDescriptors.set( _componentDescriptorBuffer );
+		_componentDescriptors.set( componentDescriptors );
 
-		_componentMixXiBuffer.copyToDevice( (floatType*) xis, MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS );
-		_componentMixXis.set( _componentMixXiBuffer );
+		_componentMixXis.set( xis );
 
-		_componentMixEtaBuffer.copyToDevice( (floatType*) etas, MAX_NUM_COMPONENTS * MAX_NUM_COMPONENTS );
-		_componentMixEtas.set( _componentMixEtaBuffer );
+		_componentMixEtas.set( etas );
 
 #ifdef DEBUG_COMPONENT_DESCRIPTORS
 		_debugComponentDescriptors.call().parameter( componentDescriptors.size() ).execute();
@@ -101,11 +103,8 @@ public:
 	}
 
 protected:
-	CUDA::Global<ComponentDescriptor *> _componentDescriptors;
-	CUDA::Global<floatType *> _componentMixXis, _componentMixEtas;
-
-	CUDA::DeviceBuffer<ComponentDescriptor> _componentDescriptorBuffer;
-	CUDA::DeviceBuffer<floatType> _componentMixXiBuffer, _componentMixEtaBuffer;
+	CUDA::Global<ComponentDescriptors> _componentDescriptors;
+	CUDA::Global<ComponentMixCoefficients> _componentMixXis, _componentMixEtas;
 
 	CUDA::Function _debugComponentDescriptors;
 };

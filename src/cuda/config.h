@@ -39,6 +39,14 @@
 #	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_SORTED_NO_CONSTANT_MEMORY
+#	define CONFIG_NAME "cuda_double_sorted_no_constant_memory"
+
+#	define CUDA_DOUBLE_MODE
+#	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+#	define NO_CONSTANT_MEMORY
+#endif
+
 #ifdef CONFIG_CUDA_DOUBLE_SORTED_HWCACHEONLY
 #	define CONFIG_NAME "cuda_double_sorted_hwcacheonly"
 
@@ -47,10 +55,6 @@
 
 #	define CUDA_HW_CACHE_ONLY
 #endif
-
-//#define NO_CUDA
-
-#define USE_CONSTANT_MEMORY
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
@@ -62,10 +66,10 @@
 // TODO: either use warpSize or WARP_SIZE!
 //#define MAX_NUM_WARPS 6
 
-#define MAX_NUM_COMPONENTS 4
+#define MAX_NUM_COMPONENTS 2
 
-#define MAX_NUM_LJCENTERS 1
-#define MAX_NUM_DIPOLES 0
+#define MAX_NUM_LJCENTERS 3
+#define MAX_NUM_DIPOLES 1
 #define MAX_NUM_CHARGES 0
 
 #ifndef REFERENCE_IMPLEMENTATION
@@ -104,7 +108,7 @@
 #	define make_floatType3 make_float3
 #endif
 
-#ifndef USE_CONSTANT_MEMORY
+#ifdef NO_CONSTANT_MEMORY
 #	define __constant__
 #endif
 

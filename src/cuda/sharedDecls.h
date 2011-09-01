@@ -60,10 +60,21 @@ struct ComponentDescriptor {
 		floatType q;
 	};
 
+#if MAX_NUM_LJCENTERS > 0
 	LJCenter ljCenters[MAX_NUM_LJCENTERS];
+#endif
+
+#if MAX_NUM_CHARGES > 0
 	Charge charges[MAX_NUM_CHARGES];
+#endif
+
+#if MAX_NUM_DIPOLES > 0
 	Dipole dipoles[MAX_NUM_DIPOLES];
+#endif
 };
+
+typedef ComponentDescriptor ComponentDescriptors[MAX_NUM_COMPONENTS];
+typedef floatType ComponentMixCoefficients[MAX_NUM_COMPONENTS][MAX_NUM_COMPONENTS];
 
 
 #endif /* SHAREDDECLS_H_ */

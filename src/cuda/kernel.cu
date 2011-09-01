@@ -46,6 +46,12 @@
 #	warning shared local storage active
 #endif
 
+#ifdef NO_CONSTANT_MEMORY
+#	warning no constant memory
+#else
+#	warning constant memory used
+#endif
+
 extern "C" {
 /* TODO: possible refactoring
  * create a prepare method in MoleculeStorage and make rawQuaternions a global pointer

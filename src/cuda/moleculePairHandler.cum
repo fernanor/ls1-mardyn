@@ -41,9 +41,8 @@ struct MoleculePairHandler {
 			const floatType3 &distanceAtoB
 		) {
 #if MAX_NUM_LJCENTERS > 0
-		const int mixIndex = moleculeA.componentType * MAX_NUM_COMPONENTS + moleculeB.componentType;
-		const floatType xi = componentMixXis[ mixIndex ];
-		const floatType eta = componentMixEtas[ mixIndex ];
+		const floatType xi = componentMixXis[ moleculeA.componentType ][ moleculeB.componentType ];
+		const floatType eta = componentMixEtas[ moleculeA.componentType ][ moleculeB.componentType ];
 
 		for( int ljIndexA = 0 ; ljIndexA < descriptorA.numLJCenters ; ljIndexA++ ) {
 			const ComponentDescriptor::LJCenter &ljCenterA = descriptorA.ljCenters[ljIndexA];

@@ -14,9 +14,9 @@
 
 #include "sharedDecls.h"
 
-__constant__ __device__ ComponentDescriptor *componentDescriptors;
-__constant__ __device__ floatType *componentMixXis;
-__constant__ __device__ floatType *componentMixEtas;
+__constant__ __device__ ComponentDescriptors componentDescriptors;
+__constant__ __device__ ComponentMixCoefficients componentMixXis;
+__constant__ __device__ ComponentMixCoefficients componentMixEtas;
 
 struct ComponentDescriptorAccessor {
 	__device__ const ComponentDescriptor & get(Molecule::ComponentType type) {
@@ -31,6 +31,7 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 	for( int i = 0 ; i < numDescriptors ; i++ ) {
 		const ComponentDescriptor &descriptor = componentDescriptors[i];
 		printf( "component #%i:\n", i );
+#if MAX_NUM_LJCENTERS > 0
 		for( int j = 0 ; j < descriptor.numLJCenters ; j++ ) {
 			const ComponentDescriptor::LJCenter &ljCenter = descriptor.ljCenters[j];
 			printf( "\tljcenter #%i:\n"
@@ -42,6 +43,8 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 					ljCenter.ljParameters.epsilon, ljCenter.ljParameters.sigma
 				);
 		}
+#endif
+#if MAX_NUM_CHARGES > 0
 		for( int j = 0 ; j < descriptor.numCharges ; j++ ) {
 			const ComponentDescriptor::Charge &charge = descriptor.charges[j];
 			printf( "\tcharge #%i:\n"
@@ -52,6 +55,8 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 					charge.q
 				);
 		}
+#endif
+#if MAX_NUM_DIPOLES > 0
 		for( int j = 0 ; j < descriptor.numDipoles ; j++ ) {
 			const ComponentDescriptor::Dipole &dipole = descriptor.dipoles[j];
 			printf( "\tdipole #%i\n"
@@ -64,6 +69,7 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 					dipole.absMy
 				);
 		}
+#endif
 		printf( "\n" );
 	}
 
