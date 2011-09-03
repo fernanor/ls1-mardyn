@@ -53,7 +53,6 @@ struct SimulationStats {
 
 	// run/build info
 	int timeSteps;
-	int numWarps;
 	int moleculeCount;
 
 	std::string name;

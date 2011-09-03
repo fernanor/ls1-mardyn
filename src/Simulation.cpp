@@ -820,7 +820,6 @@ void Simulation::initialize() {
 
 void Simulation::simulate() {
 	simulationStats.moleculeCount = _domain->getglobalNumMolecules();
-	simulationStats.numWarps = NUM_WARPS;
 	simulationStats.timeSteps = _numberOfTimesteps;
 	simulationStats.name = _outputPrefix;
 
