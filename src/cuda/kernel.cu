@@ -86,12 +86,12 @@ __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuate
 __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
 	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
-	const int idx = blockIdx.y * gridDim.x + blockIdx.x;
-	if( threadIndex >= numCellPairs ) {
+	const int cellPairIndex = blockIdx.y * gridDim.x + blockIdx.x;
+	if( cellPairIndex >= numCellPairs ) {
 		return;
 	}
 
-	int cellIndex = getCellIndex( idx, startIndex, dimension, gridOffsets );
+	int cellIndex = getCellIndex( cellPairIndex, startIndex, dimension, gridOffsets );
 	int neighborIndex = cellIndex + neighborOffset;
 
 	// TODO: move the swapping bit into the cell processor!
