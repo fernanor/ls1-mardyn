@@ -131,6 +131,7 @@ __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimensio
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, neighborIndex );
 }
 
+__launch_bounds__(BLOCK_SIZE, 2)
 __global__ void processCell(int numCells) {
 	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
 
