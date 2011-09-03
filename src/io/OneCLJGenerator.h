@@ -180,7 +180,7 @@ public:
 	//! @brief temperature of the simulated material (reduced unit)
 	double _temperature;
 	//! @brief length of the global simulation box
-	vector<double> _simBoxLength;
+	double _simBoxLength[3];
 
 };
 

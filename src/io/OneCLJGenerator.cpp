@@ -18,16 +18,13 @@ OneCLJGenerator::OneCLJGenerator(string mode, unsigned long N, double T) {
 	_mode = mode;
 	_temperature = T;
 	_numberOfMolecules = N;
-	_simBoxLength.resize(3);
 }
 
 void OneCLJGenerator::setHomogeneuosParameter(double rho) {
 	_rho = rho;
 
 	// calculate Size of the Simulation Box
-	_simBoxLength[0] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
-	_simBoxLength[1] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
-	_simBoxLength[2] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
+	_simBoxLength[0] = _simBoxLength[1] = _simBoxLength[2] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
 }
 
 void OneCLJGenerator::setClusterParameters(double gasDensity, double fluidDensity, double fluidVolumePercent,
@@ -40,9 +37,7 @@ void OneCLJGenerator::setClusterParameters(double gasDensity, double fluidDensit
 	_numSphereSizes = numSphereSizes;
 
 	_rho = fluidDensity * fluidVolumePercent / 100.0 + gasDensity * (1 - fluidVolumePercent / 100.0);
-	_simBoxLength[0] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
-	_simBoxLength[1] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
-	_simBoxLength[2] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
+	_simBoxLength[0] = _simBoxLength[1] = _simBoxLength[2] = pow(_numberOfMolecules / _rho, (1.0 / 3.0));
 
 }
 
@@ -111,14 +106,11 @@ void OneCLJGenerator::createHomogeneousDist(ParticleContainer* particleContainer
         double> &bBoxMax, Domain* domain, DomainDecompBase* domainDecomp) {
 
 	vector<int> globalFccCells;
-	vector<int> localFccCellsMin;
-	vector<int> localFccCellsMax;
-	vector<double> fccCellLength;
+	int localFccCellsMin[3];
+	int localFccCellsMax[3];
+	double fccCellLength[3];
 
 	globalFccCells.resize(3);
-	localFccCellsMin.resize(3);
-	localFccCellsMax.resize(3);
-	fccCellLength.resize(3);
 
 	//_numberOfMolecules=1;
 	for (int dim = 0; dim < 3; dim++) {
