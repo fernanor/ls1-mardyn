@@ -7,8 +7,11 @@
 
 #include "sharedDecls.h"
 
-__device__ void calculateLennardJones( const floatType3 &distanceAtoB, const floatType distanceSquared, const LJParameters &ljParameters,
-		floatType3 &forceAtoB, floatType &potential) {
+static __device__ void calculateLennardJones(
+		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
+		const LJParameters & __restrict__ ljParameters,
+		floatType3 & __restrict__ forceAtoB, floatType & __restrict__ potential
+	) {
 	const floatType invdr2 = 1. / distanceSquared;
 	const floatType lj2 = ljParameters.sigma * ljParameters.sigma * invdr2;
 	const floatType lj6 = lj2 * lj2 * lj2;
@@ -20,8 +23,11 @@ __device__ void calculateLennardJones( const floatType3 &distanceAtoB, const flo
 	forceAtoB = -24.0f * ljParameters.epsilon * (lj12 + lj12m6) * invdr2 * distanceAtoB;
 }
 
-__device__ void calculateCharges( const floatType3 &distanceAtoB, const floatType distanceSquared, const floatType &Q1Q2Per4PiE0,
-		floatType3 &forceAtoB, floatType &potential) {
+static __device__ void calculateCharges(
+		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
+		const floatType & __restrict__ Q1Q2Per4PiE0,
+		floatType3 & __restrict__ forceAtoB, floatType & __restrict__ potential
+	) {
 	const floatType invdr2 = 1. / distanceSquared;
 	const floatType invdr = rsqrt( distanceSquared );
 	potential = Q1Q2Per4PiE0 * invdr;
@@ -29,8 +35,12 @@ __device__ void calculateCharges( const floatType3 &distanceAtoB, const floatTyp
 	forceAtoB = -potential * invdr2 * distanceAtoB;
 }
 
-__device__ void calculateDipoleCharge( const floatType3 &distanceAtoB, const floatType distanceSquared, const floatType3 &eA, const floatType qMyPer4PiE0,
-		floatType3 &forceAtoB, floatType &potential, floatType3 &torqueA ) {
+static __device__ void calculateDipoleCharge(
+		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
+		const floatType3 & __restrict__ eA, const floatType qMyPer4PiE0,
+		floatType3 & __restrict__ forceAtoB,
+		floatType & __restrict__ potential, floatType3 & __restrict__ torqueA
+	) {
 	const floatType invdr2 = 1. / distanceSquared;
 	const floatType invdr = rsqrt( distanceSquared );
 
@@ -44,9 +54,15 @@ __device__ void calculateDipoleCharge( const floatType3 &distanceAtoB, const flo
 	torqueA = partialTAInvdr1 * cross( distanceAtoB, eA );
 }
 
-__device__ void calculateDipoleDipole( const floatType3 &distanceAtoB, const floatType distanceSquared, const floatType3 &eA, const floatType3 &eB, const floatType my2, const floatType rffac,
-		floatType3 &forceAtoB, floatType &potential, floatType &myRF, floatType3 &torqueA, floatType3 &torqueB ) {
-	const floatType invdr2 = 1. / distanceSquared;
+static __device__ void calculateDipoleDipole(
+		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
+		const floatType3 & __restrict__ eA, const floatType3 & __restrict__ eB,
+		const floatType my2, const floatType rffac,
+		floatType3 & __restrict__ forceAtoB,
+		floatType & __restrict__ potential, floatType & __restrict__ myRF,
+		floatType3 & __restrict__ torqueA, floatType3 & __restrict__ torqueB
+	) {
+	const floatType invdr2 = 1.0 / distanceSquared;
 	const floatType invdr = sqrt( invdr2 );
 
 	const floatType partialGAB = -my2 * invdr2 * invdr;
