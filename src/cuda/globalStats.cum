@@ -22,35 +22,55 @@ struct CellStatsCollector {
 		threadPotential[threadIndex] = 0.0f;
 		threadVirial[threadIndex] = 0.0f;
 
-		__syncthreads();
+		// no synchronization required because each thread only accesses its own entry
 	}
 
 	__device__ void add(int threadIndex, floatType potential, floatType virial) {
 		threadPotential[threadIndex] += potential;
 		threadVirial[threadIndex] += virial;
-		//printf( "CUDA:: pot: %f, virial: %f\n", potential, virial );
 	}
 
 	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
 		__syncthreads();
 
-		// blockSize is a power of two
-		for( int power = 2 ; power <= blockSize ; power <<= 1 ) {
-			if( (threadIndex & (power-1)) == 0 ) {
-				const int neighborIndex = threadIndex + (power >> 1);
+#if WARP_SIZE > 1
+		// no synchronization required since every warp is automatically synchronized
+#	if 1
+#		if WARP_SIZE != 32
+#			error WARP_SIZE == 32 assumed
+#		endif
 
+#		pragma unroll 5
+		for( int index = 4 ; index >= 0 ; index-- ) {
+			const int shift = 1 << index;
+			if( threadIdx.x < shift ) {
+				const int neighborIndex = threadIndex + shift;
 				threadPotential[threadIndex] += threadPotential[neighborIndex];
 				threadVirial[threadIndex] += threadVirial[neighborIndex];
 			}
-
-			__syncthreads();
 		}
+#	else
+		// this version cannot be unrolled since nvcc is too stupid to analyze the counter >_>
+		for( int shift = WARP_SIZE / 2 ; shift >= 1 ; shift >>= 1 ) {
+			if( threadIdx.x < shift ) {
+				const int neighborIndex = threadIndex + shift;
+				threadPotential[threadIndex] += threadPotential[neighborIndex];
+				threadVirial[threadIndex] += threadVirial[neighborIndex];
+			}
+		}
+#	endif
+#endif
+
+		__syncthreads();
 
 		if( threadIndex == 0 ) {
-			floatType potential, virial;
+			floatType potential = 0.0;
+			floatType virial = 0.0;
 
-			potential = threadPotential[0];
-			virial = threadVirial[0];
+			for( int warpIndex = 0 ; warpIndex < NUM_WARPS ; warpIndex++ ) {
+				potential += threadPotential[ warpIndex * WARP_SIZE ];
+				virial += threadVirial[ warpIndex * WARP_SIZE ];
+			}
 
 			cellStats[cellIndexA].add( potential, virial );
 			cellStats[cellIndexB].add( potential, virial );
