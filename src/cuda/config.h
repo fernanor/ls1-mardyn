@@ -61,6 +61,8 @@
 #	define CONFIG_NAME "special_cuda_config"
 #endif
 
+#define CUDA_WARP_BLOCK_CELL_PROCESSOR
+
 //#define CUDA_HW_CACHE_ONLY
 
 //#define REFERENCE_IMPLEMENTATION

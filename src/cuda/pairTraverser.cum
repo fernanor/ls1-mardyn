@@ -1,12 +1,24 @@
+#ifndef PAIRTRAVERSER_H__
+#define PAIRTRAVERSER_H__
+
 #include "host_defines.h"
 
-inline __device__ int getCellIndex( int idx, int startIndex, int2 dimension, int3 gridOffsets ) {
-	const int3 gridIndex = make_int3(
-			idx % dimension.x,
-			(idx / dimension.x) % dimension.y,
-			idx / dimension.x / dimension.y
-		);
-	const int cellIndex = startIndex + dot( gridIndex, gridOffsets );
+namespace PairTraverser {
+	__constant__ int startIndex;
+	__constant__ int2 dimension;
+	__constant__ int3 gridOffsets;
+	__constant__ int neighborOffset;
 
-	return cellIndex;
+	inline __device__ int getCellIndex( int idx ) {
+		const int3 gridIndex = make_int3(
+				idx % dimension.x,
+				(idx / dimension.x) % dimension.y,
+				idx / dimension.x / dimension.y
+			);
+		const int cellIndex = startIndex + dot( gridIndex, gridOffsets );
+
+		return cellIndex;
+	}
 }
+
+#endif

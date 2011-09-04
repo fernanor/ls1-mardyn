@@ -1,7 +1,9 @@
-#ifndef GLOBALSTATS_CUM_H__
-#define GLOBALSTATS_CUM_H__
+#ifndef GLOBALSTATS_CUM__
+#define GLOBALSTATS_CUM__
 
 #include "sharedDecls.h"
+
+#include "locks.cum"
 
 struct CellStats : CellStatsStorage {
 	__device__ void add( floatType potential, floatType virial ) {
@@ -13,6 +15,11 @@ struct CellStats : CellStatsStorage {
 // should be: __device__ CellStats cellStats[CellCount]
 __constant__ __device__ CellStats *cellStats;
 
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+__constant__ Lock::UnorderedWarp *cellStatsLocks;
+#endif
+
+// TODO: rename BlockStatsCollector
 template<int blockSize>
 struct CellStatsCollector {
 	floatType threadPotential[blockSize];
@@ -30,9 +37,7 @@ struct CellStatsCollector {
 		threadVirial[threadIndex] += virial;
 	}
 
-	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
-		__syncthreads();
-
+	__device__ void reduceWarps(int threadIndex) {
 #if WARP_SIZE > 1
 		// no synchronization required since every warp is automatically synchronized
 #	if 1
@@ -60,6 +65,10 @@ struct CellStatsCollector {
 		}
 #	endif
 #endif
+	}
+
+	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
+		reduceWarps( threadIndex );
 
 		__syncthreads();
 
@@ -67,7 +76,7 @@ struct CellStatsCollector {
 			floatType potential = 0.0;
 			floatType virial = 0.0;
 
-			for( int warpIndex = 0 ; warpIndex < NUM_WARPS ; warpIndex++ ) {
+			for( int warpIndex = 0 ; warpIndex < (blockSize / WARP_SIZE) ; warpIndex++ ) {
 				potential += threadPotential[ warpIndex * WARP_SIZE ];
 				virial += threadVirial[ warpIndex * WARP_SIZE ];
 			}
@@ -76,6 +85,24 @@ struct CellStatsCollector {
 			cellStats[cellIndexB].add( potential, virial );
 		}
 	}
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+	__device__ void reduceAndStoreWarp(int cellIndex) {
+		const int threadIndex = threadIdx.x + threadIdx.y * WARP_SIZE;
+
+		// no synchronization required since every warp is automatically synchronized
+		reduceWarps( threadIndex );
+
+		if( threadIdx.x == 0 ) {
+			floatType potential = threadPotential[ threadIndex ];
+			floatType virial = threadVirial[ threadIndex ];
+
+			cellStatsLocks[cellIndex].lock();
+			cellStats[cellIndex].add( potential, virial );
+			cellStatsLocks[cellIndex].unlock();
+		}
+	}
+#endif
 };
 
 #endif

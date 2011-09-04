@@ -1,5 +1,5 @@
-#ifndef MOLECULE_H__
-#define MOLECULE_H__
+#ifndef MOLECULE_CUM__
+#define MOLECULE_CUM__
 
 #include <host_defines.h>
 

@@ -1,5 +1,6 @@
-#ifndef UTIL_CUM
-#define UTIL_CUM
+#ifndef UTIL_CUM__
+#define UTIL_CUM__
+
 #include <host_defines.h>
 
 #include "sharedDecls.h"

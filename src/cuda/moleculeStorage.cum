@@ -1,3 +1,6 @@
+#ifndef MOLECULESTORAGE_CUM__
+#define MOLECULESTORAGE_CUM__
+
 #include <host_defines.h>
 
 #include "util.cum"
@@ -121,3 +124,5 @@ struct WriteThroughMoleculeLocalStorage {
 
 	__device__ void commit(uint localIndex, MoleculeStorage &storage, uint index) {}
 };
+
+#endif

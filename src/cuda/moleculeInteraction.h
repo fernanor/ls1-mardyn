@@ -34,13 +34,15 @@ class MoleculeInteraction : public CUDAComponent {
 		}
 
 		void processTask(const CellPairTraverserTemplate::TaskInfo &taskInfo) const {
+			_parent._startIndex.set( taskInfo.startIndex );
+			_parent._dimension.set( taskInfo.localDimensions );
+			_parent._gridOffsets.set( taskInfo.gridOffsets );
+			_parent._neighborOffset.set( taskInfo.neighborOffset );
+
+			_parent._numCellPairs.set( taskInfo.numPairs );
+
 			_parent._cellPairProcessor.call().
 					setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
-					parameter( taskInfo.numPairs ).
-					parameter( taskInfo.startIndex ).
-					parameter( taskInfo.localDimensions ).
-					parameter( taskInfo.gridOffsets ).
-					parameter( taskInfo.neighborOffset ).
 					executeAtLeast( taskInfo.numPairs );
 		}
 
@@ -64,7 +66,15 @@ public:
 		_moleculePairHandler( *this ),
 
 		_cellPairProcessor( module.getFunction("processCellPair") ),
-		_cellProcessor( module.getFunction("processCell") )
+		_cellProcessor( module.getFunction("processCell") ),
+
+		_startIndex( module.getGlobal<int>("_ZN13PairTraverser10startIndexE") ),
+		_dimension( module.getGlobal<int2>("_ZN13PairTraverser9dimensionE") ),
+		_gridOffsets( module.getGlobal<int3>("_ZN13PairTraverser11gridOffsetsE") ),
+		_neighborOffset( module.getGlobal<int>("_ZN13PairTraverser14neighborOffsetE") ),
+
+		_numCells( module.getGlobal<int>("numCells") ),
+		_numCellPairs( module.getGlobal<int>("numCellPairs") )
 	{
 		// upload data from CUDAStaticDataComponents
 		_moleculePairHandler.upload();
@@ -92,9 +102,9 @@ public:
 
 		CUDASingleProcessingTimer.begin();
 		int numCells = _linkedCells.getCells().size();
+		_numCells.set( numCells );
 		_cellProcessor.call().
 				setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
-				parameter( numCells ).
 				executeAtLeast( numCells );
 		CUDASingleProcessingTimer.end();
 		CUDATotalProcessingTimer.end();
@@ -120,6 +130,13 @@ public:
 
 protected:
 	CUDA::Function _cellPairProcessor, _cellProcessor;
+
+	CUDA::Global<int> _startIndex;
+	CUDA::Global<int2> _dimension;
+	CUDA::Global<int3> _gridOffsets;
+	CUDA::Global<int> _neighborOffset;
+	CUDA::Global<int> _numCells;
+	CUDA::Global<int> _numCellPairs;
 
 	GlobalStats _globalStats;
 	MoleculeStorage _moleculeStorage;

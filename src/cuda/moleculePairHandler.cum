@@ -1,3 +1,6 @@
+#ifndef MOLECULEPAIRHANDLER_CUM__
+#define MOLECULEPAIRHANDLER_CUM__
+
 #include "potForce.cum"
 
 #include "globalStats.cum"
@@ -231,3 +234,5 @@ struct MoleculePairHandler {
 #endif
 	}
 };
+
+#endif

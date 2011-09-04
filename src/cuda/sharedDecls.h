@@ -12,6 +12,10 @@
 
 #include "config.h"
 
+struct LockStorage {
+	volatile uint lockValue;
+};
+
 typedef char Molecule_ComponentType;
 
 struct CellStatsStorage {

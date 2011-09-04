@@ -22,6 +22,11 @@
 
 #include "moleculePairHandler.cum"
 
+__constant__ int numCells;
+__constant__ int numCellPairs;
+
+#include "warpBlockCellProcessor.cum"
+
 #include "config.h"
 
 #ifndef REFERENCE_IMPLEMENTATION
@@ -85,7 +90,7 @@ __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuate
 #endif
 }
 
-__global__ void processCellPair( int numCellPairs, int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
+__global__ void processCellPair() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	const int cellPairIndex = blockIdx.y * gridDim.x + blockIdx.x;
@@ -93,8 +98,8 @@ __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimensio
 		return;
 	}
 
-	int cellIndex = getCellIndex( cellPairIndex, startIndex, dimension, gridOffsets );
-	int neighborIndex = cellIndex + neighborOffset;
+	int cellIndex = PairTraverser::getCellIndex( cellPairIndex );
+	int neighborIndex = cellIndex + PairTraverser::neighborOffset;
 
 	// TODO: move the swapping bit into the cell processor!
 	/*int cellLength = cellInfos[ cellIndex + 1 ] - cellInfos[ cellIndex ];
@@ -134,7 +139,7 @@ __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimensio
 }
 
 //__launch_bounds__(BLOCK_SIZE, 2)
-__global__ void processCell(int numCells) {
+__global__ void processCell() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	int cellIndex = blockIdx.y * gridDim.x + blockIdx.x;

@@ -15,7 +15,7 @@ struct CellInfoEx : CellInfo {
 	unsigned length;
 
 	__device__ CellInfoEx() {}
-	__device__ CellInfoEx( const CellInfo &cell ) : CellInfo( cell.startIndex , cell.endIndex ), length( endIndex - startIndex ) {}
+	__device__ CellInfoEx( const CellInfo cell ) : CellInfo( cell.startIndex , cell.endIndex ), length( endIndex - startIndex ) {}
 };
 
 #endif
