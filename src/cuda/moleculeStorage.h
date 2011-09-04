@@ -25,7 +25,7 @@ public:
 
 		_moleculeComponentTypes( _module.getGlobal<Molecule_ComponentType *>("moleculeComponentTypes") ),
 
-		_cellStartIndices( _module.getGlobal<int *>("cellStartIndices") ),
+		_cellStartIndices( _module.getGlobal<unsigned *>("cellStartIndices") ),
 
 		_convertQuaternionsToRotations( _module.getFunction( "convertQuaternionsToRotations" ) )
 		{
@@ -49,12 +49,12 @@ protected:
 	CUDA::Global<Matrix3x3Storage *> _moleculeRotations;
 	CUDA::Global<Molecule_ComponentType *> _moleculeComponentTypes;
 
-	CUDA::Global<int *> _cellStartIndices;
+	CUDA::Global<unsigned *> _cellStartIndices;
 
 	CUDA::DeviceBuffer<floatType3> _positionBuffer, _forceBuffer, _torqueBuffer;
 	CUDA::DeviceBuffer<Matrix3x3Storage> _rotationBuffer;
 	CUDA::DeviceBuffer<Molecule_ComponentType> _componentTypeBuffer;
-	CUDA::DeviceBuffer<int> _startIndexBuffer;
+	CUDA::DeviceBuffer<unsigned> _startIndexBuffer;
 
 	CUDA::Function _convertQuaternionsToRotations;
 };

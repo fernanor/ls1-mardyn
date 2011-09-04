@@ -30,7 +30,6 @@ function build {
 	BUILD_NUM_LOCAL_STORAGE_WARPS=${NUM_LOCAL_STORAGE_WARPS:-$NUM_WARPS}
 	BUILD_MAX_REGISTER_COUNT=${MAX_REGISTER_COUNT:-63}
 	
-	make -C src clean
 	make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$BUILD_NUM_WARPS NUM_LOCAL_STORAGE_WARPS=$BUILD_NUM_LOCAL_STORAGE_WARPS MAX_REGISTER_COUNT=$BUILD_MAX_REGISTER_COUNT 
 
 	if [ $? != "0" ]; then
@@ -46,7 +45,7 @@ function benchmark {
 		outputPrefix=$( echo $1_${BUILD_NUM_WARPS}_${BUILD_NUM_LOCAL_STORAGE_WARPS}_${BUILD_MAX_REGISTER_COUNT}_$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
 		if [ ! -f benchmark/$outputPrefix.results.csv ]; then
 			echo -e "\nBenchmarking $outputPrefix:\n"
-			./src/MarDyn.$1.${BUILD_NUM_WARPS}.${BUILD_NUM_LOCAL_STORAGE_WARPS}.${BUILD_MAX_REGISTER_COUNT} $cfg 10 $outputPrefix
+			./src/MarDyn $cfg 10 $outputPrefix
 			if [ $? != "0" ]; then
 				log "$outputPrefix benchmark failed!"
 				echo "continuing"

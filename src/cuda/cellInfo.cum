@@ -4,15 +4,15 @@
 #include <host_defines.h>
 
 struct CellInfo {
-	int startIndex;
-	int endIndex;
+	unsigned startIndex;
+	unsigned endIndex;
 
 	__device__ CellInfo() {}
-	__device__ CellInfo( int startIndex, int endIndex ) : startIndex( startIndex ), endIndex( endIndex ) {}
+	__device__ CellInfo( unsigned startIndex, unsigned endIndex ) : startIndex( startIndex ), endIndex( endIndex ) {}
 };
 
 struct CellInfoEx : CellInfo {
-	int length;
+	unsigned length;
 
 	__device__ CellInfoEx() {}
 	__device__ CellInfoEx( const CellInfo &cell ) : CellInfo( cell.startIndex , cell.endIndex ), length( endIndex - startIndex ) {}

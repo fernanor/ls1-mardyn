@@ -27,6 +27,11 @@ NUM_LOCAL_STORAGE_WARPS ?= $(NUM_WARPS)
 
 MAX_REGISTER_COUNT ?= 63 
 
+MAX_NUM_COMPONENTS ?= 2
+MAX_NUM_LJCENTERS ?= 3
+MAX_NUM_DIPOLES ?= 3
+MAX_NUM_CHARGES ?= 0
+
 CURDIR ?= $(realpath $(PWD) )
 ifeq ($(findstring src,$(CURDIR)),)
   $(error ERROR: current directory $(CURDIR) seems not to be a source directory)
@@ -58,7 +63,7 @@ PTXS = $(SOURCES_CUDA:.cu=.ptx)
 
 INCLUDES = -I$(CURDIR) -I$(CURDIR)/External $(CPPUNIT_INCLUDES) -I../dependencies-external/nvidia
 
-BINARYbasename = MarDyn.$(CUDA_CONFIG).$(NUM_WARPS).$(NUM_LOCAL_STORAGE_WARPS).$(MAX_REGISTER_COUNT)
+BINARYbasename = MarDyn
 ifneq ($(realpath .svn),)
   $(info Building from a svn version.)
   svnVERSION = $(shell svnversion | sed -e "s/:/-/")
@@ -97,6 +102,10 @@ make_config:
 	@echo "#define MAX_NUM_WARPS $(NUM_WARPS)" >> current_make_config.h
 	@echo "#define NUM_LOCAL_STORAGE_WARPS $(NUM_LOCAL_STORAGE_WARPS)" >> current_make_config.h
 	@echo "#define MAX_REGISTER_COUNT $(MAX_REGISTER_COUNT)" >> current_make_config.h
+	@echo "#define MAX_NUM_COMPONENTS $(MAX_NUM_COMPONENTS)" >> current_make_config.h
+	@echo "#define MAX_NUM_LJCENTERS $(MAX_NUM_LJCENTERS)" >> current_make_config.h
+	@echo "#define MAX_NUM_DIPOLES $(MAX_NUM_DIPOLES)" >> current_make_config.h
+	@echo "#define MAX_NUM_CHARGES $(MAX_NUM_CHARGES)" >> current_make_config.h
 	@echo "created temporary current_make_config.h:"
 	@cat current_make_config.h
 	

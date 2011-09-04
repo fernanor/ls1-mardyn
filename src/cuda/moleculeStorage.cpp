@@ -23,11 +23,11 @@ void MoleculeStorage::uploadState() {
 	std::vector<Matrix3x3Storage> rotations;
 #endif
 
-	std::vector<int> startIndices;
+	std::vector<unsigned> startIndices;
 
 	int numCells = _linkedCells.getCells().size();
 
-	int numMolecules = 0;
+	unsigned numMolecules = 0;
 
 	int maxNumMoleculesPerCell = 0;
 
@@ -99,7 +99,7 @@ void MoleculeStorage::uploadState() {
 		}
 #endif
 
-		maxNumMoleculesPerCell = std::max( maxNumMoleculesPerCell, numMolecules - startIndices.back() );
+		maxNumMoleculesPerCell = std::max<int>( maxNumMoleculesPerCell, numMolecules - startIndices.back() );
 	}
 
 	printf( "average molecules per cell: %f (= %i / %i); max molecules per cell: %i\n", (float) numMolecules / numCells, numMolecules, numCells, maxNumMoleculesPerCell );

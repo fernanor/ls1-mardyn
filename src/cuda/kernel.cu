@@ -1,4 +1,6 @@
-#include "stdio.h"
+#include <host_defines.h>
+
+#include <stdio.h>
 
 #include "cutil_math.h"
 
@@ -84,7 +86,7 @@ __global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuate
 }
 
 __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimension, int3 gridOffsets, int neighborOffset ) {
-	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
+	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	const int cellPairIndex = blockIdx.y * gridDim.x + blockIdx.x;
 	if( cellPairIndex >= numCellPairs ) {
@@ -117,11 +119,11 @@ __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimensio
 
 #ifndef REFERENCE_IMPLEMENTATION
 #	ifndef CUDA_HW_CACHE_ONLY
-	__shared__ MoleculeStorage::MoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
+	__shared__ SharedMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
 #	else
-	MoleculeStorage::NoMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
+	WriteThroughMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage( moleculeStorage );
 #	endif
-	FastCellProcessor<BLOCK_SIZE, LOCAL_STORAGE_BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
+	HighDensityCellProcessor<BLOCK_SIZE, LOCAL_STORAGE_BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
 #else
 	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 #endif
@@ -131,9 +133,9 @@ __global__ void processCellPair( int numCellPairs, int startIndex, int2 dimensio
 	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, neighborIndex );
 }
 
-__launch_bounds__(BLOCK_SIZE, 2)
+//__launch_bounds__(BLOCK_SIZE, 2)
 __global__ void processCell(int numCells) {
-	const int threadIndex = threadIdx.y * warpSize + threadIdx.x;
+	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	int cellIndex = blockIdx.y * gridDim.x + blockIdx.x;
 	if( cellIndex >= numCells ) {
@@ -151,11 +153,11 @@ __global__ void processCell(int numCells) {
 
 #ifndef REFERENCE_IMPLEMENTATION
 #	ifndef CUDA_HW_CACHE_ONLY
-	__shared__ MoleculeStorage::MoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+	__shared__ SharedMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
 #	else
-	MoleculeStorage::NoMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
+	WriteThroughMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage( moleculeStorage );
 #	endif
-	FastCellProcessor<BLOCK_SIZE, BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
+	HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
 #else
 	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
 #endif

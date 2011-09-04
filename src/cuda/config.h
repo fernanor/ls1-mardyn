@@ -61,7 +61,7 @@
 #	define CONFIG_NAME "special_cuda_config"
 #endif
 
-#define CUDA_HW_CACHE_ONLY
+//#define CUDA_HW_CACHE_ONLY
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
@@ -70,17 +70,16 @@
 
 //#define DEBUG_COMPONENT_DESCRIPTORS
 
-// TODO: either use warpSize or WARP_SIZE!
 //#define MAX_NUM_WARPS 6
 
-#define MAX_NUM_COMPONENTS 2
+//#define MAX_NUM_COMPONENTS 2
 
-#define MAX_NUM_LJCENTERS 3
-#define MAX_NUM_DIPOLES 3
-#define MAX_NUM_CHARGES 0
+//#define MAX_NUM_LJCENTERS 3
+//#define MAX_NUM_DIPOLES 3
+//#define MAX_NUM_CHARGES 0
 
 #ifndef REFERENCE_IMPLEMENTATION
-#	define WARP_SIZE 32
+#	define WARP_SIZE 32u
 #	define NUM_WARPS MAX_NUM_WARPS
 #else
 #	define WARP_SIZE 1
