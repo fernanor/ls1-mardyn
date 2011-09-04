@@ -71,13 +71,12 @@ else
   BINARY = $(BINARYbasename).$(PARTYPE)_$(TARGET)
 endif
 
-SHARED_OPTIONS=-DCONFIG_$(CUDA_CONFIG) -DMAX_NUM_WARPS=$(NUM_WARPS) -DNUM_LOCAL_STORAGE_WARPS=$(NUM_LOCAL_STORAGE_WARPS) -DMAX_REGISTER_COUNT=$(MAX_REGISTER_COUNT)
 CXX = $(CXX_$(PARTYPE))
-CXXFLAGS = $(CXXFLAGS_$(PARTYPE)_$(TARGET)) -DMPICH_IGNORE_CXX_SEEK $(SHARED_OPTIONS)
+CXXFLAGS = $(CXXFLAGS_$(PARTYPE)_$(TARGET)) -DMPICH_IGNORE_CXX_SEEK 
 LINKFLAGS = $(LINKFLAGS_$(PARTYPE)_$(TARGET)) $(CPPUNIT_LINK_ARGS) -lrt -lcuda
 
 ifeq ($(DEPS),1)
-  DEPCOMP = depmode=$(DEPMODE) source=$< object=$@ $(MAKEFILEDIR)depcomp
+  DEPCOMP = depmode=$(DEPMODE) source=$< object=$@ $(MAKEFILEDIR)depcomp 
 else
   DEPCOMP =
 endif
@@ -85,33 +84,46 @@ endif
 VTK_MAKEFILE := $(realpath $(MAKEFILEDIR)vtkwriter.mk ) 
 include $(VTK_MAKEFILE)
 
-$(BINARY): .deps $(OBJECTS) cppunit
+$(BINARY): make_config .deps $(OBJECTS) cppunit
 	@echo "building $(BINARY)"
 	$(CXX) $(LINKFLAGS) -o $@ $(OBJECTS)
 	$(shell if [ ! -f $(BINARYbasename) -o -L $(BINARYbasename) ]; then ln -sf $(BINARY) $(BINARYbasename); fi)
 
 %.o: %.cpp
 	$(DEPCOMP) $(CXX) $(CXXFLAGS) -c $< -o $@
-
+	
+make_config:
+	@echo "#define CONFIG_$(CUDA_CONFIG)" > current_make_config.h
+	@echo "#define MAX_NUM_WARPS $(NUM_WARPS)" >> current_make_config.h
+	@echo "#define NUM_LOCAL_STORAGE_WARPS $(NUM_LOCAL_STORAGE_WARPS)" >> current_make_config.h
+	@echo "#define MAX_REGISTER_COUNT $(MAX_REGISTER_COUNT)" >> current_make_config.h
+	@echo "created temporary current_make_config.h:"
+	@cat current_make_config.h
+	
+	@if ! diff --brief --new-file current_make_config.h cuda/make_config.h; then \
+		echo "updating cuda/make_config.h"; \
+		cp current_make_config.h cuda/make_config.h; \
+	else \
+		echo "no changes in cuda/make_config.h"; \
+	fi
+	@rm current_make_config.h
+	
 define CU_BUILDER
-$(shell $(NVCC) --generate-dependencies $(2) --output-directory ./cuda | sed -e 's/.o/.ptx/g' > $(2:.cu=.deps))
+$(shell $(NVCC) --generate-dependencies $(2) --output-directory ./cuda | sed -e 's/\.o/\.ptx/g' > $(2:.cu=.deps))
 endef
 
 $(call CU_BUILDER,./cuda/kernel.ptx,./cuda/kernel.cu)
-#include ./cuda/kernel.deps
+include ./cuda/kernel.deps
 
-cuda/kernel.ptx: $(SOURCES_CUDA_MODULES) cuda/config.h cuda/sharedDecls.h
+cuda/kernel.ptx: cuda/kernel.cu
 
 %.ptx: %.cu 
-	$(NVCC) -arch=sm_21 --ptx -Xptxas -v -Xcompiler $(SHARED_OPTIONS) $< --output-directory $(<D)
+	$(NVCC) -arch=sm_21 --ptx -Xptxas -v $< --output-directory $(<D)
 	$(PTXAS) -arch=sm_21 -maxrregcount $(MAX_REGISTER_COUNT) -v $@
 %.o: %.ptx
 	ld -r -b binary -o $@ $<
 
-#$(foreach cufile,$(SOURCES_CUDA),$(eval $(call CU_BUILDER,$(cufile:.cu=.ptx),$(cufile))))
- 
- 
-.PHONY: help all clean cleanall depend cfg_list test
+.PHONY: help all clean cleanall depend cfg_list test make_config
 
 help:
 	@echo "configuration: $(CFG_INFO)"
@@ -165,4 +177,4 @@ endif
 #include makefile for cppunit tests
 CPPUNIT_MAKEFILE := $(realpath $(MAKEFILEDIR)cppunit.mk )
 include $(CPPUNIT_MAKEFILE)
-
+	

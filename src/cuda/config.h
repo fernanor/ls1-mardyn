@@ -13,7 +13,10 @@
 #define MAX_BLOCK_SIZE 1024
 #define QUATERNION_BLOCK_SIZE MAX_BLOCK_SIZE
 
-#define BENCHMARKING
+// created by the makefile to avoid having to call make clean all the time
+#include "make_config.h"
+
+//#define BENCHMARKING
 
 //#define CONFIG_CUDA_DOUBLE_SORTED
 
@@ -28,13 +31,11 @@
 
 #ifdef CONFIG_CUDA_DOUBLE_UNSORTED
 #	define CONFIG_NAME "cuda_double_unsorted"
-
 #	define CUDA_DOUBLE_MODE
 #endif
 
 #ifdef CONFIG_CUDA_DOUBLE_SORTED
 #	define CONFIG_NAME "cuda_double_sorted"
-
 #	define CUDA_DOUBLE_MODE
 #	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 #endif
@@ -56,9 +57,12 @@
 #	define CUDA_HW_CACHE_ONLY
 #endif
 
+
+#define CUDA_HW_CACHE_ONLY
+
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-//#define COMPARE_TO_CPU
+#define COMPARE_TO_CPU
 //#define USE_BEHAVIOR_PROBE
 
 //#define DEBUG_COMPONENT_DESCRIPTORS
@@ -69,7 +73,7 @@
 #define MAX_NUM_COMPONENTS 2
 
 #define MAX_NUM_LJCENTERS 3
-#define MAX_NUM_DIPOLES 1
+#define MAX_NUM_DIPOLES 3
 #define MAX_NUM_CHARGES 0
 
 #ifndef REFERENCE_IMPLEMENTATION
@@ -85,12 +89,13 @@
 #endif
 
 #ifndef NUM_LOCAL_STORAGE_WARPS
-#	define NUM_LOCAL_STORAGE_WARPS NUM_WARPS
 # 	warning set NUM_LOCAL_STORAGE_WARPS = NUM_WARPS
+#	define NUM_LOCAL_STORAGE_WARPS NUM_WARPS
 #endif
 
 #if NUM_LOCAL_STORAGE_WARPS > NUM_WARPS
-#	error NUM_LOCAL_STORAGE_WARPS > NUM_WARPS
+#	warning NUM_LOCAL_STORAGE_WARPS > NUM_WARPS => set NUM_LOCAL_STORAGE_WARPS = NUM_WARPS
+#	define NUM_LOCAL_STORAGE_WARPS NUM_WARPS
 #endif
 
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
@@ -111,6 +116,8 @@
 #ifdef NO_CONSTANT_MEMORY
 #	define __constant__
 #endif
+
+//#define __restrict__
 
 // TODO: move this include into the referencing header files
 #include "sharedDecls.h"
