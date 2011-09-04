@@ -5,7 +5,7 @@
 #include "sharedDecls.h"
 
 struct Matrix3x3 : Matrix3x3Storage {
-	__device__ inline floatType3 operator *(const floatType3 &vector) const {
+	__device__ inline floatType3 operator *(const floatType3 & __restrict__ vector) const {
 		return make_floatType3( dot( rows[0], vector ), dot( rows[1], vector ), dot( rows[2], vector ) );
 	}
 };
@@ -45,12 +45,14 @@ struct Quaternion : QuaternionStorage {
 };
 
 // = ceil( a / b )
-__device__ inline int iceil(int a, int b) {
-	return (a+b-1) / b;
+template< typename IntType >
+__device__ inline IntType iceil(IntType a, IntType b) {
+	return (a + b - 1) / b;
 }
 
 // = b if a % b = 0, a % b otherwise
-__device__ inline int shiftedMod( int a, int b ) {
+template< typename IntType >
+__device__ inline IntType shiftedMod( IntType a, IntType b ) {
 	int r = a % b;
 	return (r > 0) ? r : b;
 }
