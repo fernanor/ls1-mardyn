@@ -12,7 +12,7 @@ struct MoleculePairHandler {
 
 	__device__ MoleculePairHandler( GlobalStatsCollector & __restrict__ globalStatsCollector, ComponentDescriptorAccessor & __restrict__ componentDescriptorAccessor ) : globalStatsCollector( globalStatsCollector ), componentDescriptorAccessor( componentDescriptorAccessor ) {}
 
-	__device__ __forceinline__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
+	__device__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
 		const floatType3 distanceAtoB = moleculeB.position - moleculeA.position;
 		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
 
@@ -35,7 +35,7 @@ struct MoleculePairHandler {
 		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, distanceBtoA );
 	}
 
-	__device__ __forceinline__ void processLJCenters( int threadIndex,
+	__device__ void processLJCenters( int threadIndex,
 			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
@@ -86,7 +86,7 @@ struct MoleculePairHandler {
 #endif
 	}
 
-	__device__ __forceinline__ void processCharges( int threadIndex,
+	__device__ void processCharges( int threadIndex,
 			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
@@ -131,7 +131,7 @@ struct MoleculePairHandler {
 #endif
 	}
 
-	__device__ __forceinline__ void processDipoles( int threadIndex,
+	__device__ void processDipoles( int threadIndex,
 				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 				const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
@@ -184,7 +184,7 @@ struct MoleculePairHandler {
 #endif
 	}
 
-	__device__ __forceinline__ void processDipolesCharges( int threadIndex,
+	__device__ void processDipolesCharges( int threadIndex,
 				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 				const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
