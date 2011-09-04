@@ -28,6 +28,9 @@ void MoleculeStorage::uploadState() {
 	int numCells = _linkedCells.getCells().size();
 
 	int numMolecules = 0;
+
+	int maxNumMoleculesPerCell = 0;
+
 	for( int i = 0 ; i < numCells ; i++ ) {
 		const Cell &cell = _linkedCells.getCells()[i];
 
@@ -95,7 +98,11 @@ void MoleculeStorage::uploadState() {
 #ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
 #endif
+
+		maxNumMoleculesPerCell = std::max( maxNumMoleculesPerCell, numMolecules - startIndices.back() );
 	}
+
+	printf( "average molecules per cell: %f (= %i / %i); max molecules per cell: %i\n", (float) numMolecules / numCells, numMolecules, numCells, maxNumMoleculesPerCell );
 
 	startIndices.push_back( numMolecules );
 

@@ -57,6 +57,9 @@
 #	define CUDA_HW_CACHE_ONLY
 #endif
 
+#ifndef CONFIG_NAME
+#	define CONFIG_NAME "special_cuda_config"
+#endif
 
 #define CUDA_HW_CACHE_ONLY
 

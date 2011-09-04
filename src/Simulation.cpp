@@ -144,9 +144,9 @@ Simulation::Simulation(optparse::Values& options, vector<string>& args)
 
 #ifndef NO_CUDA
 #	ifdef CUDA_HW_CACHE_ONLY
-	CUDA::create(0, true);
+	CUDA::create(0, true, 1 << 20);
 #	else
-	CUDA::create(0, false);
+	CUDA::create(0, false, 1 << 20);
 #	endif
 #endif
 

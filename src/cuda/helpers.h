@@ -336,7 +336,7 @@ protected:
 	CUdevice device;
 	CUcontext context;
 
-	CUDA(int deviceIndex, bool preferL1Cache) {
+	CUDA(int deviceIndex, bool preferL1Cache, size_t printfBufferSize) {
 		CUDA_THROW_ON_ERROR( cuInit( 0 ) );
 
 		CUDA_THROW_ON_ERROR( cuDeviceGet( &device, deviceIndex ) );
@@ -346,6 +346,12 @@ protected:
 		CUDA_THROW_ON_ERROR( cuCtxCreate( &context, 0, device ) );
 
 		CUDA_THROW_ON_ERROR( cuCtxSetCacheConfig( preferL1Cache ? CU_FUNC_CACHE_PREFER_L1 : CU_FUNC_CACHE_PREFER_SHARED ) );
+
+		CUDA_THROW_ON_ERROR( cuCtxSetLimit( CU_LIMIT_PRINTF_FIFO_SIZE, printfBufferSize ) );
+
+		size_t actualLimit;
+		CUDA_THROW_ON_ERROR( cuCtxGetLimit( &actualLimit, CU_LIMIT_PRINTF_FIFO_SIZE ) );
+		printf( "actual CUDA printf buffer size: %i KB (wanted: %i KB)\n", actualLimit >> 10, printfBufferSize >> 10 );
 	}
 
 	~CUDA() {
@@ -375,9 +381,9 @@ public:
 		return *singleton;
 	}
 
-	static void create(int deviceIndex, bool preferL1Cache) {
+	static void create(int deviceIndex, bool preferL1Cache, size_t printfBufferSize) {
 		assert( !singleton );
-		singleton = new CUDA(deviceIndex, preferL1Cache);
+		singleton = new CUDA(deviceIndex, preferL1Cache, printfBufferSize);
 	}
 
 	static void destruct() {

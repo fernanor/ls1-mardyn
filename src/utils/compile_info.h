@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <time.h>
 
+#include "cuda/config.h"
+
 #define MAX_INFO_STRING_LENGTH 1024
 
 
@@ -121,6 +123,44 @@ std::string getCompileFlags() {
 #ifdef UNIT_TESTS
 	flags << " UNIT_TESTS ";
 #endif
+
+	flags << " " << CONFIG_NAME << " {";
+#ifdef CUDA_HW_CACHE_ONLY
+	flags << " CUDA_HW_CACHE_ONLY ";
+#endif
+#ifdef NO_CONSTANT_MEMORY
+	flags << " NO_CONSTANT_MEMORY ";
+#endif
+#ifdef CUDA_DOUBLE_MODE
+	flags << " CUDA_DOUBLE_MODE ";
+#endif
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+	flags << " CUDA_SORT_CELLS_BY_COMPONENTTYPE ";
+#endif
+#ifdef REFERENCE_IMPLEMENTATION
+	flags << " REFERENCE_IMPLEMENTATION ";
+#endif
+#ifdef TEST_QUATERNION_MATRIX_CONVERSION
+	flags << " TEST_QUATERNION_MATRIX_CONVERSION ";
+#endif
+#ifdef COMPARE_TO_CPU
+	flags << " COMPARE_TO_CPU ";
+#endif
+#ifdef USE_BEHAVIOR_PROBE
+	flags << " USE_BEHAVIOR_PROBE ";
+#endif
+#ifdef DEBUG_COMPONENT_DESCRIPTORS
+	flags << " DEBUG_COMPONENT_DESCRIPTORS ";
+#endif
+	flags << "} ";
+	flags <<
+			" NUM_WARPS=" << NUM_WARPS <<
+			" NUM_LOCAL_STORAGE_WARPS=" << NUM_LOCAL_STORAGE_WARPS <<
+			" MAX_REGISTER_COUNT=" << MAX_REGISTER_COUNT <<
+			" MAX_NUM_COMPONENTS=" << MAX_NUM_COMPONENTS <<
+			" MAX_NUM_LJCENTERS=" << MAX_NUM_LJCENTERS <<
+			" MAX_NUM_DIPOLES=" << MAX_NUM_DIPOLES <<
+			" MAX_NUM_CHARGES=" << MAX_NUM_CHARGES;
 
 	return flags.str();
 }
