@@ -15,7 +15,7 @@
 #include "globalStats.h"
 #include "moleculeStorage.h"
 #include "moleculePairHandler.h"
-#include "pairTraverser.h"
+#include "domainTraverser.h"
 #include "config.h"
 
 class MoleculeInteraction : public CUDAComponent {

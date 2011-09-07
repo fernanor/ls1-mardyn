@@ -26,7 +26,7 @@ __device__ int getSM() {
 
 #include "componentDescriptor.cum"
 
-#include "pairTraverser.cum"
+#include "domainTraverser.cum"
 
 #include "cellProcessor.cum"
 
