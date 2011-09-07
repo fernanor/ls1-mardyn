@@ -217,18 +217,16 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 				const floatType3 &cudaTorque = torque[currentIndex];
 				currentIndex++;
 
-				if( !cell.isBoundaryCell() && !cell.isInnerCell() ) {
-					continue;
+				if( !cell.isHaloCell() ) {
+					// we are going to compare F and M, so combine the sites
+					molecule.calcFM();
+
+					const floatType3 cpuForce = make_floatType3( molecule.F(0), molecule.F(1), molecule.F(2) );
+					const floatType3 cpuTorque = make_floatType3( molecule.M(0), molecule.M(1), molecule.M(2) );
+
+					forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
+					torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
 				}
-
-				// we are going to compare F and M, so combine the sites
-				molecule.calcFM();
-
-				const floatType3 cpuForce = make_floatType3( molecule.F(0), molecule.F(1), molecule.F(2) );
-				const floatType3 cpuTorque = make_floatType3( molecule.M(0), molecule.M(1), molecule.M(2) );
-
-				forceErrorMeasure.registerErrorFor( cpuForce, cudaForce );
-				torqueErrorMeasure.registerErrorFor( cpuTorque, cudaTorque );
 
 				// clear the molecule after comparing the values to make sure that only the GPU values are applied
 				molecule.clearFM();

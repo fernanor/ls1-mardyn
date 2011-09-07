@@ -13,10 +13,10 @@ struct CellStats : CellStatsStorage {
 };
 
 // should be: __device__ CellStats cellStats[CellCount]
-__constant__ __device__ CellStats *cellStats;
+__constant__ __device__ CellStats * cellStats;
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-__constant__ Lock::UnorderedWarp *cellStatsLocks;
+__constant__ Lock::Mutex *cellStatsLocks;
 #endif
 
 // TODO: rename BlockStatsCollector
@@ -67,6 +67,7 @@ struct CellStatsCollector {
 #endif
 	}
 
+	// TODO: rename Save to Store
 	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
 		reduceWarps( threadIndex );
 
@@ -87,9 +88,7 @@ struct CellStatsCollector {
 	}
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-	__device__ void reduceAndStoreWarp(int cellIndex) {
-		const int threadIndex = threadIdx.x + threadIdx.y * WARP_SIZE;
-
+	__device__ __noinline__ void reduceAndStoreWarp(int threadIndex, int cellIndex) {
 		// no synchronization required since every warp is automatically synchronized
 		reduceWarps( threadIndex );
 
@@ -98,7 +97,15 @@ struct CellStatsCollector {
 			floatType virial = threadVirial[ threadIndex ];
 
 			cellStatsLocks[cellIndex].lock();
+			WARP_PRINTF( "%i cell lock entered\n", cellIndex );
+
+			WARP_PRINTF( "%i: old %f; %f\n", cellIndex, cellStats[cellIndex].potential, potential );
 			cellStats[cellIndex].add( potential, virial );
+
+			__threadfence();
+			WARP_PRINTF( "%i: new %f\n", cellIndex, cellStats[cellIndex].potential );
+			__threadfence();
+			WARP_PRINTF( "%i cell lock left\n", cellIndex );
 			cellStatsLocks[cellIndex].unlock();
 		}
 	}

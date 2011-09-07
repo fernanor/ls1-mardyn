@@ -9,6 +9,7 @@
 #include "moleculeStorage.cum"
 #include "locks.cum"
 
+// TODO: rename to WBCP
 namespace WarpBlockMode {
 
 template< uint warpBlockCount, typename WarpJobDescriptor >
@@ -16,12 +17,13 @@ struct WarpInfos { // TODO: rename ThreadBlockInfo
 	WarpJobDescriptor warps[ warpBlockCount ];
 
 	// bitmask for
-	uint warpIdle; // TODO: rename to warpIdle ie no current job
-	uint warpAlive;
+	volatile uint warpIdle; // TODO: rename to warpIdle ie no current job
+	volatile uint warpAlive;
 
 	// global lock
 	uint globalTicket;
-	Lock::WaitForFirstWarp threadBlockLock;
+
+	WarpInfos() : warpIdle( 0 ), warpAlive( (1 << warpBlockCount) - 1 ), globalTicket( 0 ) {}
 };
 
 #define __syncwarp()
@@ -29,71 +31,132 @@ struct WarpInfos { // TODO: rename ThreadBlockInfo
 template<uint warpBlockCount, typename WarpJobDescriptor, template<uint> class SpecificScheduler>
 class GenericScheduler {
 private:
-	Lock::OneGroupAtATimeWarp globalLock;
+	Lock::Mutex globalMutex;
 
 public:
+#if 1
 	// returns false if the specific warp block should terminate
-	__device__ bool scheduleWarpBlocks( WarpInfos<warpBlockCount, WarpJobDescriptor> & __restrict__ warpInfos ) {
+		__device__ __noinline__ bool scheduleWarpBlocks( WarpInfos<warpBlockCount, WarpJobDescriptor> & __restrict__ warpInfos ) {
+			const uint warpBit = 1 << threadIdx.y;
+
+			// only thread 0 of the current warp runs here
+			if( threadIdx.x == 0 ) {
+				// signal that this warp is idle right now
+				atomicOr( (uint*) &warpInfos.warpIdle, warpBit );
+
+				WARP_PRINTF( "globalMutex entering\n" );
+
+				// wait until it's our turn for the lock
+				bool haveLock = globalMutex.lock( (uint*) &warpInfos.warpIdle, warpBit );
+
+				// if I dont have the lock the signal has been reset
+				if( haveLock ) {
+					WARP_PRINTF( "globalMutex lock\n" );
+
+					if( warpInfos.warpIdle ) {
+						// create a local copy of warpWaiting
+						const uint myWarpIdle = warpInfos.warpIdle;
+
+						// assign jobs
+						const uint myWarpStarved = assignJobs( warpInfos, myWarpIdle );
+
+						WARP_PRINTF( "jobs assigned\n" );
+
+						// update the alive bitmask
+						warpInfos.warpAlive ^= myWarpStarved;
+
+						// reset the assigned warpWaiting bits
+						// this is the semaphore signal for the other warps in the thread block
+						atomicXor( (uint*) &warpInfos.warpIdle, myWarpIdle );
+
+						__threadfence_block();
+					}
+					else {
+						WARP_PRINTF( "no idle flags\n" );
+					}
+
+					WARP_PRINTF( "globalMutex unlock\n" );
+
+					// release our global lock
+					globalMutex.unlock();
+
+					__threadfence_block();
+				}
+				else {
+					//WARP_PRINTF( "globalSemaphore signaled\n" );
+				}
+			}
+
+			// all threads in a warp are synchronized implicitly
+			 __syncwarp();
+			return (warpInfos.warpAlive & warpBit) != 0;
+		}
+#else
+	// safe implementation
+
+	// returns false if the specific warp block should terminate
+	__device__ __noinline__ bool scheduleWarpBlocks( WarpInfos<warpBlockCount, WarpJobDescriptor> & __restrict__ warpInfos ) {
 		const uint warpBit = 1 << threadIdx.y;
 
 		// only thread 0 of the current warp runs here
 		if( threadIdx.x == 0 ) {
-			uint myTicket = warpInfos.globalTicket;
-
-			// acquire a new lock if the old one has been released already
-			// or is currently being processed, so we need to wait for a new ticket
-			// to become active
-			myTicket = globalLock.getUnusedTicket( myTicket );
-
-			// signal that this warp is idle right now
-			atomicOr( &warpInfos.warpIdle, warpBit );
-
 			// wait until it's our turn for the lock
-			globalLock.waitForTicket( myTicket );
+			globalMutex.lock();
 
-			// acquire a threadblock lock
-			const bool schedulerThread = warpInfos.threadBlockLock.lock();
+			//WARP_PRINTF( "globalMutex enter\n" );
 
-			// we are the first thread of the warp to get past the lock
-			if( schedulerThread ) {
-				// assert: (warpInfos.warpIdle & warpBit) != 0
-				// create a local copy of warpWaiting
-				const uint myWarpIdle = warpInfos.warpIdle;
+			// assign jobs
+			const uint myWarpStarved = assignJobs( warpInfos, warpBit );
 
-				// assign jobs
-				const uint myWarpDead = reinterpret_cast<SpecificScheduler<warpBlockCount> *>(this)->assignJobs( warpInfos, myWarpIdle );
+			// update the alive bitmask
+			warpInfos.warpAlive ^= myWarpStarved;
 
-				// update the alive bitmask
-				warpInfos.warpAlive ^= myWarpDead;
-
-				// reset the assigned warpWaiting bits
-				atomicXor( &warpInfos.warpIdle, myWarpIdle );
-
-				__threadfence_block();
-			}
-			// else
-			// a job has already been assigned to us by a different warp of the thread block
-
-			// release the threadblock lock
-			warpInfos.threadBlockLock.notifyAll();
+			//WARP_PRINTF( "globalMutex leave\n" );
+			__threadfence();
 
 			// release our global lock
 			// no sync needed since we are the only ones to access it
-			globalLock.processNext();
+			globalMutex.unlock();
 		}
 
-		// all threads in a warp a synchronized implicitly
+		// all threads in a warp are synchronized implicitly
 		 __syncwarp();
 		return (warpInfos.warpAlive & warpBit) != 0;
+	}
+#endif
+
+
+	__device__ uint assignJobs( WarpInfos<warpBlockCount, WarpJobDescriptor> & __restrict__ warpInfos, uint myWarpIdle ) {
+		// how many warps do we have to assign jobs to?
+		const int idleWarpCount = __popc( myWarpIdle );
+
+		//WARP_PRINTF( "assigning jobs for %i warps\n", idleWarpCount );
+
+		int warpCount;
+		for( warpCount = 0 ; warpCount < idleWarpCount ; warpCount++ ) {
+			if( !reinterpret_cast<SpecificScheduler<warpBlockCount> *>(this)->nextWarpBlock() ) {
+				break;
+			}
+
+			int warpIndex = __ffs( myWarpIdle ) - 1;
+			warpInfos.warps[warpIndex] = reinterpret_cast<SpecificScheduler<warpBlockCount> *>(this)->getWarpBlock();
+			//WARP_PRINTF("assignJobs: %i, %i\n", warpInfos.warps[warpIndex].warpBlockA.cellIndex, warpInfos.warps[warpIndex].warpBlockA.warpBlockIndex );
+			// remove the updated warp bit from warpIndex
+			myWarpIdle ^= 1 << warpIndex;
+		}
+
+		// no more warps => all remaining idle warps need to die
+		return myWarpIdle;
 	}
 };
 
 struct WarpBlockInfo {
 	CellInfo cell;
+	uint cellIndex;
 	uint warpBlockIndex;
 
 	__device__ WarpBlockInfo() {}
-	__device__ WarpBlockInfo( const CellInfo cell, uint warpBlockIndex ) : cell( cell ), warpBlockIndex( warpBlockIndex ) {}
+	__device__ WarpBlockInfo( const CellInfo cell, uint cellIndex, uint warpBlockIndex ) : cell( cell ), cellIndex( cellIndex ), warpBlockIndex( warpBlockIndex ) {}
 };
 
 struct WarpBlockPairInfo {
@@ -107,113 +170,88 @@ struct WarpBlockPairInfo {
 template<uint warpBlockCount>
 class CellScheduler : public GenericScheduler<warpBlockCount, WarpBlockPairInfo, CellScheduler> {
 private:
-	int cellIndex;
+	int jobIndex;
 
+	int cellIndex;
 	CellInfoEx cell;
 	uint numWarpBlocks;
 	uint warpBlockIndex;
 
-private:
-	__device__ uint assignJobs( WarpInfos<warpBlockCount, WarpBlockPairInfo> & __restrict__ warpInfos, uint myWarpIdle ) {
-		// how many warps do we have to assign jobs to?
-		const int idleWarpCount = __popc( myWarpIdle );
-
-		int warpCount;
-		for( warpCount = 0 ; warpCount < idleWarpCount ; warpCount++ ) {
-			if( !nextWarpBlock() ) {
-				break;
-			}
-
-			int warpNumber = __ffs( myWarpIdle );
-			warpInfos.warps[warpNumber] = WarpBlockPairInfo( WarpBlockInfo( cell, warpBlockIndex ), cell );
-			// remove the updated warp bit from warpNumber
-			myWarpIdle ^= 1 << warpNumber;
-		}
-
-		// no more warps => all remaining idle warps need to die
-		return myWarpIdle;
+public:
+	__device__ WarpBlockPairInfo getWarpBlock() {
+		return WarpBlockPairInfo( WarpBlockInfo( cell, cellIndex, warpBlockIndex ), cell );
 	}
 
 	__device__ bool nextWarpBlock() {
-		if( warpBlockIndex < numWarpBlocks ) {
-			warpBlockIndex += 1;
+		if( ++warpBlockIndex < numWarpBlocks ) {
 			return true;
 		}
 
-		while( cell.length == 0 ) {
-			if( ++cellIndex >= numCells ) {
+		do {
+			if( ++jobIndex >= PairTraverser::numJobs ) {
 				return false;
 			}
 
+			cellIndex = PairTraverser::getInnerCellIndexFromJobIndex(jobIndex);
 			cell = CellInfoEx( cellInfoFromCellIndex( cellIndex ) );
 		}
+		while( cell.length == 0 );
+
 		numWarpBlocks = iceil( cell.length, WARP_SIZE );
 		warpBlockIndex = 0;
 
+		//WARP_PRINTF( "nextWarpBlock: %i\n", cellIndex );
 		return true;
 	}
 
 public:
-	__device__ CellScheduler() : cellIndex( -1 ), cell( CellInfo( 0, 0 ) ), numWarpBlocks( 0 ), warpBlockIndex( 0 ) {}
+	__device__ CellScheduler() : jobIndex( -1 ), cellIndex( 0 ), cell( CellInfo( 0, 0 ) ), numWarpBlocks( 0 ), warpBlockIndex( 0 ) {}
 };
 
 template<uint warpBlockCount>
-class CellPairScheduler : public GenericScheduler<warpBlockCount, WarpBlockPairInfo, CellScheduler> {
+class CellPairScheduler : public GenericScheduler<warpBlockCount, WarpBlockPairInfo, CellPairScheduler> {
 private:
-	int cellPairIndex;
+	int jobIndex;
 
+	int cellIndexA;
 	CellInfoEx cellA;
 	uint numWarpBlocksA;
 	uint warpBlockIndexA;
 
 	CellInfoEx cellB;
 
-private:
-	__device__ uint assignJobs( WarpInfos<warpBlockCount, WarpBlockPairInfo> & __restrict__ warpInfos, uint myWarpIdle ) {
-		// how many warps do we have to assign jobs to?
-		const int idleWarpCount = __popc( myWarpIdle );
-
-		int warpCount;
-		for( warpCount = 0 ; warpCount < idleWarpCount ; warpCount++ ) {
-			if( !nextWarpBlock() ) {
-				break;
-			}
-
-			int warpNumber = __ffs( myWarpIdle );
-			warpInfos.warps[warpNumber] = WarpBlockPairInfo( WarpBlockInfo( cellA, warpBlockIndexA ), cellB );
-			// remove the updated warp bit from warpNumber
-			myWarpIdle ^= 1 << warpNumber;
-		}
-
-		// no more warps => all remaining idle warps need to die
-		return myWarpIdle;
+public:
+	__device__ WarpBlockPairInfo getWarpBlock() {
+		return WarpBlockPairInfo( WarpBlockInfo( cellA, cellIndexA, warpBlockIndexA ), cellB );
 	}
 
 	__device__ bool nextWarpBlock() {
-		if( warpBlockIndexA < numWarpBlocksA) {
-			warpBlockIndexA += 1;
+		if( ++warpBlockIndexA < numWarpBlocksA) {
 			return true;
 		}
 
-		while( cellA.length == 0 || cellB.length == 0 ) {
-			cellPairIndex += 1;
+		do {
+			jobIndex++;
 
-			if( cellPairIndex >= 2 * numCellPairs ) {
+			if( jobIndex >= 2 * PairTraverser::numJobs ) {
 				return false;
 			}
 
-			const int originalCellIndex = PairTraverser::getCellIndex( cellPairIndex );
-			const int neighborCellIndex = PairTraverser::getCellIndex( cellPairIndex ) + PairTraverser::neighborOffset;
+			const int originalCellIndex = PairTraverser::getCellIndexFromJobIndex( jobIndex % PairTraverser::numJobs );
+			const int neighborCellIndex = PairTraverser::getNeighborCellIndex( originalCellIndex );
 
-			if( cellPairIndex < numCellPairs ) {
+			if( jobIndex < PairTraverser::numJobs ) {
+				cellIndexA = originalCellIndex;
 				cellA = CellInfoEx( cellInfoFromCellIndex( originalCellIndex) );
 				cellB = CellInfoEx( cellInfoFromCellIndex( neighborCellIndex ) );
 			}
 			else {
-				cellB = CellInfoEx( cellInfoFromCellIndex( neighborCellIndex ) );
-				cellA = CellInfoEx( cellInfoFromCellIndex( originalCellIndex ) );
+				cellIndexA = neighborCellIndex;
+				cellA = CellInfoEx( cellInfoFromCellIndex( neighborCellIndex ) );
+				cellB = CellInfoEx( cellInfoFromCellIndex( originalCellIndex ) );
 			}
 		}
+		while( cellA.length == 0 || cellB.length == 0 );
 
 		numWarpBlocksA = iceil( cellA.length, WARP_SIZE );
 		warpBlockIndexA = 0;
@@ -221,7 +259,9 @@ private:
 	}
 
 public:
-	__device__ CellPairScheduler() : cellPairIndex( -1 ), cellA( CellInfo( 0, 0 ) ), cellB( CellInfo( 0, 0 ) ), numWarpBlocksA( 0 ), warpBlockIndexA( 0 ) {}
+	__device__ CellPairScheduler()
+		: jobIndex( -1 ), cellA( CellInfo( 0, 0 ) ), cellB( CellInfo( 0, 0 ) ),
+		  cellIndexA( 0 ), numWarpBlocksA( 0 ), warpBlockIndexA( 0 ) {}
 };
 
 #if 0
@@ -264,7 +304,7 @@ public:
 };
 #endif
 
-template<uint warpBlockCount, class Molecule, class MoleculeStorage, class MoleculeLocalStorage, class MoleculePairHandler>
+template<uint warpBlockCount, class Molecule, class MoleculeStorage, class MoleculePairHandler>
 struct CellProcessor {
 	MoleculeStorage & __restrict__ moleculeStorage;
 	MoleculePairHandler & __restrict__ moleculePairHandler;
@@ -273,11 +313,13 @@ struct CellProcessor {
 		: moleculeStorage( moleculeStorage ), moleculePairHandler( moleculePairHandler ) {}
 
 	// unified for cells and cell pairs
-	__device__ void processCellPair( WarpInfos<warpBlockCount, WarpBlockPairInfo> & __restrict__ warpInfos ) {
-		WarpBlockInfo warpBlockA = warpInfos.warps[threadIdx.y].warpBlockA;
+	__device__ __noinline__ void processCellPair( WarpBlockPairInfo warpBlockPairInfo ) {
+		WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
+
+		WarpBlockInfo warpBlockA = warpBlockPairInfo.warpBlockA;
 
 		const uint indexA = warpBlockA.cell.startIndex + warpBlockA.warpBlockIndex * WARP_SIZE + threadIdx.x;
-		if( indexA < warpBlockA.cell.endIndex ) {
+		if( indexA >= warpBlockA.cell.endIndex ) {
 			return;
 		}
 
@@ -285,8 +327,13 @@ struct CellProcessor {
 		moleculeStorage.get( indexA, moleculeA );
 
 		// now loop over all molecules in this cell
-		CellInfo cellB = warpInfos.warps[threadIdx.y].cellB;
+		CellInfo cellB = warpBlockPairInfo.cellB;
+
 		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
+			if( indexA == indexB ) {
+				continue;
+			}
+
 			Molecule moleculeB;
 			// TODO: add getU that uses an ldu asm block to load it!
 			moleculeStorage.get( indexB, moleculeB );
@@ -297,6 +344,7 @@ struct CellProcessor {
 		moleculeStorage.set( indexA, moleculeA );
 	}
 };
+
 }
 
 #endif

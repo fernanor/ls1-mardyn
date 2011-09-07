@@ -1,6 +1,8 @@
 #ifndef LOCKS_CUM__
 #define LOCKS_CUM__
 
+#include <host_defines.h>
+
 #include "sharedDecls.h"
 
 namespace Lock {
@@ -13,10 +15,10 @@ namespace Lock {
 		// first to enter doesn't have to wait, all others do
 		// returns whether the thread was the first (true), or not
 		__device__ bool lock() {
-			uint index = atomicInc( (uint*) &lockValue, 0u );
+			uint index = atomicInc( (uint*) &lockValue, ~0u );
 
 			if( index > 0u ) {
-				// spin until the first lock is done
+				// spin until the first lock notifies all
 				while( lockValue > 0u )
 					;
 
@@ -30,19 +32,20 @@ namespace Lock {
 		}
 	};
 
-	class OrderedWarp {
+	// very slow!!
+	class OrderedSerializationBlock {
 		volatile uint lockValue;
 
 	public:
-		__device__ OrderedWarp() : lockValue( 0 ) {}
+		__device__ OrderedSerializationBlock() : lockValue( 0 ) {}
 
 		// first to enter doesn't have to wait, all others do
 		// returns whether the thread was the first (true), or not
-		__device__ bool lock() {
-			uint index = atomicInc( (uint*) &lockValue, 0 );
+		__device__ bool enter() {
+			uint index = atomicInc( (uint*) &lockValue, ~0u );
 
 			if( index > 0) {
-				// spin until the first lock is done
+				// spin until the earlier thread is done
 				while( lockValue > index )
 					;
 
@@ -51,96 +54,47 @@ namespace Lock {
 			return true;
 		}
 
-		// TODO: notify -> unlock
-		__device__ void notifyAll() {
+		// release all threads
+		__device__ void abort() {
 			lockValue = 0;
 		}
 
-		__device__ void notify() {
+		// now the next thread is allowed to run (if there is one)
+		__device__ void leave() {
 			atomicDec( (uint*) &lockValue, ~0u );
 		}
 	};
 
-#if 0
-	class UnorderedWarp {
+	class Mutex {
 		volatile uint lockValue;
 
 	public:
-		__device__ UnorderedWarp() : lockValue( 0 ) {}
+		__device__ Mutex() : lockValue( 0u ) {}
 
 		__device__ void lock() {
-			const uint index = atomInc( (uint*) &lockValue, 0 );
+			while( atomicCAS( (uint*) &lockValue, 0u, 1u ) == 1u )
+				;
+		}
 
-			if( index > 0 ) {
-				while( true ) {
-					if( lockValue == 0 ) {
-						const uint myInnerLock = atomInc( (uint*) &lockValue, 0 );
-
-						if( index == 0 )
-							break;
-					}
+		// locks but supports being interrupted when signal & bitMask becomes 0
+		// returns true if unlocked must be called
+		// returns false if unlocked mustn't be called
+		// assumption:
+		// the signal can only be reset by a warp/thread that is inside the same semaphore,
+		// only the caller can set it
+		__device__ bool lock(volatile uint *signal, uint bitMask) {
+			while( atomicCAS( (uint*) &lockValue, 0u, 1u ) == 1u ) {
+				if( (*signal & bitMask) == 0 ) {
+					WARP_PRINTF( "signal: 0x%x!\n", *signal );
+					return false;
 				}
 			}
-		}
 
-		__device__ void unlock() {
-			lockValue = 0;
-		}
-	};
-#else
-	class UnorderedWarp {
-		volatile uint lockValue;
-
-	public:
-		__device__ UnorderedWarp() : lockValue( 0u ) {}
-
-		__device__ void lock() {
-			while( atomicExch( (uint*) &lockValue, 1u ) != 0u )
-				;
+			return true;
 		}
 
 		__device__ void unlock() {
 			lockValue = 0u;
-		}
-	};
-	#endif
-
-	// a group of threads shares a ticket
-	// all are unlocked, once the ticket becomes active
-	class OneGroupAtATimeWarp {
-		uint topTicket;
-		uint activeTicket;
-
-	public:
-		__device__ OneGroupAtATimeWarp() : topTicket( 1 ), activeTicket( 1 ) {}
-
-		// returns sharedTicket if it hasn't been returned yet or is currently active
-		// otherwise returns a new ticket
-		// to always get a new ticket use 0 as oldTicket
-		__device__ uint getUnusedTicket(uint oldTicket) {
-			if( oldTicket <= activeTicket ) {
-				return atomicInc( &topTicket, 0 );
-			}
-			return oldTicket;
-		}
-
-		__device__ void waitForTicket(uint ticket) {
-			// the > makes sure, that all threads in the group get unlocked
-			while( ticket > activeTicket )
-				;
-		}
-
-		// return the ticket, every thread of the group can call this on its own without breaking anything
-		// assert: caller is/was active
-		__device__ void returnOldTicket(uint ticket) {
-			atomicMax( &activeTicket, ticket + 1 );
-		}
-
-		// assert: caller's ticket == currentTicker!
-		// ticket becomes inactive afterwards (for the other threads of the group, too, so call this only once!)
-		__device__ void processNext() {
-			// no sync needed since we are the only ones to access it
-			activeTicket++;
 		}
 	};
 }

@@ -13,8 +13,13 @@
 
 class GlobalStats : public CUDAInteractionCalculationComponent {
 public:
-	GlobalStats( const CUDAComponent &component ) :
-		CUDAInteractionCalculationComponent(component), _cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") ), _potential( 0.0f ), _virial( 0.0f ) {
+	GlobalStats( const CUDAComponent &component )
+		: CUDAInteractionCalculationComponent(component),
+		  _cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") ),
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+		  _cellStatsLocks( _module.getGlobal<LockStorage *>("cellStatsLocks") ),
+#endif
+		  _potential( 0.0f ), _virial( 0.0f ) {
 	}
 
 	virtual void preInteractionCalculation();
@@ -33,8 +38,12 @@ protected:
 	floatType _virial;
 
 	CUDA::Global<CellStatsStorage *> _cellStats;
-
 	CUDA::DeviceBuffer<CellStatsStorage> _cellStatsBuffer;
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+	CUDA::Global<LockStorage *> _cellStatsLocks;
+	CUDA::DeviceBuffer<LockStorage> _cellStatsLocksBuffer;
+#endif
 };
 
 

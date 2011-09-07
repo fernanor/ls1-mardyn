@@ -19,42 +19,6 @@
 #include "config.h"
 
 class MoleculeInteraction : public CUDAComponent {
-	struct CellPairTraverserTemplate {
-		struct TaskInfo {
-			int numPairs;
-			int startIndex;
-			int2 localDimensions;
-			int3 gridOffsets;
-			int neighborOffset;
-		};
-
-		MoleculeInteraction &_parent;
-
-		CellPairTraverserTemplate(MoleculeInteraction &parent) : _parent( parent ) {
-		}
-
-		void processTask(const CellPairTraverserTemplate::TaskInfo &taskInfo) const {
-			_parent._startIndex.set( taskInfo.startIndex );
-			_parent._dimension.set( taskInfo.localDimensions );
-			_parent._gridOffsets.set( taskInfo.gridOffsets );
-			_parent._neighborOffset.set( taskInfo.neighborOffset );
-
-			_parent._numCellPairs.set( taskInfo.numPairs );
-
-			_parent._cellPairProcessor.call().
-					setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
-					executeAtLeast( taskInfo.numPairs );
-		}
-
-		int getDirectionOffset( const int3 &direction ) const {
-			return _parent.getDirectionOffset( direction );
-		}
-
-		int getCellOffset( const int3 &cell ) const {
-			return _parent.getCellOffset( cell );
-		}
-	};
-
 public:
 	MoleculeInteraction( const CUDA::Module &module, LinkedCells &linkedCells, Domain &domain ) :
 		CUDAComponent(module, linkedCells, domain),
@@ -65,16 +29,16 @@ public:
 		_componentDescriptorStorage( *this ),
 		_moleculePairHandler( *this ),
 
+		_domainTraverser( *this ),
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+		_createSchedulers( module.getFunction("createSchedulers") ),
+		_destroySchedulers( module.getFunction("destroySchedulers") ),
+#endif
+
 		_cellPairProcessor( module.getFunction("processCellPair") ),
-		_cellProcessor( module.getFunction("processCell") ),
+		_cellProcessor( module.getFunction("processCell") )
 
-		_startIndex( module.getGlobal<int>("_ZN13PairTraverser10startIndexE") ),
-		_dimension( module.getGlobal<int2>("_ZN13PairTraverser9dimensionE") ),
-		_gridOffsets( module.getGlobal<int3>("_ZN13PairTraverser11gridOffsetsE") ),
-		_neighborOffset( module.getGlobal<int>("_ZN13PairTraverser14neighborOffsetE") ),
-
-		_numCells( module.getGlobal<int>("numCells") ),
-		_numCellPairs( module.getGlobal<int>("numCellPairs") )
 	{
 		// upload data from CUDAStaticDataComponents
 		_moleculePairHandler.upload();
@@ -91,22 +55,52 @@ public:
 		CUDAPreTimer.end();
 
 		CUDATotalProcessingTimer.begin();
-		const int *raw_dimensions = _linkedCells.getCellDimensions();
-		assert( raw_dimensions[0] >= 2 && raw_dimensions[1] >= 2 && raw_dimensions[2] >=2 );
-
 		CUDAPairProcessingTimer.begin();
-		const int3 dimensions = make_int3( raw_dimensions[0], raw_dimensions[1], raw_dimensions[2] );
-		const CellPairTraverserTemplate cellInterface(*this);
-		traverseCellPairs( dimensions, cellInterface );
+		for( int stageIndex = 0 ; stageIndex < _domainTraverser.getInterCellStageCount() ; stageIndex++ ) {
+			_domainTraverser.preInterCellStage( stageIndex );
+
+			for( int subStageIndex = 0 ; subStageIndex < _domainTraverser.getInterCellSubStageCount( stageIndex ) ; subStageIndex++ ) {
+				_domainTraverser.preInterCellSubStage( stageIndex, subStageIndex );
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+				_createSchedulers.call().execute();
+#endif
+				_cellPairProcessor.call().
+					setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
+#ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
+					executeAtLeast( _domainTraverser.getInterCellJobCount(stageIndex, subStageIndex) );
+#else
+					execute( 3 * 16 );
+#endif
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+				_destroySchedulers.call().execute();
+#endif
+			}
+		}
 		CUDAPairProcessingTimer.end();
 
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+		_createSchedulers.call().execute();
+#endif
+
 		CUDASingleProcessingTimer.begin();
-		int numCells = _linkedCells.getCells().size();
-		_numCells.set( numCells );
+
+		_domainTraverser.preIntraCellStage();
 		_cellProcessor.call().
 				setBlockShape( WARP_SIZE, NUM_WARPS, 1 ).
-				executeAtLeast( numCells );
+#ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
+				executeAtLeast( _domainTraverser.getIntraCellJobCount() );
+#else
+				execute( 3 * 16 );
+#endif
+
 		CUDASingleProcessingTimer.end();
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+		_destroySchedulers.call().execute();
+#endif
+
 		CUDATotalProcessingTimer.end();
 
 		// post-force calculation handling from CUDAForceCalculationComponents
@@ -130,28 +124,17 @@ public:
 
 protected:
 	CUDA::Function _cellPairProcessor, _cellProcessor;
-
-	CUDA::Global<int> _startIndex;
-	CUDA::Global<int2> _dimension;
-	CUDA::Global<int3> _gridOffsets;
-	CUDA::Global<int> _neighborOffset;
-	CUDA::Global<int> _numCells;
-	CUDA::Global<int> _numCellPairs;
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+	CUDA::Function _createSchedulers, _destroySchedulers;
+#endif
 
 	GlobalStats _globalStats;
 	MoleculeStorage _moleculeStorage;
 	MoleculePairHandler _moleculePairHandler;
 	ComponentDescriptorStorage _componentDescriptorStorage;
+	DomainTraverser _domainTraverser;
 
 	CUDA::EventTimer CUDAFrameTimer, CUDAPreTimer, CUDATotalProcessingTimer, CUDAPairProcessingTimer, CUDASingleProcessingTimer, CUDAPostTimer;
-
-	int getDirectionOffset( const int3 &direction ) {
-		return _linkedCells.cellIndexOf3DIndex( direction.x, direction.y, direction.z );
-	}
-
-	int getCellOffset( const int3 &cell ) {
-		return getDirectionOffset( cell );
-	}
 };
 
 #endif /* MOLECULEINTERACTION_H_ */

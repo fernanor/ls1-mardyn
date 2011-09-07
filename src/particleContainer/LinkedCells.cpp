@@ -580,6 +580,12 @@ unsigned long LinkedCells::cellIndexOf3DIndex(int xIndex, int yIndex, int zIndex
 	return (zIndex * _cellsPerDimension[1] + yIndex) * _cellsPerDimension[0] + xIndex;
 }
 
+void LinkedCells::cellIndexTo3DIndex(int cellIndex, int &xIndex, int &yIndex, int &zIndex) const {
+	zIndex = cellIndex / _cellsPerDimension[1] / _cellsPerDimension[0];
+	yIndex = (cellIndex / _cellsPerDimension[0]) % _cellsPerDimension[1];
+	xIndex = cellIndex % _cellsPerDimension[0];
+}
+
 bool LinkedCells::isFirstParticle(Molecule& m1, Molecule& m2) {
 	if (m1.r(2) < m2.r(2))
 		return true;

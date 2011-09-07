@@ -67,7 +67,7 @@
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-#define COMPARE_TO_CPU
+//#define COMPARE_TO_CPU
 //#define USE_BEHAVIOR_PROBE
 
 //#define DEBUG_COMPONENT_DESCRIPTORS
@@ -84,7 +84,7 @@
 #	define WARP_SIZE 32u
 #	define NUM_WARPS MAX_NUM_WARPS
 #else
-#	define WARP_SIZE 1
+#	define WARP_SIZE 1u
 #	define NUM_WARPS 1
 #endif
 

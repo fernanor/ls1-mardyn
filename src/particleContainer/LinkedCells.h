@@ -269,6 +269,8 @@ public:
 	//! y: two cells back, z: one cell up,...)
 	unsigned long cellIndexOf3DIndex(int xIndex, int yIndex, int zIndex) const;
 
+	void cellIndexTo3DIndex(int cellIndex, int &xIndex, int &yIndex, int &zIndex) const;
+
 private:
 	//####################################
 	//######### PRIVATE METHODS ##########

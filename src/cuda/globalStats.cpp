@@ -11,6 +11,12 @@ void GlobalStats::preInteractionCalculation() {
 	_cellStatsBuffer.resize( _linkedCells.getCells().size() );
 	_cellStatsBuffer.zeroDevice();
 	_cellStats.set( _cellStatsBuffer );
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+	_cellStatsLocksBuffer.resize( _linkedCells.getCells().size() );
+	_cellStatsLocksBuffer.zeroDevice();
+	_cellStatsLocks.set( _cellStatsLocksBuffer );
+#endif
 }
 
 void GlobalStats::postInteractionCalculation() {
@@ -19,6 +25,7 @@ void GlobalStats::postInteractionCalculation() {
 
 	const std::vector<unsigned long> &innerCellIndices = _linkedCells.getInnerCellIndices();
 	const std::vector<unsigned long> &boundaryCellIndices = _linkedCells.getBoundaryCellIndices();
+	const std::vector<unsigned long> &haloCellIndices = _linkedCells.getHaloCellIndices();
 
 	_potential = 0.0f;
 	_virial = 0.0f;
@@ -32,6 +39,21 @@ void GlobalStats::postInteractionCalculation() {
 		_potential += cellStats[ boundaryCellIndex ].potential;
 		_virial += cellStats[ boundaryCellIndex ].virial;
 	}
+
+	// to be used in conjunction with a different halo potential treatment
+#if 0
+	for( int i = 0 ; i < haloCellIndices.size() ; i++ ) {
+		int haloCellIndex = haloCellIndices[ i ];
+		if( _linkedCells.getCells()[haloCellIndex].haloOwnsInteractions() ) {
+			_potential += cellStats[ haloCellIndex ].potential;
+			_virial += cellStats[ haloCellIndex ].virial;
+		}
+		else {
+			_potential -= cellStats[ haloCellIndex ].potential;
+			_virial -= cellStats[ haloCellIndex ].virial;
+		}
+	}
+#endif
 
 	// every contribution is added twice so divide by 2
 	_potential /= 2.0f;
