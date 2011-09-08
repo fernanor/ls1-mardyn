@@ -70,7 +70,7 @@ public:
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
 					executeAtLeast( _domainTraverser.getInterCellJobCount(stageIndex, subStageIndex) );
 #else
-					execute( 3 * 16 );
+					execute( 16 );
 #endif
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
@@ -92,7 +92,7 @@ public:
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
 				executeAtLeast( _domainTraverser.getIntraCellJobCount() );
 #else
-				execute( 3 * 16 );
+				execute( 16 );
 #endif
 
 		CUDASingleProcessingTimer.end();

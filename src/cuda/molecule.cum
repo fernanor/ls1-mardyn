@@ -20,6 +20,11 @@ struct Molecule {
 	__device__ Molecule() {}
 
 	__device__ Molecule(const floatType3 &position, const Matrix3x3 &rotation, const floatType3 &force, const floatType3 &torque, const ComponentType &componentType) : position( position ), rotation( rotation ), force( force ), torque( torque ), componentType( componentType ) {}
+
+	__device__ void merge( const Molecule &other ) {
+		force += other.force;
+		torque += other.torque;
+	}
 };
 
 #endif

@@ -143,7 +143,27 @@ struct HighDensityCellProcessor {
 		const uint localIndexA = threadIndex;
 
 		// process block
-#if 1
+#if NUM_WARPS == 1
+		for( uint moleculeShiftIndex = 0 ; moleculeShiftIndex < WARP_SIZE ; moleculeShiftIndex++ ) {
+			const uint localIndexB = (threadIdx.x + moleculeShiftIndex) % WARP_SIZE;
+
+			// only do something when there is a molecule in A and a molecule in B to interact with
+			if( localIndexA >= numMoleculesInBlockA || localIndexB >= numMoleculesInBlockB ) {
+				continue;
+			}
+
+			// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside the warp
+			// otherwise only process the lower half
+			// indexA >= indexB <=> localIndexA + blockOffsetA >= localIndexB + blockOffsetB <=> localIndexA >= localIndexB
+			// (this only works for NUM_WARPS == NUM_LOCAL_STORAGE_WARPS!!!)
+			if( blockPairType == BPT_SAME_BLOCK && localIndexB >= localIndexA ) {
+				continue;
+			}
+
+			processMoleculePair( threadIndex, localIndexB, moleculeA );
+		}
+#else
+#	if 1
 		/* divide the block into warp blocks
 		 * each warp of the thread block (corresponds to a warp block of block A) interacts with
 		 * one unique warp block of block B
@@ -183,7 +203,7 @@ struct HighDensityCellProcessor {
 			// sync all warps, so that no two different warps will try to access the same warp data block
 			__syncthreads();
 		}
-#else
+#	else
 		uint numMolecules = max( numMoleculesInBlockA, numMoleculesInBlockB );
 		for( uint shiftIndex = 0 ; shiftIndex < numMolecules ; shiftIndex++ ) {
 			uint localIndexB = (threadIndex + shiftIndex) % numMolecules;
@@ -207,8 +227,8 @@ struct HighDensityCellProcessor {
 		}
 
 		__syncthreads();
+#	endif
 #endif
-
 		// write moleculeB back
 		if( threadIndex < numMoleculesInBlockB ) {
 			moleculeLocalStorageB.commit( threadIndex, moleculeStorage, indexB );

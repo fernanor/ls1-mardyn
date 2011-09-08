@@ -29,6 +29,39 @@ struct MoleculeStorage {
 		molecule = Molecule( moleculePositions[index], moleculeRotations[index], moleculeForces[index], moleculeTorque[index], moleculeComponentTypes[index] );
 	}
 
+	__device__ void getUniform(uint index, Molecule & __restrict__ molecule) {
+		// load positions
+#ifdef CUDA_DOUBLE_MODE
+#	define __ldu_vec3( target, source ) \
+		asm ( "ldu.global.f64 %0, [%1];\n" : "=d"( target.x ) : "r"( source ) ); \
+		asm ( "ldu.global.f64 %0, [%1 + 8];\n" : "=d"( target.y ) : "r"( source ) ); \
+		asm ( "ldu.global.f64 %0, [%1 + 16];\n" : "=d"( target.z ) : "r"( source ) );
+#else
+#	define __ldu_vec3( target, source ) \
+		asm ( "ldu.global.f32 %0, [%1];\n" : "=f"( target.x ) : "r"( source ) ); \
+		asm ( "ldu.global.f32 %0, [%1 + 4];\n" : "=f"( target.y ) : "r"( source ) ); \
+		asm ( "ldu.global.f32 %0, [%1 + 8];\n" : "=f"( target.z ) : "r"( source ) );
+#endif
+
+#define __ldu_mat3x3( target, source ) \
+		__ldu_vec3( target.rows[0], ((floatType3*) (source)) ) \
+		__ldu_vec3( target.rows[1], ((floatType3*) (source)) + 1 ) \
+		__ldu_vec3( target.rows[2], ((floatType3*) (source)) + 2 )
+
+#define __ldu_b8( target, source ) \
+		{ \
+			unsigned short temp; \
+			asm ( "ldu.global.b8 %0, [%1];" : "=h"( temp ) : "r"( source ) ); \
+			target = temp; \
+		}
+
+		__ldu_vec3( molecule.position, moleculePositions + index );
+		__ldu_mat3x3( molecule.rotation, moleculeRotations + index );
+		__ldu_vec3( molecule.force, moleculeForces + index );
+		__ldu_vec3( molecule.torque, moleculeTorque + index );
+		__ldu_b8( molecule.componentType, moleculeComponentTypes + index );
+	}
+
 	__device__ 	void set(uint index, const Molecule & __restrict__ molecule) {
 		moleculeForces[ index ] = molecule.force;
 		moleculeTorque[ index ] = molecule.torque;
@@ -38,6 +71,15 @@ struct MoleculeStorage {
 	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
 	__device__ void getMergable(uint index, Molecule & __restrict__ molecule) {
 		molecule = Molecule( moleculePositions[index], moleculeRotations[index], make_floatType3( 0.0 ), make_floatType3( 0.0 ), moleculeComponentTypes[index] );
+	}
+
+	__device__ void getMergableUniform(uint index, Molecule & __restrict__ molecule) {
+		__ldu_vec3( molecule.position, moleculePositions + index );
+		__ldu_mat3x3( molecule.rotation, moleculeRotations + index );
+		__ldu_b8( molecule.componentType, moleculeComponentTypes + index );
+
+		molecule.force = make_floatType3( 0.0 );
+		molecule.torque = make_floatType3( 0.0 );
 	}
 
 	__device__ void merge(uint index, const Molecule & __restrict__ molecule) {
