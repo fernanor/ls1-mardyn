@@ -118,20 +118,25 @@ __global__ void convertQuaternionsToRotations( int numMolecules ) {
 __shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 __device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
 
+__device__ MoleculeStorage moleculeStorage;
+
 #ifndef REFERENCE_IMPLEMENTATION
 #	ifndef CUDA_HW_CACHE_ONLY
 __shared__ SharedMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
 #	else
-__device__ WriteThroughMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+__device__ WriteThroughMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	endif
-__device__ HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE,
-	Molecule, MoleculeStorage,
+__device__ HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE,	Molecule,
+	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculeLocalStorage), moleculeLocalStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
 		cellProcessor;
 
 #else
-__device__ ReferenceCellProcessor<Molecule, typeof(moleculePairHandler)> cellProcessor;
+__device__ ReferenceCellProcessor<Molecule,
+	typeof(moleculeStorage), moleculeStorage,
+	typeof(moleculePairHandler), moleculePairHandler>
+		cellProcessor;
 #endif
 
 __global__ void processCellPair() {
@@ -211,7 +216,11 @@ __global__ void destroySchedulers() {
 
 __shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 __device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
-__device__ WarpBlockMode::CellProcessor<NUM_WARPS, Molecule, MoleculeStorage, typeof(moleculePairHandler), moleculePairHandler> cellProcessor;
+__device__ MoleculeStorage moleculeStorage;
+__device__ WarpBlockMode::CellProcessor<NUM_WARPS, Molecule,
+	typeof(moleculeStorage), moleculeStorage,
+	typeof(moleculePairHandler), moleculePairHandler>
+		cellProcessor;
 
 __global__ void processCellPair() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;

@@ -7,8 +7,9 @@
 
 #include "util.cum"
 
+typedef Molecule_ComponentType ComponentType;
+
 struct Molecule {
-	typedef Molecule_ComponentType ComponentType;
 	floatType3 position;
 	Matrix3x3 rotation; // R: relative->global coord system
 
@@ -25,6 +26,46 @@ struct Molecule {
 		force += other.force;
 		torque += other.torque;
 	}
+
+	__device__ const floatType3 & getPosition() const {
+		return position;
+	}
+
+	__device__ const Matrix3x3 & getRotation() const {
+		return rotation;
+	}
+
+	__device__ const ComponentType getComponentType() const {
+		return componentType;
+	}
+
+	__device__ void addForce(const floatType3 &other) {
+		force += other;
+	}
+
+	__device__ void addTorque(const floatType3 &other) {
+		torque += other;
+	}
+
+	__device__ const floatType3 & getForce() const {
+		return force;
+	}
+
+	__device__ const floatType3 & getTorque() const {
+		return torque;
+	}
+};
+
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage, bool mergable>
+class MoleculeProxy {
+	uint index;
+
+	floatType3 force;
+	floatType3 torque;
+
+public:
+	__device__ MoleculeProxy(uint index) : index( index ) {}
+
 };
 
 #endif

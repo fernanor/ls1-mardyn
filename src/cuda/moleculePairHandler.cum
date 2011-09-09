@@ -11,15 +11,15 @@ __constant__ __device__ floatType epsRFInvrc3;
 template<typename Auto, Auto &globalStatsCollector>
 struct MoleculePairHandler {
 	__device__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
-		const floatType3 distanceAtoB = moleculeB.position - moleculeA.position;
+		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
 		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
 
 		if( distanceSquared >= cutOffRadiusSquared ) {
 			return;
 		}
 
-		const ComponentDescriptor &descriptorA = componentDescriptors[moleculeA.componentType];
-		const ComponentDescriptor &descriptorB = componentDescriptors[moleculeB.componentType];
+		const ComponentDescriptor &descriptorA = componentDescriptors[moleculeA.getComponentType()];
+		const ComponentDescriptor &descriptorB = componentDescriptors[moleculeB.getComponentType()];
 #if MAX_NUM_LJCENTERS > 0
 		processLJCenters( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
 #endif
@@ -41,8 +41,8 @@ struct MoleculePairHandler {
 			const floatType3 & __restrict__ distanceAtoB
 		) {
 
-		const floatType xi = componentMixXis[ moleculeA.componentType ][ moleculeB.componentType ];
-		const floatType eta = componentMixEtas[ moleculeA.componentType ][ moleculeB.componentType ];
+		const floatType xi = componentMixXis[ moleculeA.getComponentType() ][ moleculeB.getComponentType() ];
+		const floatType eta = componentMixEtas[ moleculeA.getComponentType() ][ moleculeB.getComponentType() ];
 
 		for( int ljIndexA = 0 ; ljIndexA < MAX_NUM_LJCENTERS ; ljIndexA++ ) {
 			if( ljIndexA >= descriptorA.numLJCenters ) {
@@ -50,7 +50,7 @@ struct MoleculePairHandler {
 			}
 
 			const ComponentDescriptor::LJCenter ljCenterA = descriptorA.ljCenters[ljIndexA];
-			const floatType3 relativePositionA = moleculeA.rotation * ljCenterA.relativePosition;
+			const floatType3 relativePositionA = moleculeA.getRotation() * ljCenterA.relativePosition;
 
 			for( int ljIndexB = 0 ; ljIndexB < MAX_NUM_LJCENTERS ; ljIndexB++ ) {
 				if( ljIndexB >= descriptorB.numLJCenters ) {
@@ -58,7 +58,7 @@ struct MoleculePairHandler {
 				}
 
 				const ComponentDescriptor::LJCenter ljCenterB = descriptorB.ljCenters[ljIndexB];
-				const floatType3 relativePositionB = moleculeB.rotation * ljCenterB.relativePosition;
+				const floatType3 relativePositionB = moleculeB.getRotation() * ljCenterB.relativePosition;
 
 				LJParameters mixedParameters;
 				// TODO: add support for eta and xi!
@@ -71,11 +71,12 @@ struct MoleculePairHandler {
 				floatType potential;
 				calculateLennardJones( totalDistanceAtoB, mixedParameters, forceAtoB, potential );
 
-				moleculeA.force += forceAtoB;
-				moleculeB.force -= forceAtoB;
+				moleculeA.addForce( forceAtoB );
+				moleculeB.addForce( -forceAtoB );
 
-				moleculeA.torque += cross( relativePositionA, forceAtoB );
-				moleculeB.torque -= cross( relativePositionB, forceAtoB );
+				moleculeA.addTorque( cross( relativePositionA, forceAtoB ) );
+				// -cross( A, B ) = cross( B, A )
+				moleculeB.addTorque( cross( forceAtoB, relativePositionB ) );
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
@@ -96,7 +97,7 @@ struct MoleculePairHandler {
 			}
 
 			const ComponentDescriptor::Charge &chargeA = descriptorA.charges[chargeIndexA];
-			const floatType3 relativePositionA = moleculeA.rotation * chargeA.relativePosition;
+			const floatType3 relativePositionA = moleculeA.getRotation() * chargeA.relativePosition;
 
 			for( int chargeIndexB = 0 ; chargeIndexB < MAX_NUM_CHARGES ; chargeIndexB++ ) {
 				if( chargeIndexB >= descriptorB.numCharges ) {
@@ -104,7 +105,7 @@ struct MoleculePairHandler {
 				}
 
 				const ComponentDescriptor::Charge &chargeB = descriptorB.charges[chargeIndexB];
-				const floatType3 relativePositionB = moleculeB.rotation * chargeB.relativePosition;
+				const floatType3 relativePositionB = moleculeB.getRotation() * chargeB.relativePosition;
 
 				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
 				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
@@ -115,11 +116,11 @@ struct MoleculePairHandler {
 				const floatType Q1Q2Per4PiE0 = chargeA.q * chargeB.q;
 				calculateCharges( totalDistanceAtoB, totalDistanceSquared, Q1Q2Per4PiE0, forceAtoB, potential );
 
-				moleculeA.force += forceAtoB;
-				moleculeB.force -= forceAtoB;
+				moleculeA.addForce( forceAtoB );
+				moleculeB.addForce( -forceAtoB );
 
-				moleculeA.torque += cross( relativePositionA, forceAtoB );
-				moleculeB.torque -= cross( relativePositionB, forceAtoB );
+				moleculeA.addTorque( cross( relativePositionA, forceAtoB );
+				moleculeB.addTorque( cross( forceAtoB, relativePositionB );
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
@@ -141,8 +142,9 @@ struct MoleculePairHandler {
 			}
 
 			const ComponentDescriptor::Dipole &dipoleA = descriptorA.dipoles[dipoleIndexA];
-			const floatType3 relativePositionA = moleculeA.rotation * dipoleA.relativePosition;
-			const floatType3 eA = moleculeA.rotation * dipoleA.relativeE;
+			const Matrix3x3 rotationA = moleculeA.getRotation();
+			const floatType3 relativePositionA = rotationA * dipoleA.relativePosition;
+			const floatType3 eA = rotationA * dipoleA.relativeE;
 
 			for( int dipoleIndexB = 0 ; dipoleIndexB < MAX_NUM_DIPOLES ; dipoleIndexB++ ) {
 				if( dipoleIndexB >= descriptorB.numDipoles ) {
@@ -150,8 +152,9 @@ struct MoleculePairHandler {
 				}
 
 				const ComponentDescriptor::Dipole &dipoleB = descriptorB.dipoles[dipoleIndexB];
-				const floatType3 relativePositionB = moleculeB.rotation * dipoleB.relativePosition;
-				const floatType3 eB = moleculeB.rotation * dipoleB.relativeE;
+				const Matrix3x3 rotationB = moleculeB.getRotation();
+				const floatType3 relativePositionB = rotationB * dipoleB.relativePosition;
+				const floatType3 eB = rotationB * dipoleB.relativeE;
 
 				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
 				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
@@ -167,11 +170,11 @@ struct MoleculePairHandler {
 				calculateDipoleDipole( totalDistanceAtoB, totalDistanceSquared,
 						eA, eB, my2, rffac, forceAtoB, potential, myRF, torqueA, torqueB );
 
-				moleculeA.force += forceAtoB;
-				moleculeB.force -= forceAtoB;
+				moleculeA.addForce( forceAtoB );
+				moleculeB.addForce( -forceAtoB );
 
-				moleculeA.torque += torqueA;
-				moleculeB.torque += torqueB;
+				moleculeA.addTorque( torqueA );
+				moleculeB.addTorque( torqueB );
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
@@ -195,8 +198,9 @@ struct MoleculePairHandler {
 			}
 
 			const ComponentDescriptor::Dipole &dipoleA = descriptorA.dipoles[dipoleIndexA];
-			const floatType3 relativePositionA = moleculeA.rotation * dipoleA.relativePosition;
-			const floatType3 eA = moleculeA.rotation * dipoleA.relativeE;
+			const Matrix3x3 rotationA = moleculeA.getRotation();
+			const floatType3 relativePositionA = rotationA * dipoleA.relativePosition;
+			const floatType3 eA = rotationA * dipoleA.relativeE;
 
 			for( int chargeIndexB = 0 ; chargeIndexB < MAX_NUM_CHARGES ; chargeIndexB++ ) {
 				if( chargeIndexB >= descriptorB.numCharges ) {
@@ -204,7 +208,7 @@ struct MoleculePairHandler {
 				}
 
 				const ComponentDescriptor::Charge &chargeB = descriptorB.charges[chargeIndexB];
-				const floatType3 relativePositionB = moleculeB.rotation * chargeB.relativePosition;
+				const floatType3 relativePositionB = moleculeB.getRotation() * chargeB.relativePosition;
 
 				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
 				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
@@ -216,10 +220,10 @@ struct MoleculePairHandler {
 				const floatType qMyPer4PiE0 = dipoleA.absMy * chargeB.q;
 				calculateDipoleCharge( totalDistanceAtoB, totalDistanceSquared, eA, qMyPer4PiE0, forceAtoB, potential, torqueA );
 
-				moleculeA.force += forceAtoB;
-				moleculeB.force -= forceAtoB;
+				moleculeA.addForce( forceAtoB );
+				moleculeB.addForce( -forceAtoB );
 
-				moleculeA.torque += torqueA;
+				moleculeA.addTorque( torqueA );
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 

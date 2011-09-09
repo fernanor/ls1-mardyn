@@ -44,30 +44,23 @@ struct CellProcessor {
 // actual implementations
 
 // exactly one thread pro block
-template<class Molecule, class MoleculePairHandler>
+template<class Molecule, class MoleculeStorage, MoleculeStorage &moleculeStorage, class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
 struct ReferenceCellProcessor {
-	MoleculePairHandler & __restrict__ moleculePairHandler;
-
-	__device__ ReferenceCellProcessor(
-			MoleculePairHandler & __restrict__ moleculePairHandler
-		)
-		: moleculePairHandler( moleculePairHandler ) {}
-
 	__device__ void processCellPair(
 			const int threadIndex, const CellInfo & __restrict__ cellA, const CellInfo & __restrict__ cellB
 		) {
 		for( uint indexA = cellA.startIndex ; indexA < cellA.endIndex ; indexA++ ) {
 			Molecule moleculeA;
-			MoleculeStorage::get( indexA, moleculeA );
+			moleculeStorage.get( indexA, moleculeA );
 			for( uint indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
 				Molecule moleculeB;
-				MoleculeStorage::get( indexB, moleculeB );
+				moleculeStorage.get( indexB, moleculeB );
 
 				moleculePairHandler.process( 0, moleculeA, moleculeB );
 
-				MoleculeStorage::set( indexB, moleculeB );
+				moleculeStorage.set( indexB, moleculeB );
 			}
-			MoleculeStorage::set( indexA, moleculeA );
+			moleculeStorage.set( indexA, moleculeA );
 		}
 	}
 
@@ -76,22 +69,22 @@ struct ReferenceCellProcessor {
 		) {
 		for( uint indexA = cell.startIndex ; indexA < cell.endIndex ; indexA++ ) {
 			Molecule moleculeA;
-			MoleculeStorage::get( indexA, moleculeA );
+			moleculeStorage.get( indexA, moleculeA );
 			for( uint indexB = cell.startIndex ; indexB < indexA; indexB++ ) {
 				Molecule moleculeB;
-				MoleculeStorage::get( indexB, moleculeB );
+				moleculeStorage.get( indexB, moleculeB );
 
 				moleculePairHandler.process( 0, moleculeA, moleculeB );
 
-				MoleculeStorage::set( indexB, moleculeB );
+				moleculeStorage.set( indexB, moleculeB );
 			}
-			MoleculeStorage::set( indexA, moleculeA );
+			moleculeStorage.set( indexA, moleculeA );
 		}
 	}
 };
 
-template<uint blockSize, uint localStorageBlockSize,
-class Molecule, class MoleculeStorage,
+template<uint blockSize, uint localStorageBlockSize, class Molecule,
+class MoleculeStorage, MoleculeStorage &moleculeStorage,
 class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage,
 class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
 struct HighDensityCellProcessor {
@@ -243,7 +236,7 @@ struct HighDensityCellProcessor {
 			const int indexA = blockOffsetA + threadIndex;
 			// load A data into (register) cache
 			if( threadIndex < numMoleculesInBlockA ) {
-				MoleculeStorage::get( indexA, moleculeA );
+				moleculeStorage.get( indexA, moleculeA );
 			}
 
 			for( uint blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
@@ -261,7 +254,7 @@ struct HighDensityCellProcessor {
 
 			// push A data back
 			if( threadIndex < numMoleculesInBlockA ) {
-				MoleculeStorage::set(indexA, moleculeA);
+				moleculeStorage.set(indexA, moleculeA);
 			}
 		}
 	}
@@ -277,7 +270,7 @@ struct HighDensityCellProcessor {
 			// load A data into (register) cache
 			const uint indexA = blockOffsetA + threadIndex;
 			if( threadIndex < numMoleculesInBlockA ) {
-				MoleculeStorage::getMergable( indexA, moleculeA );
+				moleculeStorage.getMergable( indexA, moleculeA );
 			}
 
 			processBlock<BPT_SAME_BLOCK>(
@@ -305,7 +298,7 @@ struct HighDensityCellProcessor {
 
 			// push A data back
 			if( threadIndex < numMoleculesInBlockA ) {
-				MoleculeStorage::merge( indexA, moleculeA );
+				moleculeStorage.merge( indexA, moleculeA );
 			}
 		}
 	}
