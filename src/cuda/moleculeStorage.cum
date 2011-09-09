@@ -131,7 +131,7 @@ __device__ CellInfo cellInfoFromCellIndex( int index ) {
 
 struct MoleculeStorage {
 	// straight-forward getter/setter
-	__device__ void get(uint index, Molecule & __restrict__ molecule) {
+	static __device__ void get(uint index, Molecule & __restrict__ molecule) {
 		molecule = LOAD_MOLECULE_FROM_STREAMS(
 							index,
 							moleculePositions, moleculeRotations,
@@ -141,7 +141,7 @@ struct MoleculeStorage {
 	}
 
 #if 0
-	__device__ void getUniform(uint index, Molecule & __restrict__ molecule) {
+	static __device__ void getUniform(uint index, Molecule & __restrict__ molecule) {
 		// load positions
 #ifdef CUDA_DOUBLE_MODE
 #	define __ldu_vec3( target, source ) \
@@ -175,18 +175,18 @@ struct MoleculeStorage {
 	}
 #endif
 
-	__device__ 	void set(uint index, const Molecule & __restrict__ molecule) {
+	static __device__ void set(uint index, const Molecule & __restrict__ molecule) {
 		STORE_MOLECULE_TO_STREAMS( index, moleculeForces, moleculeTorque, molecule );
 	}
 
 	// get the molecule data but in a way that merge will be able to merge changes back into the storage
 	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
-	__device__ void getMergable(uint index, Molecule & __restrict__ molecule) {
+	static __device__ void getMergable(uint index, Molecule & __restrict__ molecule) {
 		molecule = LOAD_MERGABLE_MOLECULE_FROM_STREAMS( index, moleculePositions, moleculeRotations, moleculeComponentTypes );
 	}
 
 #if 0
-	__device__ void getMergableUniform(uint index, Molecule & __restrict__ molecule) {
+	static __device__ void getMergableUniform(uint index, Molecule & __restrict__ molecule) {
 		__ldu_vec3( molecule.position, moleculePositions + index );
 		__ldu_mat3x3( molecule.rotation, moleculeRotations + index );
 		__ldu_b8( molecule.componentType, moleculeComponentTypes + index );
@@ -196,7 +196,7 @@ struct MoleculeStorage {
 	}
 #endif
 
-	__device__ void merge(uint index, const Molecule & __restrict__ molecule) {
+	static __device__ void merge(uint index, const Molecule & __restrict__ molecule) {
 		MERGE_MOLECULE_TO_STREAMS( index, moleculeForces, moleculeTorque, molecule );
 	}
 };
@@ -238,13 +238,13 @@ struct SharedMoleculeLocalStorage {
 		MERGE_MOLECULE_TO_STREAMS( index, forces, torque, molecule );
 	}
 
-	__device__ void load(uint localIndex, MoleculeStorage & __restrict__ storage, uint index) {
+	__device__ void load(uint localIndex, uint index) {
 		COPY_STREAM_ELEMENT( localIndex, index,
 				positions, rotations, forces, torque, componentTypes,
 				moleculePositions, moleculeRotations, moleculeForces, moleculeTorque, moleculeComponentTypes );
 	}
 
-	__device__ void commit(uint localIndex, MoleculeStorage & __restrict__ storage, uint index) {
+	__device__ void commit(uint localIndex, uint index) {
 		COMMIT_STREAM_ELEMENT( index, localIndex, moleculeForces, moleculeTorque, forces, torque );
 	}
 
@@ -253,11 +253,7 @@ struct SharedMoleculeLocalStorage {
 
 template<int blockSize>
 struct WriteThroughMoleculeLocalStorage {
-	MoleculeStorage & __restrict__ moleculeStorage;
 	uint blockOffset;
-
-	__device__ WriteThroughMoleculeLocalStorage( MoleculeStorage & __restrict__ moleculeStorage )
-		: moleculeStorage( moleculeStorage ) {}
 
 	__device__ void setBlockOffset(uint blockOffset) {
 		this->blockOffset = blockOffset;
@@ -265,11 +261,11 @@ struct WriteThroughMoleculeLocalStorage {
 
 	// straight-forward getter/setter
 	__device__ void get(uint index, Molecule & __restrict__ molecule) {
-		moleculeStorage.get( blockOffset + index, molecule );
+		MoleculeStorage::get( blockOffset + index, molecule );
 	}
 
 	__device__ void set(uint index, const Molecule & __restrict__ molecule) {
-		moleculeStorage.set( blockOffset + index, molecule );
+		MoleculeStorage::set( blockOffset + index, molecule );
 	}
 
 	// get the molecule data but in a way that merge will be able to merge changes back into the storage
@@ -278,9 +274,9 @@ struct WriteThroughMoleculeLocalStorage {
 
 	__device__ void merge(uint index, const Molecule & __restrict__ molecule) {}
 
-	__device__ void load(uint localIndex, MoleculeStorage &storage, uint index) {}
+	__device__ void load(uint localIndex, uint index) {}
 
-	__device__ void commit(uint localIndex, MoleculeStorage &storage, uint index) {}
+	__device__ void commit(uint localIndex, uint index) {}
 };
 
 #endif

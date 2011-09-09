@@ -323,14 +323,8 @@ public:
 };
 #endif
 
-template<uint warpBlockCount, class Molecule, class MoleculeStorage, class MoleculePairHandler>
+template<uint warpBlockCount, class Molecule, class MoleculeStorage, class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
 struct CellProcessor {
-	MoleculeStorage & __restrict__ moleculeStorage;
-	MoleculePairHandler & __restrict__ moleculePairHandler;
-
-	__device__ CellProcessor( MoleculeStorage & __restrict__ moleculeStorage, MoleculePairHandler & __restrict__ moleculePairHandler )
-		: moleculeStorage( moleculeStorage ), moleculePairHandler( moleculePairHandler ) {}
-
 	// unified for cells and cell pairs
 	__device__ __noinline__ void processCellPair( WarpBlockPairInfo warpBlockPairInfo ) {
 		WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
@@ -343,7 +337,7 @@ struct CellProcessor {
 		}
 
 		Molecule moleculeA;
-		moleculeStorage.get( indexA, moleculeA );
+		MoleculeStorage::get( indexA, moleculeA );
 
 		// now loop over all molecules in this cell
 		CellInfo cellB = warpBlockPairInfo.cellB;
@@ -351,14 +345,14 @@ struct CellProcessor {
 		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
 			Molecule moleculeB;
 			// TODO: add getU that uses an ldu asm block to load it!
-			moleculeStorage.getMergable( indexB, moleculeB );
+			MoleculeStorage::getMergable( indexB, moleculeB );
 
 			if( indexA != indexB ) {
 				moleculePairHandler.process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
 			}
 		}
 
-		moleculeStorage.set( indexA, moleculeA );
+		MoleculeStorage::set( indexA, moleculeA );
 	}
 };
 

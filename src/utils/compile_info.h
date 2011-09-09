@@ -125,27 +125,42 @@ std::string getCompileFlags() {
 #endif
 
 	flags << " " << CONFIG_NAME << " {";
-#ifdef CUDA_HW_CACHE_ONLY
-	flags << " CUDA_HW_CACHE_ONLY ";
-#endif
-#ifdef NO_CONSTANT_MEMORY
-	flags << " NO_CONSTANT_MEMORY ";
-#endif
-#ifdef CUDA_DOUBLE_MODE
-	flags << " CUDA_DOUBLE_MODE ";
-#endif
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
-	flags << " CUDA_SORT_CELLS_BY_COMPONENTTYPE ";
-#endif
-#ifdef REFERENCE_IMPLEMENTATION
-	flags << " REFERENCE_IMPLEMENTATION ";
-#endif
-#ifdef TEST_QUATERNION_MATRIX_CONVERSION
-	flags << " TEST_QUATERNION_MATRIX_CONVERSION ";
-#endif
 #ifdef COMPARE_TO_CPU
 	flags << " COMPARE_TO_CPU ";
 #endif
+
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+	flags << " CUDA_WARP_BLOCK_CELL_PROCESSOR ";
+#else
+#	ifdef REFERENCE_IMPLEMENTATION
+		flags << " REFERENCE_IMPLEMENTATION ";
+#	else
+#		ifdef CUDA_HW_CACHE_ONLY
+			flags << " CUDA_HW_CACHE_ONLY ";
+#		endif
+#	endif
+#endif
+
+#ifdef NO_CONSTANT_MEMORY
+	flags << " NO_CONSTANT_MEMORY ";
+#endif
+
+#ifdef CUDA_UNPACKED_STORAGE
+	flags << " CUDA_UNPACKED_STORAGE ";
+#endif
+
+#ifdef CUDA_DOUBLE_MODE
+	flags << " CUDA_DOUBLE_MODE ";
+#endif
+
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+	flags << " CUDA_SORT_CELLS_BY_COMPONENTTYPE ";
+#endif
+
+#ifdef TEST_QUATERNION_MATRIX_CONVERSION
+	flags << " TEST_QUATERNION_MATRIX_CONVERSION ";
+#endif
+
 #ifdef USE_BEHAVIOR_PROBE
 	flags << " USE_BEHAVIOR_PROBE ";
 #endif
@@ -155,7 +170,6 @@ std::string getCompileFlags() {
 	flags << "} ";
 	flags <<
 			" NUM_WARPS=" << NUM_WARPS <<
-			" NUM_LOCAL_STORAGE_WARPS=" << NUM_LOCAL_STORAGE_WARPS <<
 			" MAX_REGISTER_COUNT=" << MAX_REGISTER_COUNT <<
 			" MAX_NUM_COMPONENTS=" << MAX_NUM_COMPONENTS <<
 			" MAX_NUM_LJCENTERS=" << MAX_NUM_LJCENTERS <<

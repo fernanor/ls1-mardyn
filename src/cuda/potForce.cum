@@ -8,8 +8,8 @@
 #include "sharedDecls.h"
 
 static __device__ void calculateLennardJones(
-		const floatType3 & __restrict__ distanceAtoB,
-		const LJParameters & __restrict__ ljParameters,
+		const floatType3 distanceAtoB,
+		const LJParameters ljParameters,
 		floatType3 & __restrict__ forceAtoB, floatType & __restrict__ potential
 	) {
 	const floatType invdr2 = 1. / dot( distanceAtoB, distanceAtoB );

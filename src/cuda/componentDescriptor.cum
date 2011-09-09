@@ -18,12 +18,6 @@ __constant__ __device__ ComponentDescriptors componentDescriptors;
 __constant__ __device__ ComponentMixCoefficients componentMixXis;
 __constant__ __device__ ComponentMixCoefficients componentMixEtas;
 
-struct ComponentDescriptorAccessor {
-	__device__ const ComponentDescriptor & get(Molecule::ComponentType type) {
-		return componentDescriptors[type];
-	}
-};
-
 extern "C" {
 __global__ void debugComponentDescriptors( int numDescriptors ) {
 	printf( "CUDA component descriptor dump:\n" );

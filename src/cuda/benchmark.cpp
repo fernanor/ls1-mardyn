@@ -33,7 +33,7 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 		file = fopen( buildFile.c_str(), "wt" );
 		fprintf( file, "timeSteps, moleculeCount, totalTime" );
 #ifndef NO_CUDA
-		fprintf( file, ", numWarps, numLocalStorageWarps, maxRegisterCount, CUDA_totalTime, CUDA_preTime, CUDA_postTime, CUDA_singleTime, CUDA_pairTime, CUDA_processingTime" );
+		fprintf( file, ", numWarps, maxRegisterCount, CUDA_totalTime, CUDA_preTime, CUDA_postTime, CUDA_singleTime, CUDA_pairTime, CUDA_processingTime" );
 #endif
 		fprintf( file, ", name\n" );
 	}
@@ -41,8 +41,8 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 
 	fprintf( file, "%i, %i, %e", timeSteps, moleculeCount, (double) totalTime );
 #ifndef NO_CUDA
-	fprintf( file, ", %i, %i, %i, %e, %e, %e, %e, %e, %e",
-			NUM_WARPS, NUM_LOCAL_STORAGE_WARPS, MAX_REGISTER_COUNT,
+	fprintf( file, ", %i, %i, %e, %e, %e, %e, %e, %e",
+			NUM_WARPS, MAX_REGISTER_COUNT,
 			(double) CUDA_frameTime, (double) CUDA_preTime, (double) CUDA_postTime, (double) CUDA_singleTime, (double) CUDA_pairTime, (double) CUDA_processingTime
 			);
 #endif

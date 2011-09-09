@@ -11,7 +11,7 @@
 #include "cutil_double_math.h"
 
 #define MAX_BLOCK_SIZE 1024
-#define QUATERNION_BLOCK_SIZE MAX_BLOCK_SIZE
+#define QUATERNION_BLOCK_SIZE 512
 
 // created by the makefile to avoid having to call make clean all the time
 #include "make_config.h"
@@ -94,18 +94,7 @@
 #	define MAX_REGISTER_COUNT 63
 #endif
 
-#ifndef NUM_LOCAL_STORAGE_WARPS
-# 	warning set NUM_LOCAL_STORAGE_WARPS = NUM_WARPS
-#	define NUM_LOCAL_STORAGE_WARPS NUM_WARPS
-#endif
-
-#if NUM_LOCAL_STORAGE_WARPS > NUM_WARPS
-#	warning NUM_LOCAL_STORAGE_WARPS > NUM_WARPS => set NUM_LOCAL_STORAGE_WARPS = NUM_WARPS
-#	define NUM_LOCAL_STORAGE_WARPS NUM_WARPS
-#endif
-
 #define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
-#define LOCAL_STORAGE_BLOCK_SIZE (WARP_SIZE*NUM_LOCAL_STORAGE_WARPS)
 
 #ifdef CUDA_DOUBLE_MODE
 	typedef double floatType;

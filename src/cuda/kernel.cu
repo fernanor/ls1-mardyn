@@ -114,6 +114,26 @@ __global__ void convertQuaternionsToRotations( int numMolecules ) {
 }
 
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
+
+__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
+__device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
+
+#ifndef REFERENCE_IMPLEMENTATION
+#	ifndef CUDA_HW_CACHE_ONLY
+__shared__ SharedMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+#	else
+__device__ WriteThroughMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+#	endif
+__device__ HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE,
+	Molecule, MoleculeStorage,
+	typeof(moleculeLocalStorage), moleculeLocalStorage,
+	typeof(moleculePairHandler), moleculePairHandler>
+		cellProcessor;
+
+#else
+__device__ ReferenceCellProcessor<Molecule, typeof(moleculePairHandler)> cellProcessor;
+#endif
+
 __global__ void processCellPair() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
@@ -132,7 +152,7 @@ __global__ void processCellPair() {
 		return;
 	}
 
-	// TODO: move the swapping bit into the cell processor!
+	// TODO: move the swapping bit into the cell processor!?
 	/*int cellLength = cellInfos[ cellIndex + 1 ] - cellInfos[ cellIndex ];
 	int neighborLength = cellInfos[ neighborIndex + 1 ] - cellInfos[ neighborIndex ];
 
@@ -144,29 +164,10 @@ __global__ void processCellPair() {
 		neighborIndex -= neighborOffset;
 	}*/
 
-	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );
-
-	ComponentDescriptorAccessor componentDescriptorAccessor;
-
-	MoleculeStorage moleculeStorage;
-
-	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
-
-#ifndef REFERENCE_IMPLEMENTATION
-#	ifndef CUDA_HW_CACHE_ONLY
-	__shared__ SharedMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage;
-#	else
-	WriteThroughMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage( moleculeStorage );
-#	endif
-	HighDensityCellProcessor<BLOCK_SIZE, LOCAL_STORAGE_BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
-#else
-	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
-#endif
-
 	cellProcessor.processCellPair( threadIndex, cellA, cellB );
 
-	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, neighborIndex );
+	globalStatsCollector.reduceAndStore( threadIndex, cellIndex, neighborIndex );
 }
 
 //__launch_bounds__(BLOCK_SIZE, 2)
@@ -184,29 +185,10 @@ __global__ void processCell() {
 		return;
 	}
 
-	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 	globalStatsCollector.initThreadLocal( threadIndex );
-
-	ComponentDescriptorAccessor componentDescriptorAccessor;
-
-	MoleculeStorage moleculeStorage;
-
-	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
-
-#ifndef REFERENCE_IMPLEMENTATION
-#	ifndef CUDA_HW_CACHE_ONLY
-	__shared__ SharedMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
-#	else
-	WriteThroughMoleculeLocalStorage<LOCAL_STORAGE_BLOCK_SIZE> moleculeLocalStorage( moleculeStorage );
-#	endif
-	HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE, Molecule, typeof(moleculeStorage), typeof(moleculeLocalStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculeLocalStorage, moleculePairHandler);
-#else
-	ReferenceCellProcessor<Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor(moleculeStorage, moleculePairHandler);
-#endif
-
 	cellProcessor.processCell( threadIndex, cell );
 
-	globalStatsCollector.reduceAndSave( threadIndex, cellIndex, cellIndex );
+	globalStatsCollector.reduceAndStore( threadIndex, cellIndex, cellIndex );
 }
 #else
 
@@ -227,19 +209,14 @@ __global__ void destroySchedulers() {
 	}
 }
 
+__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
+__device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
+__device__ WarpBlockMode::CellProcessor<NUM_WARPS, Molecule, MoleculeStorage, typeof(moleculePairHandler), moleculePairHandler> cellProcessor;
+
 __global__ void processCellPair() {
-	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
-
-	ComponentDescriptorAccessor componentDescriptorAccessor;
-	MoleculeStorage moleculeStorage;
-
-	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
+	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	__shared__ WarpBlockMode::ThreadBlockInfo<NUM_WARPS, WarpBlockMode::WarpBlockPairInfo> warpInfos;
-
-	WarpBlockMode::CellProcessor<NUM_WARPS, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor( moleculeStorage, moleculePairHandler );
-
-	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	do {
 		cellPairScheduler->scheduleWarpBlocks( warpInfos );
@@ -258,19 +235,10 @@ __global__ void processCellPair() {
 }
 
 __global__ void processCell() {
-	__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
-
-	ComponentDescriptorAccessor componentDescriptorAccessor;
-	MoleculeStorage moleculeStorage;
-
-	MoleculePairHandler<typeof(globalStatsCollector), typeof(componentDescriptorAccessor)> moleculePairHandler( globalStatsCollector, componentDescriptorAccessor );
-
-	__shared__ WarpBlockMode::ThreadBlockInfo<NUM_WARPS, WarpBlockMode::WarpBlockPairInfo> warpInfos;
-
-	WarpBlockMode::CellProcessor<NUM_WARPS, Molecule, typeof(moleculeStorage), typeof(moleculePairHandler)> cellProcessor( moleculeStorage, moleculePairHandler );
-
 	// TODO: remove?
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+
+	__shared__ WarpBlockMode::ThreadBlockInfo<NUM_WARPS, WarpBlockMode::WarpBlockPairInfo> warpInfos;
 
 	do {
 		cellScheduler->scheduleWarpBlocks( warpInfos );

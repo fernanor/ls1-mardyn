@@ -68,7 +68,7 @@ struct CellStatsCollector {
 	}
 
 	// TODO: rename Save to Store
-	__device__ void reduceAndSave(int threadIndex, int cellIndexA, int cellIndexB) {
+	__device__ __noinline__ void reduceAndStore(int threadIndex, int cellIndexA, int cellIndexB) {
 		reduceWarps( threadIndex );
 
 		__syncthreads();

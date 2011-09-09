@@ -8,13 +8,8 @@
 __constant__ __device__ floatType cutOffRadiusSquared;
 __constant__ __device__ floatType epsRFInvrc3;
 
-template<class GlobalStatsCollector, class ComponentDescriptorAccessor>
+template<typename Auto, Auto &globalStatsCollector>
 struct MoleculePairHandler {
-	GlobalStatsCollector & __restrict__ globalStatsCollector;
-	ComponentDescriptorAccessor & __restrict__ componentDescriptorAccessor;
-
-	__device__ MoleculePairHandler( GlobalStatsCollector & __restrict__ globalStatsCollector, ComponentDescriptorAccessor & __restrict__ componentDescriptorAccessor ) : globalStatsCollector( globalStatsCollector ), componentDescriptorAccessor( componentDescriptorAccessor ) {}
-
 	__device__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
 		const floatType3 distanceAtoB = moleculeB.position - moleculeA.position;
 		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
@@ -23,17 +18,21 @@ struct MoleculePairHandler {
 			return;
 		}
 
-		const ComponentDescriptor &descriptorA = componentDescriptorAccessor.get(moleculeA.componentType);
-		const ComponentDescriptor &descriptorB = componentDescriptorAccessor.get(moleculeB.componentType);
-
+		const ComponentDescriptor &descriptorA = componentDescriptors[moleculeA.componentType];
+		const ComponentDescriptor &descriptorB = componentDescriptors[moleculeB.componentType];
+#if MAX_NUM_LJCENTERS > 0
 		processLJCenters( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-
+#endif
+#if MAX_NUM_CHARGES > 0
 		processCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-
+#endif
+#if MAX_NUM_DIPOLES > 0
 		processDipoles( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-
+#endif
+#if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
 		processDipolesCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
 		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
+#endif
 	}
 
 	__device__ void processLJCenters( int threadIndex,
@@ -41,7 +40,7 @@ struct MoleculePairHandler {
 			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
 		) {
-#if MAX_NUM_LJCENTERS > 0
+
 		const floatType xi = componentMixXis[ moleculeA.componentType ][ moleculeB.componentType ];
 		const floatType eta = componentMixEtas[ moleculeA.componentType ][ moleculeB.componentType ];
 
@@ -50,7 +49,7 @@ struct MoleculePairHandler {
 				continue;
 			}
 
-			const ComponentDescriptor::LJCenter &ljCenterA = descriptorA.ljCenters[ljIndexA];
+			const ComponentDescriptor::LJCenter ljCenterA = descriptorA.ljCenters[ljIndexA];
 			const floatType3 relativePositionA = moleculeA.rotation * ljCenterA.relativePosition;
 
 			for( int ljIndexB = 0 ; ljIndexB < MAX_NUM_LJCENTERS ; ljIndexB++ ) {
@@ -58,7 +57,7 @@ struct MoleculePairHandler {
 					continue;
 				}
 
-				const ComponentDescriptor::LJCenter &ljCenterB = descriptorB.ljCenters[ljIndexB];
+				const ComponentDescriptor::LJCenter ljCenterB = descriptorB.ljCenters[ljIndexB];
 				const floatType3 relativePositionB = moleculeB.rotation * ljCenterB.relativePosition;
 
 				LJParameters mixedParameters;
@@ -83,15 +82,14 @@ struct MoleculePairHandler {
 				globalStatsCollector.add( threadIndex, potential, virial );
 			}
 		}
-#endif
 	}
 
-	__device__ void processCharges( int threadIndex,
+#if MAX_NUM_CHARGES > 0
+	__device__ __noinline__ void processCharges( int threadIndex,
 			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
 		) {
-#if MAX_NUM_CHARGES > 0
 		for( int chargeIndexA = 0 ; chargeIndexA < MAX_NUM_CHARGES ; chargeIndexA++ ) {
 			if( chargeIndexA >= descriptorA.numCharges ) {
 				continue;
@@ -128,15 +126,15 @@ struct MoleculePairHandler {
 				globalStatsCollector.add( threadIndex, potential, virial );
 			}
 		}
-#endif
 	}
+#endif
 
-	__device__ void processDipoles( int threadIndex,
+#if MAX_NUM_DIPOLES > 0
+	__device__ __noinline__ void processDipoles( int threadIndex,
 				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 				const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
 			) {
-#if MAX_NUM_DIPOLES > 0
 		for( int dipoleIndexA = 0 ; dipoleIndexA < MAX_NUM_DIPOLES ; dipoleIndexA++ ) {
 			if( dipoleIndexA >= descriptorA.numDipoles ) {
 				continue;
@@ -181,15 +179,15 @@ struct MoleculePairHandler {
 				globalStatsCollector.add( threadIndex, potential + myRF, virial - 3. * myRF);
 			}
 		}
-#endif
 	}
+#endif
 
-	__device__ void processDipolesCharges( int threadIndex,
+#if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
+	__device__ __noinline__ void processDipolesCharges( int threadIndex,
 				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 				const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
 			) {
-#if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
 		// dipole as outer loop because charges are more light-weight (no rotation of e)
 		for( int dipoleIndexA = 0 ; dipoleIndexA < MAX_NUM_DIPOLES ; dipoleIndexA++ ) {
 			if( dipoleIndexA >= descriptorA.numDipoles ) {
@@ -228,8 +226,8 @@ struct MoleculePairHandler {
 				globalStatsCollector.add( threadIndex, potential, virial );
 			}
 		}
-#endif
 	}
+#endif
 };
 
 #endif
