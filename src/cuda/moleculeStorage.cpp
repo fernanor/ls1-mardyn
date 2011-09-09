@@ -16,14 +16,17 @@
 #include "math.h"
 
 void MoleculeStorage::uploadState() {
-	std::vector<floatType3> positions;
-	std::vector<QuaternionStorage> quaternions;
-	std::vector<Molecule_ComponentType> componentTypes;
+	_moleculePositions.clear();
+	_moleculeRotations.clear();
 #ifdef TEST_QUATERNION_MATRIX_CONVERSION
-	std::vector<Matrix3x3Storage> rotations;
+	_moleculeQuaternions.clear();
 #endif
 
-	std::vector<unsigned> startIndices;
+	_moleculeForces.clear();
+	_moleculeTorque.clear();
+
+	_moleculeComponentTypes.clear();
+	_cellStartIndices.clear();
 
 	int numCells = _linkedCells.getCells().size();
 
@@ -34,7 +37,7 @@ void MoleculeStorage::uploadState() {
 	for( int i = 0 ; i < numCells ; i++ ) {
 		const Cell &cell = _linkedCells.getCells()[i];
 
-		startIndices.push_back( numMolecules );
+		_cellStartIndices.push( numMolecules );
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 #ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
@@ -49,10 +52,10 @@ void MoleculeStorage::uploadState() {
 				}
 #endif
 
-				componentTypes.push_back( molecule.componentid() );
+				_moleculeComponentTypes.push( molecule.componentid() );
 
-				floatType3 position = make_floatType3( molecule.r(0), molecule.r(1), molecule.r(2) );
-				positions.push_back( position );
+				const floatType3 position = make_floatType3( molecule.r(0), molecule.r(1), molecule.r(2) );
+				_moleculePositions.push( position );
 
 				const Quaternion &dQuaternion = molecule.q();
 				QuaternionStorage quaternion;
@@ -60,7 +63,7 @@ void MoleculeStorage::uploadState() {
 				quaternion.x = dQuaternion.qx();
 				quaternion.y = dQuaternion.qy();
 				quaternion.z = dQuaternion.qz();
-				quaternions.push_back( quaternion );
+				_moleculeQuaternions.push( quaternion );
 
 #ifdef TEST_QUATERNION_MATRIX_CONVERSION
 				{
@@ -89,7 +92,7 @@ void MoleculeStorage::uploadState() {
 					rot.rows[2].y=2*(yz+xw);
 					rot.rows[2].z=ww-xx-yy+zz;
 
-					rotations.push_back(rot);
+					_moleculeRotations.push(rot);
 				}
 #endif
 
@@ -99,47 +102,38 @@ void MoleculeStorage::uploadState() {
 		}
 #endif
 
-		maxNumMoleculesPerCell = std::max<int>( maxNumMoleculesPerCell, numMolecules - startIndices.back() );
+		maxNumMoleculesPerCell = std::max<int>( maxNumMoleculesPerCell, numMolecules - _cellStartIndices.getContainer().back() );
 	}
 
 	printf( "average molecules per cell: %f (= %i / %i); max molecules per cell: %i\n", (float) numMolecules / numCells, numMolecules, numCells, maxNumMoleculesPerCell );
 
-	startIndices.push_back( numMolecules );
+	_cellStartIndices.push( numMolecules );
 
-	_startIndexBuffer.copyToDevice( startIndices );
-
-	_positionBuffer.copyToDevice( positions );
-	_componentTypeBuffer.copyToDevice( componentTypes );
-
-	_forceBuffer.resize( numMolecules );
-	_forceBuffer.zeroDevice();
-
-	_torqueBuffer.resize( numMolecules );
-	_torqueBuffer.zeroDevice();
+	_moleculePositions.updateDevice();
+	_moleculeQuaternions.updateDevice();
 
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
-	_rotationBuffer.resize( numMolecules );
+	_moleculeRotations.resize( numMolecules );
 #else
 #	warning CPU testing quaternion matrix conversion
-	_rotationBuffer.copyToDevice( rotations );
+	_moleculeRotations.updateDevice();
 #endif
 
-	_moleculePositions.set( _positionBuffer );
-	_moleculeRotations.set( _rotationBuffer );
-	_moleculeForces.set( _forceBuffer );
-	_moleculeTorque.set( _torqueBuffer );
-	_moleculeComponentTypes.set( _componentTypeBuffer );
+	_moleculeForces.resize( numMolecules );
+	_moleculeForces.zeroDevice();
 
-	_cellStartIndices.set( _startIndexBuffer );
+	_moleculeTorque.resize( numMolecules );
+	_moleculeTorque.zeroDevice();
 
-	CUDA::DeviceBuffer<QuaternionStorage> quaternionBuffer;
-	quaternionBuffer.copyToDevice( quaternions );
+	_moleculeComponentTypes.updateDevice();
+	_cellStartIndices.updateDevice();
 
 	_convertQuaternionsToRotations.call().
-			parameter(quaternionBuffer.devicePtr()).
 			parameter(numMolecules).
 			setBlockShape(QUATERNION_BLOCK_SIZE, 1, 1).
 			executeAtLeast((numMolecules + QUATERNION_BLOCK_SIZE - 1) / QUATERNION_BLOCK_SIZE);
+
+	CUDA_THROW_ON_ERROR( cuCtxSynchronize() );
 }
 
 struct CPUCudaVectorErrorMeasure {
@@ -241,11 +235,16 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 }
 
 void MoleculeStorage::downloadResults() {
+#ifndef CUDA_UNPACKED_STORAGE
+	const std::vector<floatType3> &forces = _moleculeForces.copyToHost();
+	const std::vector<floatType3> &torque = _moleculeTorque.copyToHost();
+#else
 	std::vector<floatType3> forces;
 	std::vector<floatType3> torque;
 
-	_forceBuffer.copyToHost( forces );
-	_torqueBuffer.copyToHost( torque );
+	_moleculeForces.copyToHost( forces );
+	_moleculeTorque.copyToHost( torque );
+#endif
 
 #ifdef COMPARE_TO_CPU
 	compareResultsToCPURef( forces, torque );

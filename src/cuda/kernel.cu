@@ -80,19 +80,27 @@ extern "C" {
  * and forward the kernel call to it
  */
 // TODO: interesting to benchmark idea: unrolled loop in this kernel vs the way it is now---overhead?
-__global__ void convertQuaternionsToRotations( const QuaternionStorage *rawQuaternions, int numMolecules ) {
-	const Quaternion *quaternions = (Quaternion*) rawQuaternions;
-
+__global__ void convertQuaternionsToRotations( int numMolecules ) {
 	int moleculeIndex = (blockIdx.y * gridDim.x + blockIdx.x) * blockDim.x + threadIdx.x;
 	if( moleculeIndex >= numMolecules ) {
 		return;
 	}
 
+#ifndef CUDA_UNPACKED_STORAGE
+	const Quaternion quaternion = moleculeQuaternions[ moleculeIndex ];
+#else
+	const Quaternion quaternion = packQuaternion( moleculeQuaternions, moleculeIndex );
+#endif
+
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
-	moleculeRotations[ moleculeIndex ] = quaternions[ moleculeIndex ].toRotMatrix3x3();
+#	ifndef CUDA_UNPACKED_STORAGE
+	moleculeRotations[ moleculeIndex ] = quaternion.toRotMatrix3x3();
+#	else
+	unpackMatrix3x3( moleculeRotations, moleculeIndex, quaternion.toRotMatrix3x3() );
+#	endif
 #else
 #	warning CUDA: testing quaternion matrix conversion
-	const Matrix3x3 convertedQuaternion = quaternions[ moleculeIndex ].toRotMatrix3x3();
+	const Matrix3x3 convertedQuaternion = quaternion.toRotMatrix3x3();
 	const Matrix3x3 &correctRotation = moleculeRotations[ moleculeIndex ];
 
 	const floatType error = length( convertedQuaternion.rows[0] - correctRotation.rows[0] ) +

@@ -8,20 +8,17 @@
 #include "globalStats.h"
 
 void GlobalStats::preInteractionCalculation() {
-	_cellStatsBuffer.resize( _linkedCells.getCells().size() );
-	_cellStatsBuffer.zeroDevice();
-	_cellStats.set( _cellStatsBuffer );
+	_cellStats.resize( _linkedCells.getCells().size() );
+	_cellStats.zeroDevice();
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-	_cellStatsLocksBuffer.resize( _linkedCells.getCells().size() );
-	_cellStatsLocksBuffer.zeroDevice();
-	_cellStatsLocks.set( _cellStatsLocksBuffer );
+	_cellStatsLocks.resize( _linkedCells.getCells().size() );
+	_cellStatsLocks.zeroDevice();
 #endif
 }
 
 void GlobalStats::postInteractionCalculation() {
-	std::vector<CellStatsStorage> cellStats;
-	_cellStatsBuffer.copyToHost( cellStats );
+	const std::vector<CellStatsStorage> &cellStats = _cellStats.copyToHost();
 
 	const std::vector<unsigned long> &innerCellIndices = _linkedCells.getInnerCellIndices();
 	const std::vector<unsigned long> &boundaryCellIndices = _linkedCells.getBoundaryCellIndices();

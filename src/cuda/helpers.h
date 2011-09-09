@@ -13,6 +13,9 @@
 
 // TODO: use a namespace instead of the slightly stupid CUDA prefix
 
+// TODO: move Unpacked/PackerVector into their own file (and move this project-specific include with them)
+#include "config.h"
+
 namespace CUDADetail {
 	template<typename DataType> struct TypeInfo {
 		const static size_t size = sizeof( DataType );
@@ -89,23 +92,26 @@ public:
 			}
 		}
 
-		void zeroDevice() {
+		void zeroDevice() const {
 			CUDA_THROW_ON_ERROR( cuMemsetD8( _deviceBuffer, 0, _byteSize ) );
 		}
 
-		void copyToDevice(const DataType *data, int count) {
+		// returns true if the buffer has been reallocated
+		bool copyToDevice(const DataType *data, int count) {
 			const int byteSize = count * sizeof( DataType );
-			if( _byteSize < byteSize )
+			const bool needsResize = _byteSize < byteSize;
+			if( needsResize )
 				resize( count );
 
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _deviceBuffer, data, byteSize ) );
+			return needsResize;
 		}
 
-		void copyToDevice(const std::vector<DataType> &collection) {
-			copyToDevice( &collection.front(), collection.size() );
+		bool copyToDevice(const std::vector<DataType> &collection) {
+			return copyToDevice( &collection.front(), collection.size() );
 		}
 
-		void copyToHost(std::vector<DataType> &collection) {
+		void copyToHost(std::vector<DataType> &collection) const {
 			if( !_byteSize ) {
 				return;
 			}
@@ -184,7 +190,7 @@ public:
 		Global( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
 
 	public:
-		void set( const DataType &data ) {
+		void set( const DataType &data ) const {
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( DataType ) ) );
 		}
 	};
@@ -199,12 +205,266 @@ public:
 		Global( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
 
 	public:
-		void set( const CUdeviceptr data ) {
+		void set( const CUdeviceptr data ) const {
 			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer, &data, sizeof( CUdeviceptr ) ) );
 		}
 
-		void set( const DeviceBuffer<DataType> &buffer ) {
+		void set( const DeviceBuffer<DataType> &buffer ) const {
 			set( buffer.devicePtr() );
+		}
+	};
+
+	template<typename DataType, uint size>
+	class GlobalArray {
+	protected:
+		CUdeviceptr _dataPointer;
+
+		friend class Module;
+
+		GlobalArray( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
+
+	public:
+		void set( int index, const DataType &data ) const {
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer + index * sizeof( DataType ), &data, sizeof( DataType ) ) );
+		}
+	};
+
+	template<typename DataType, uint size>
+	class GlobalArray< DataType *, size > {
+	protected:
+		CUdeviceptr _dataPointer;
+
+		friend class Module;
+
+		GlobalArray( CUdeviceptr dataPointer ) : _dataPointer( dataPointer ) {}
+
+	public:
+		static const uint ArraySize = size;
+
+		void set( int index, const CUdeviceptr data ) const {
+			CUDA_THROW_ON_ERROR( cuMemcpyHtoD( _dataPointer + index * sizeof( CUdeviceptr ), &data, sizeof( CUdeviceptr ) ) );
+		}
+
+		void set( int index, const DeviceBuffer<DataType> &buffer ) const {
+			set( index, buffer.devicePtr() );
+		}
+	};
+
+	template<typename DataType, uint size>
+	class _UnpackedVectorTypeVector {
+	protected:
+		GlobalArray< DataType *, size > _devicePointers;
+		DeviceBuffer< DataType > _deviceBuffers[size];
+
+		friend class Module;
+
+		std::vector<DataType> _streamBuffers[size];
+
+	public:
+		_UnpackedVectorTypeVector(const GlobalArray< DataType *, size > &devicePointers)
+			: _devicePointers( devicePointers )
+		{
+		}
+
+		void clear() {
+			for( int i = 0; i < size ; i++ ) {
+				_streamBuffers[ i ].clear();
+			}
+		}
+
+		void push( const DataType entry[size] ) {
+			for( int i = 0 ; i < size ; i++ ) {
+				_streamBuffers[ i ].push_back( entry[ i ] );
+			}
+		}
+
+		void push( int startIndex, const DataType *entry, int count = 1 ) {
+			assert( size >= startIndex + count );
+			for( int i = 0 ; i < count ; i++ ) {
+				const int j = startIndex + i;
+				_streamBuffers[ j ].push_back( entry[ j ] );
+			}
+		}
+
+		void updateDevice() {
+			for( int i = 0 ; i < size ; i++ ) {
+				_deviceBuffers[ i ].copyToDevice( _streamBuffers[ i ] );
+				_devicePointers.set( i, _deviceBuffers[ i ] );
+			}
+		}
+
+		void zeroDevice() const {
+			for( int i = 0 ; i < size ; i++ ) {
+				_deviceBuffers[ i ].zeroDevice();
+			}
+		}
+
+		void resize( int numElements ) {
+			for( int i = 0 ; i < size ; i++ ) {
+				_streamBuffers[ i ].resize( numElements );
+
+				_deviceBuffers[ i ].resize( numElements );
+				_devicePointers.set( i, _deviceBuffers[ i ] );
+			}
+		}
+
+		void copyToHost() {
+			for( int i = 0 ; i < size ; i++ ) {
+				_deviceBuffers[ i ].copyToHost( _streamBuffers[ i ] );
+			}
+		}
+
+		void readBack( int index, DataType *entry ) {
+			for( int i = 0 ; i < size ; i++ ) {
+				entry[ i ] = _streamBuffers[ i ][ index ];
+			}
+		}
+	};
+
+	template<typename DataType, uint size>
+	class UnpackedVectorTypeVector : public _UnpackedVectorTypeVector<DataType, size> {
+	public:
+		UnpackedVectorTypeVector(const GlobalArray< DataType *, size > &devicePointers)
+			: _UnpackedVectorTypeVector<DataType, size>( devicePointers )
+		{
+		}
+	};
+
+	// TODO: rename to UnpackedVector
+	template<uint size>
+	class UnpackedVectorTypeVector<floatType, size> : public _UnpackedVectorTypeVector<floatType, size> {
+		typedef _UnpackedVectorTypeVector<floatType, size> base;
+	public:
+		UnpackedVectorTypeVector(const GlobalArray<floatType*, size > &devicePointers)
+			: _UnpackedVectorTypeVector<floatType, size>( devicePointers )
+		{
+		}
+
+		void push( int startIndex, const floatType3 &entry ) {
+			assert( size >= startIndex + 3 );
+			this->_streamBuffers[ startIndex ].push_back( entry.x );
+			this->_streamBuffers[ startIndex + 1 ].push_back( entry.y );
+			this->_streamBuffers[ startIndex + 2 ].push_back( entry.z );
+		}
+
+		void push( const floatType3 &entry ) {
+			assert( size == 3 );
+			push( 0, entry );
+		}
+
+		void push( const QuaternionStorage &quaternion ) {
+			assert( size == 4 );
+			base::push( 0, (const floatType*) &quaternion, 4 );
+		}
+
+		void push( const Matrix3x3Storage &mat ) {
+			assert( size == 9 );
+			push( 0, mat.rows[0] );
+			push( 3, mat.rows[0] );
+			push( 6, mat.rows[0] );
+		}
+
+		void copyToHost( std::vector<floatType3> &collection ) {
+			assert( size == 3 );
+
+			base::copyToHost();
+
+			collection.clear();
+
+			const int numElements = this->_streamBuffers[0].size();
+			collection.resize( numElements );
+			for( int index = 0 ; index < numElements ; index++ ) {
+				collection[index] = make_floatType3(
+						this->_streamBuffers[0][index],
+						this->_streamBuffers[1][index],
+						this->_streamBuffers[2][index]
+					);
+			}
+		}
+	};
+
+	// TODO: rename *Vector to Global*Vector
+	template<typename DataType>
+	class PackedVector {
+	protected:
+		Global<DataType *> _devicePointer;
+		DeviceBuffer<DataType> _deviceBuffer;
+
+		friend class Module;
+
+		// TODO: rename to _hostBuffer
+		std::vector<DataType> _streamBuffer;
+
+	public:
+		PackedVector(const Global< DataType * > &devicePointer)
+			: _devicePointer( devicePointer )
+		{
+		}
+
+		void clear() {
+			_streamBuffer.clear();
+		}
+
+		void push( const DataType &entry) {
+			_streamBuffer.push_back( entry );
+		}
+
+		void updateDevice() {
+			_deviceBuffer.copyToDevice( _streamBuffer );
+			_devicePointer.set( _deviceBuffer );
+		}
+
+		void zeroDevice() const {
+			_deviceBuffer.zeroDevice();
+		}
+
+		void resize( int numElements ) {
+			_streamBuffer.resize( numElements );
+
+			_deviceBuffer.resize( numElements );
+			_devicePointer.set( _deviceBuffer );
+		}
+
+		std::vector<DataType> & copyToHost() {
+			_deviceBuffer.copyToHost( _streamBuffer );
+			return getContainer();
+		}
+
+		void copyToHost( std::vector< DataType > &collection ) {
+			_deviceBuffer.copyToHost( _streamBuffer );
+			collection.assign( _streamBuffer.begin(), _streamBuffer.end() );
+		}
+
+		void readBack( int index, DataType &entry ) {
+			entry = _streamBuffer[index];
+		}
+
+		// TODO: rename to getBuffer
+		std::vector<DataType> & getContainer() {
+			return _streamBuffer;
+		}
+	};
+
+	template<typename DataType>
+	class GlobalDeviceBuffer {
+	protected:
+		Global<DataType *> _devicePointer;
+		DeviceBuffer<DataType> _deviceBuffer;
+
+		friend class Module;
+	public:
+		GlobalDeviceBuffer(const Global< DataType * > &devicePointer)
+			: _devicePointer( devicePointer )
+		{
+		}
+
+		void zeroDevice() const {
+			_deviceBuffer.zeroDevice();
+		}
+
+		void resize( int numElements ) {
+			_deviceBuffer.resize( numElements );
+			_devicePointer.set( _deviceBuffer );
 		}
 	};
 
@@ -321,6 +581,18 @@ public:
 			assert( dataSize == CUDADetail::TypeInfo<DataType>::size );
 
 			return Global<DataType>(dptr);
+		}
+
+		template<typename DataType, uint size>
+		GlobalArray<DataType, size> getGlobalArray(const char *name) const {
+			CUdeviceptr dptr;
+			size_t dataSize;
+
+			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &dataSize, _module, name ) );
+
+			assert( dataSize == CUDADetail::TypeInfo<DataType>::size * size );
+
+			return GlobalArray<DataType, size>(dptr);
 		}
 
 		Function getFunction(const char *name) const {

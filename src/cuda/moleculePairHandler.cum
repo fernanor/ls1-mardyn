@@ -33,9 +33,7 @@ struct MoleculePairHandler {
 		processDipoles( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
 
 		processDipolesCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-
-		const floatType3 distanceBtoA = -distanceAtoB;
-		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, distanceBtoA );
+		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
 	}
 
 	__device__ void processLJCenters( int threadIndex,
@@ -69,11 +67,10 @@ struct MoleculePairHandler {
 				mixedParameters.sigma = eta * 0.5f * (ljCenterA.ljParameters.sigma + ljCenterB.ljParameters.sigma);
 
 				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
-				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
 
 				floatType3 forceAtoB;
 				floatType potential;
-				calculateLennardJones( totalDistanceAtoB, totalDistanceSquared, mixedParameters, forceAtoB, potential );
+				calculateLennardJones( totalDistanceAtoB, mixedParameters, forceAtoB, potential );
 
 				moleculeA.force += forceAtoB;
 				moleculeB.force -= forceAtoB;

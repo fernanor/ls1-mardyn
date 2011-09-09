@@ -8,8 +8,8 @@
 #ifndef GLOBALSTATS_H_
 #define GLOBALSTATS_H_
 
+#include "config.h"
 #include "cudaComponent.h"
-#include "sharedDecls.h"
 
 class GlobalStats : public CUDAInteractionCalculationComponent {
 public:
@@ -37,12 +37,10 @@ protected:
 	floatType _potential;
 	floatType _virial;
 
-	CUDA::Global<CellStatsStorage *> _cellStats;
-	CUDA::DeviceBuffer<CellStatsStorage> _cellStatsBuffer;
+	CUDA::PackedVector<CellStatsStorage> _cellStats;
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-	CUDA::Global<LockStorage *> _cellStatsLocks;
-	CUDA::DeviceBuffer<LockStorage> _cellStatsLocksBuffer;
+	CUDA::GlobalDeviceBuffer<LockStorage> _cellStatsLocks;
 #endif
 };
 
