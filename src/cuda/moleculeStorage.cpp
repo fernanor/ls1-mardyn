@@ -102,7 +102,7 @@ void MoleculeStorage::uploadState() {
 		}
 #endif
 
-		maxNumMoleculesPerCell = std::max<int>( maxNumMoleculesPerCell, numMolecules - _cellStartIndices.getContainer().back() );
+		maxNumMoleculesPerCell = std::max<int>( maxNumMoleculesPerCell, numMolecules - _cellStartIndices.getHostBuffer().back() );
 	}
 
 	printf( "average molecules per cell: %f (= %i / %i); max molecules per cell: %i\n", (float) numMolecules / numCells, numMolecules, numCells, maxNumMoleculesPerCell );

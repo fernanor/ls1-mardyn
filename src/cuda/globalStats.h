@@ -37,7 +37,7 @@ protected:
 	floatType _potential;
 	floatType _virial;
 
-	CUDA::PackedVector<CellStatsStorage> _cellStats;
+	CUDA::PackedGlobalVector<CellStatsStorage> _cellStats;
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
 	CUDA::GlobalDeviceBuffer<LockStorage> _cellLocks;

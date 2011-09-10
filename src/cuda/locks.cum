@@ -66,13 +66,13 @@ namespace Lock {
 	};
 
 	class Mutex {
-		volatile uint lockValue;
+		uint lockValue;
 
 	public:
 		__device__ Mutex() : lockValue( 0u ) {}
 
 		__device__ void lock() {
-			while( atomicCAS( (uint*) &lockValue, 0u, 1u ) == 1u )
+			while( atomicCAS( &lockValue, 0u, 1u ) == 1u )
 				;
 		}
 
@@ -83,7 +83,7 @@ namespace Lock {
 		// the signal can only be reset by a warp/thread that is inside the same semaphore,
 		// only the caller can set it
 		__device__ bool lock(volatile uint *signal, uint bitMask) {
-			while( atomicCAS( (uint*) &lockValue, 0u, 1u ) == 1u ) {
+			while( atomicCAS( &lockValue, 0u, 1u ) == 1u ) {
 				if( (*signal & bitMask) == 0 ) {
 					WARP_PRINTF( "signal: 0x%x!\n", *signal );
 					return false;

@@ -19,9 +19,8 @@ __constant__ __device__ CellStats * cellStats;
 __constant__ Lock::Mutex *cellLocks;
 #endif
 
-// TODO: rename BlockStatsCollector
 template<int blockSize>
-struct CellStatsCollector {
+struct ThreadBlockCellStats {
 	floatType threadPotential[blockSize];
 	floatType threadVirial[blockSize];
 
@@ -67,7 +66,6 @@ struct CellStatsCollector {
 #endif
 	}
 
-	// TODO: rename Save to Store
 	__device__ __noinline__ void reduceAndStore(int threadIndex, int cellIndexA, int cellIndexB) {
 		reduceWarps( threadIndex );
 

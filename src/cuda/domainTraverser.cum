@@ -3,7 +3,7 @@
 
 #include "host_defines.h"
 
-namespace PairTraverser {
+namespace DomainTraverser {
 	__constant__ int neighborOffset;
 
 	__constant__ int startIndex;

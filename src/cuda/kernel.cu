@@ -28,7 +28,7 @@ __device__ int getSM() {
 
 #include "domainTraverser.cum"
 
-#include "cellProcessor.cum"
+#include "domainProcessor.cum"
 
 #include "globalStats.cum"
 
@@ -40,7 +40,7 @@ __device__ int getSM() {
 
 #include "moleculePairHandler.cum"
 
-#include "warpBlockCellProcessor.cum"
+#include "warpBlockDomainProcessor.cum"
 
 #include "config.h"
 
@@ -115,7 +115,7 @@ __global__ void convertQuaternionsToRotations( int numMolecules ) {
 
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
 
-__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
+__shared__ ThreadBlockCellStats<BLOCK_SIZE> globalStatsCollector;
 __device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
 
 __device__ MoleculeStorage moleculeStorage;
@@ -126,29 +126,29 @@ __shared__ SharedMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), molec
 #	else
 __device__ WriteThroughMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	endif
-__device__ HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE,
+__device__ HighDensityDomainProcessor<BLOCK_SIZE, BLOCK_SIZE,
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculeLocalStorage), moleculeLocalStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
-		cellProcessor;
+		domainProcessor;
 
 #else
 __device__ ReferenceCellProcessor<
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
-		cellProcessor;
+		domainProcessor;
 #endif
 
 __global__ void processCellPair() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	const int jobIndex = blockIdx.y * gridDim.x + blockIdx.x;
-	if( jobIndex >= PairTraverser::numJobs ) {
+	if( jobIndex >= DomainTraverser::numJobs ) {
 		return;
 	}
 
-	int cellIndex = PairTraverser::getCellIndexFromJobIndex( jobIndex );
-	int neighborIndex = PairTraverser::getNeighborCellIndex( cellIndex );
+	int cellIndex = DomainTraverser::getCellIndexFromJobIndex( jobIndex );
+	int neighborIndex = DomainTraverser::getNeighborCellIndex( cellIndex );
 
 	CellInfoEx cellA = cellInfoFromCellIndex( cellIndex );
 	CellInfoEx cellB = cellInfoFromCellIndex( neighborIndex );
@@ -157,20 +157,8 @@ __global__ void processCellPair() {
 		return;
 	}
 
-	// TODO: move the swapping bit into the cell processor!?
-	/*int cellLength = cellInfos[ cellIndex + 1 ] - cellInfos[ cellIndex ];
-	int neighborLength = cellInfos[ neighborIndex + 1 ] - cellInfos[ neighborIndex ];
-
-	// ensure that cellA_length <= cellB_length (which will use fewer data transfers)
-	// (numTransfersA + numTransfersA * numTransfersB) * BLOCK_SIZE
-	if( cellLength > neighborLength ) {
-		// swap cellIndex and neighborIndex
-		cellIndex = neighborIndex;
-		neighborIndex -= neighborOffset;
-	}*/
-
 	globalStatsCollector.initThreadLocal( threadIndex );
-	cellProcessor.processCellPair( threadIndex, cellA, cellB );
+	domainProcessor.processCellPair( threadIndex, cellA, cellB );
 
 	globalStatsCollector.reduceAndStore( threadIndex, cellIndex, neighborIndex );
 }
@@ -180,30 +168,30 @@ __global__ void processCell() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
 	int jobIndex = blockIdx.y * gridDim.x + blockIdx.x;
-	if( jobIndex >= PairTraverser::numJobs ) {
+	if( jobIndex >= DomainTraverser::numJobs ) {
 		return;
 	}
 
-	int cellIndex = PairTraverser::getInnerCellIndexFromJobIndex(jobIndex);
+	int cellIndex = DomainTraverser::getInnerCellIndexFromJobIndex(jobIndex);
 	CellInfoEx cell = cellInfoFromCellIndex( cellIndex );
 	if( cell.length == 0 ) {
 		return;
 	}
 
 	globalStatsCollector.initThreadLocal( threadIndex );
-	cellProcessor.processCell( threadIndex, cell );
+	domainProcessor.processCell( threadIndex, cell );
 
 	globalStatsCollector.reduceAndStore( threadIndex, cellIndex, cellIndex );
 }
 #else
 
-__device__ WarpBlockMode::CellScheduler< NUM_WARPS > *cellScheduler;
-__device__ WarpBlockMode::CellPairScheduler< NUM_WARPS > *cellPairScheduler;
+__device__ WBDP::CellScheduler< NUM_WARPS > *cellScheduler;
+__device__ WBDP::CellPairScheduler< NUM_WARPS > *cellPairScheduler;
 
 __global__ void createSchedulers() {
 	if( threadIdx.x + threadIdx.y == 0 ) {
-		cellScheduler = new WarpBlockMode::CellScheduler< NUM_WARPS >();
-		cellPairScheduler = new WarpBlockMode::CellPairScheduler< NUM_WARPS >();
+		cellScheduler = new WBDP::CellScheduler< NUM_WARPS >();
+		cellPairScheduler = new WBDP::CellPairScheduler< NUM_WARPS >();
 	}
 }
 
@@ -214,18 +202,18 @@ __global__ void destroySchedulers() {
 	}
 }
 
-__shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
+__shared__ ThreadBlockCellStats<BLOCK_SIZE> globalStatsCollector;
 __device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
 __device__ MoleculeStorage moleculeStorage;
-__device__ WarpBlockMode::CellProcessor<NUM_WARPS,
+__device__ WBDP::DomainProcessor<NUM_WARPS,
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
-		cellProcessor;
+		domainProcessor;
 
 __global__ void processCellPair() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
-	__shared__ WarpBlockMode::ThreadBlockInfo<NUM_WARPS, WarpBlockMode::WarpBlockPairInfo> warpInfos;
+	__shared__ WBDP::ThreadBlockInfo<NUM_WARPS, WBDP::WarpBlockPairInfo> warpInfos;
 
 	do {
 		cellPairScheduler->scheduleWarpBlocks( warpInfos );
@@ -233,8 +221,8 @@ __global__ void processCellPair() {
 		while( !warpInfos.warpJobQueue[threadIdx.y].isEmpty() ) {
 			globalStatsCollector.initThreadLocal( threadIndex );
 
-			WarpBlockMode::WarpBlockPairInfo warpBlockPairInfo = warpInfos.warpJobQueue[threadIdx.y].pop();
-			cellProcessor.processCellPair( warpBlockPairInfo );
+			WBDP::WarpBlockPairInfo warpBlockPairInfo = warpInfos.warpJobQueue[threadIdx.y].pop();
+			domainProcessor.processCellPair( warpBlockPairInfo );
 
 			globalStatsCollector.reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 		}
@@ -247,7 +235,7 @@ __global__ void processCell() {
 	// TODO: remove?
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
-	__shared__ WarpBlockMode::ThreadBlockInfo<NUM_WARPS, WarpBlockMode::WarpBlockPairInfo> warpInfos;
+	__shared__ WBDP::ThreadBlockInfo<NUM_WARPS, WBDP::WarpBlockPairInfo> warpInfos;
 
 	do {
 		cellScheduler->scheduleWarpBlocks( warpInfos );
@@ -255,8 +243,8 @@ __global__ void processCell() {
 		while( !warpInfos.warpJobQueue[threadIdx.y].isEmpty() ) {
 			globalStatsCollector.initThreadLocal( threadIndex );
 
-			WarpBlockMode::WarpBlockPairInfo warpBlockPairInfo = warpInfos.warpJobQueue[threadIdx.y].pop();
-			cellProcessor.processCellPair( warpBlockPairInfo );
+			WBDP::WarpBlockPairInfo warpBlockPairInfo = warpInfos.warpJobQueue[threadIdx.y].pop();
+			domainProcessor.processCellPair( warpBlockPairInfo );
 
 			globalStatsCollector.reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 		}

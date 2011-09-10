@@ -251,30 +251,30 @@ public:
 	};
 
 	template<typename DataType, uint size>
-	class _UnpackedVectorTypeVector {
+	class _UnpackedGlobalVectorBase {
 	protected:
 		GlobalArray< DataType *, size > _devicePointers;
 		DeviceBuffer< DataType > _deviceBuffers[size];
 
 		friend class Module;
 
-		std::vector<DataType> _streamBuffers[size];
+		std::vector<DataType> _hostBuffers[size];
 
 	public:
-		_UnpackedVectorTypeVector(const GlobalArray< DataType *, size > &devicePointers)
+		_UnpackedGlobalVectorBase(const GlobalArray< DataType *, size > &devicePointers)
 			: _devicePointers( devicePointers )
 		{
 		}
 
 		void clear() {
 			for( int i = 0; i < size ; i++ ) {
-				_streamBuffers[ i ].clear();
+				_hostBuffers[ i ].clear();
 			}
 		}
 
 		void push( const DataType entry[size] ) {
 			for( int i = 0 ; i < size ; i++ ) {
-				_streamBuffers[ i ].push_back( entry[ i ] );
+				_hostBuffers[ i ].push_back( entry[ i ] );
 			}
 		}
 
@@ -282,13 +282,13 @@ public:
 			assert( size >= startIndex + count );
 			for( int i = 0 ; i < count ; i++ ) {
 				const int j = startIndex + i;
-				_streamBuffers[ j ].push_back( entry[ j ] );
+				_hostBuffers[ j ].push_back( entry[ j ] );
 			}
 		}
 
 		void updateDevice() {
 			for( int i = 0 ; i < size ; i++ ) {
-				_deviceBuffers[ i ].copyToDevice( _streamBuffers[ i ] );
+				_deviceBuffers[ i ].copyToDevice( _hostBuffers[ i ] );
 				_devicePointers.set( i, _deviceBuffers[ i ] );
 			}
 		}
@@ -301,7 +301,7 @@ public:
 
 		void resize( int numElements ) {
 			for( int i = 0 ; i < size ; i++ ) {
-				_streamBuffers[ i ].resize( numElements );
+				_hostBuffers[ i ].resize( numElements );
 
 				_deviceBuffers[ i ].resize( numElements );
 				_devicePointers.set( i, _deviceBuffers[ i ] );
@@ -310,41 +310,40 @@ public:
 
 		void copyToHost() {
 			for( int i = 0 ; i < size ; i++ ) {
-				_deviceBuffers[ i ].copyToHost( _streamBuffers[ i ] );
+				_deviceBuffers[ i ].copyToHost( _hostBuffers[ i ] );
 			}
 		}
 
 		void readBack( int index, DataType *entry ) {
 			for( int i = 0 ; i < size ; i++ ) {
-				entry[ i ] = _streamBuffers[ i ][ index ];
+				entry[ i ] = _hostBuffers[ i ][ index ];
 			}
 		}
 	};
 
 	template<typename DataType, uint size>
-	class UnpackedVectorTypeVector : public _UnpackedVectorTypeVector<DataType, size> {
+	class UnpackedGlobalVector : public _UnpackedGlobalVectorBase<DataType, size> {
 	public:
-		UnpackedVectorTypeVector(const GlobalArray< DataType *, size > &devicePointers)
-			: _UnpackedVectorTypeVector<DataType, size>( devicePointers )
+		UnpackedGlobalVector(const GlobalArray< DataType *, size > &devicePointers)
+			: _UnpackedGlobalVectorBase<DataType, size>( devicePointers )
 		{
 		}
 	};
 
-	// TODO: rename to UnpackedVector
 	template<uint size>
-	class UnpackedVectorTypeVector<floatType, size> : public _UnpackedVectorTypeVector<floatType, size> {
-		typedef _UnpackedVectorTypeVector<floatType, size> base;
+	class UnpackedGlobalVector<floatType, size> : public _UnpackedGlobalVectorBase<floatType, size> {
+		typedef _UnpackedGlobalVectorBase<floatType, size> base;
 	public:
-		UnpackedVectorTypeVector(const GlobalArray<floatType*, size > &devicePointers)
-			: _UnpackedVectorTypeVector<floatType, size>( devicePointers )
+		UnpackedGlobalVector(const GlobalArray<floatType*, size > &devicePointers)
+			: _UnpackedGlobalVectorBase<floatType, size>( devicePointers )
 		{
 		}
 
 		void push( int startIndex, const floatType3 &entry ) {
 			assert( size >= startIndex + 3 );
-			this->_streamBuffers[ startIndex ].push_back( entry.x );
-			this->_streamBuffers[ startIndex + 1 ].push_back( entry.y );
-			this->_streamBuffers[ startIndex + 2 ].push_back( entry.z );
+			this->_hostBuffers[ startIndex ].push_back( entry.x );
+			this->_hostBuffers[ startIndex + 1 ].push_back( entry.y );
+			this->_hostBuffers[ startIndex + 2 ].push_back( entry.z );
 		}
 
 		void push( const floatType3 &entry ) {
@@ -375,9 +374,9 @@ public:
 			collection.resize( numElements );
 			for( int index = 0 ; index < numElements ; index++ ) {
 				collection[index] = make_floatType3(
-						this->_streamBuffers[0][index],
-						this->_streamBuffers[1][index],
-						this->_streamBuffers[2][index]
+						this->_hostBuffers[0][index],
+						this->_hostBuffers[1][index],
+						this->_hostBuffers[2][index]
 					);
 			}
 		}
@@ -385,7 +384,7 @@ public:
 
 	// TODO: rename *Vector to Global*Vector
 	template<typename DataType>
-	class PackedVector {
+	class PackedGlobalVector {
 	protected:
 		Global<DataType *> _devicePointer;
 		DeviceBuffer<DataType> _deviceBuffer;
@@ -393,24 +392,24 @@ public:
 		friend class Module;
 
 		// TODO: rename to _hostBuffer
-		std::vector<DataType> _streamBuffer;
+		std::vector<DataType> _hostBuffer;
 
 	public:
-		PackedVector(const Global< DataType * > &devicePointer)
+		PackedGlobalVector(const Global< DataType * > &devicePointer)
 			: _devicePointer( devicePointer )
 		{
 		}
 
 		void clear() {
-			_streamBuffer.clear();
+			_hostBuffer.clear();
 		}
 
 		void push( const DataType &entry) {
-			_streamBuffer.push_back( entry );
+			_hostBuffer.push_back( entry );
 		}
 
 		void updateDevice() {
-			_deviceBuffer.copyToDevice( _streamBuffer );
+			_deviceBuffer.copyToDevice( _hostBuffer );
 			_devicePointer.set( _deviceBuffer );
 		}
 
@@ -419,29 +418,29 @@ public:
 		}
 
 		void resize( int numElements ) {
-			_streamBuffer.resize( numElements );
+			_hostBuffer.resize( numElements );
 
 			_deviceBuffer.resize( numElements );
 			_devicePointer.set( _deviceBuffer );
 		}
 
 		std::vector<DataType> & copyToHost() {
-			_deviceBuffer.copyToHost( _streamBuffer );
-			return getContainer();
+			_deviceBuffer.copyToHost( _hostBuffer );
+			return getHostBuffer();
 		}
 
 		void copyToHost( std::vector< DataType > &collection ) {
-			_deviceBuffer.copyToHost( _streamBuffer );
-			collection.assign( _streamBuffer.begin(), _streamBuffer.end() );
+			_deviceBuffer.copyToHost( _hostBuffer );
+			collection.assign( _hostBuffer.begin(), _hostBuffer.end() );
 		}
 
 		void readBack( int index, DataType &entry ) {
-			entry = _streamBuffer[index];
+			entry = _hostBuffer[index];
 		}
 
 		// TODO: rename to getBuffer
-		std::vector<DataType> & getContainer() {
-			return _streamBuffer;
+		std::vector<DataType> & getHostBuffer() {
+			return _hostBuffer;
 		}
 	};
 

@@ -35,7 +35,7 @@ struct MoleculeLocalStorage : MoleculeDataAccessor<Molecule> {
 	void commit(int localIndex, MoleculeDataAccessor<Molecule> &storage, int index);
 };
 
-struct CellProcessor {
+struct DomainProcessor {
 	void processCellPair(int cellA, int cellB);
 	void processCell(int cell);
 };
@@ -87,7 +87,7 @@ template<uint blockSize, uint localStorageBlockSize,
 class MoleculeStorage, MoleculeStorage &moleculeStorage,
 class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage,
 class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
-struct HighDensityCellProcessor {
+struct HighDensityDomainProcessor {
 
 	enum BlockPairType {
 		BPT_UNRELATED,

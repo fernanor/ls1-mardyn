@@ -56,18 +56,18 @@ protected:
 	void compareResultsToCPURef( const std::vector<floatType3> &forces, const std::vector<floatType3> &torque );
 
 #ifndef CUDA_UNPACKED_STORAGE
-	CUDA::PackedVector<floatType3> _moleculePositions, _moleculeForces, _moleculeTorque;
-	CUDA::PackedVector<QuaternionStorage> _moleculeQuaternions;
-	CUDA::PackedVector<Matrix3x3Storage> _moleculeRotations;
+	CUDA::PackedGlobalVector<floatType3> _moleculePositions, _moleculeForces, _moleculeTorque;
+	CUDA::PackedGlobalVector<QuaternionStorage> _moleculeQuaternions;
+	CUDA::PackedGlobalVector<Matrix3x3Storage> _moleculeRotations;
 #else
-	CUDA::UnpackedVectorTypeVector<floatType, 3> _moleculePositions, _moleculeForces, _moleculeTorque;
-	CUDA::UnpackedVectorTypeVector<floatType, 4> _moleculeQuaternions;
+	CUDA::UnpackedGlobalVector<floatType, 3> _moleculePositions, _moleculeForces, _moleculeTorque;
+	CUDA::UnpackedGlobalVector<floatType, 4> _moleculeQuaternions;
 
-	CUDA::UnpackedVectorTypeVector<floatType, 9> _moleculeRotations;
+	CUDA::UnpackedGlobalVector<floatType, 9> _moleculeRotations;
 #endif
 
-	CUDA::PackedVector<Molecule_ComponentType> _moleculeComponentTypes;
-	CUDA::PackedVector<unsigned> _cellStartIndices;
+	CUDA::PackedGlobalVector<Molecule_ComponentType> _moleculeComponentTypes;
+	CUDA::PackedGlobalVector<unsigned> _cellStartIndices;
 
 	CUDA::Function _convertQuaternionsToRotations;
 };

@@ -11,8 +11,7 @@
 
 #define WBM_QUEUE_SIZE 4
 
-// TODO: rename to WBCP
-namespace WarpBlockMode {
+namespace WBDP {
 
 struct WarpBlockInfo {
 	CellInfo cell;
@@ -68,7 +67,7 @@ public:
 };
 
 template< uint warpBlockCount, typename WarpJobDescriptor >
-struct ThreadBlockInfo { // TODO: rename ThreadBlockInfo
+struct ThreadBlockInfo {
 	RingQueue<WarpJobDescriptor, WBM_QUEUE_SIZE> warpJobQueue[warpBlockCount];
 
 	// bitmask for
@@ -80,7 +79,7 @@ struct ThreadBlockInfo { // TODO: rename ThreadBlockInfo
 };
 
 template<uint warpBlockCount, typename WarpJobDescriptor, template<uint> class SpecificScheduler>
-class GenericScheduler {
+class SchedulerTemplate {
 private:
 	Lock::Mutex globalMutex;
 
@@ -137,7 +136,7 @@ public:
 	// safe implementation
 
 	// returns false if the specific warp block should terminate
-	__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo<warpBlockCount, WarpJobDescriptor> & __restrict__ warpInfos ) {
+	__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo<warpBlockCount, WarpJobDescriptor> & __restrict__ threadBlockInfo ) {
 		// only thread 0 of the current warp runs here
 		if( threadIdx.x == 0 ) {
 			// wait until it's our turn for the lock
@@ -146,7 +145,7 @@ public:
 			WARP_PRINTF( "globalMutex enter\n" );
 
 			// assign jobs
-			assignJobs( warpInfos, threadIdx.y );
+			assignJobs( threadBlockInfo, threadIdx.y );
 
 			WARP_PRINTF( "globalMutex leave\n" );
 			__threadfence();
@@ -187,7 +186,7 @@ public:
 };
 
 template<uint warpBlockCount>
-class CellScheduler : public GenericScheduler<warpBlockCount, WarpBlockPairInfo, CellScheduler> {
+class CellScheduler : public SchedulerTemplate<warpBlockCount, WarpBlockPairInfo, CellScheduler> {
 private:
 	int jobIndex;
 
@@ -207,11 +206,11 @@ public:
 		}
 
 		do {
-			if( ++jobIndex >= PairTraverser::numJobs ) {
+			if( ++jobIndex >= DomainTraverser::numJobs ) {
 				return false;
 			}
 
-			cellIndex = PairTraverser::getInnerCellIndexFromJobIndex(jobIndex);
+			cellIndex = DomainTraverser::getInnerCellIndexFromJobIndex(jobIndex);
 			cell = CellInfoEx( cellInfoFromCellIndex( cellIndex ) );
 		}
 		while( cell.length == 0 );
@@ -228,7 +227,7 @@ public:
 };
 
 template<uint warpBlockCount>
-class CellPairScheduler : public GenericScheduler<warpBlockCount, WarpBlockPairInfo, CellPairScheduler> {
+class CellPairScheduler : public SchedulerTemplate<warpBlockCount, WarpBlockPairInfo, CellPairScheduler> {
 private:
 	int jobIndex;
 
@@ -252,23 +251,24 @@ public:
 		do {
 			jobIndex++;
 
-			if( jobIndex >= 2 * PairTraverser::numJobs ) {
+			if( jobIndex >= 2 * DomainTraverser::numJobs ) {
 				return false;
 			}
 
-			const int originalCellIndex = PairTraverser::getCellIndexFromJobIndex( jobIndex % PairTraverser::numJobs );
-			const int neighborCellIndex = PairTraverser::getNeighborCellIndex( originalCellIndex );
+			const int originalCellIndex = DomainTraverser::getCellIndexFromJobIndex( jobIndex % DomainTraverser::numJobs );
+			const int neighborCellIndex = DomainTraverser::getNeighborCellIndex( originalCellIndex );
 
-			if( jobIndex < PairTraverser::numJobs ) {
+			int cellIndexB;
+			if( jobIndex < DomainTraverser::numJobs ) {
 				cellIndexA = originalCellIndex;
-				cellA = CellInfoEx( cellInfoFromCellIndex( originalCellIndex) );
-				cellB = CellInfoEx( cellInfoFromCellIndex( neighborCellIndex ) );
+				cellIndexB = neighborCellIndex;
 			}
 			else {
 				cellIndexA = neighborCellIndex;
-				cellA = CellInfoEx( cellInfoFromCellIndex( neighborCellIndex ) );
-				cellB = CellInfoEx( cellInfoFromCellIndex( originalCellIndex ) );
+				cellIndexB = originalCellIndex;
 			}
+			cellA = CellInfoEx( cellInfoFromCellIndex( cellIndexA ) );
+			cellB = CellInfoEx( cellInfoFromCellIndex( cellIndexB ) );
 		}
 		while( cellA.length == 0 || cellB.length == 0 );
 
@@ -283,50 +283,10 @@ public:
 		  cellIndexA( 0 ), numWarpBlocksA( 0 ), warpBlockIndexA( 0 ) {}
 };
 
-#if 0
-// works correctly lock-free assuming there is exactly one consumer and one producer
-template<uint size>
-class WarpJobManager {
-private:
-	uint scheduledJobsCount;
-	uint finishedJobsCount;
-
-	bool terminate;
-
-	// TODO: make this non-interleaved
-	WarpJob jobs[size];
-
-public:
-	void startJob() {
-		while( scheduledJobsCount <= finishedJobsCount ) {
-			; // spin
-		}
-	}
-
-	WarpJob getJob() const {
-		return jobs[ finishedJobsCount /* + 1 - 1 */ % size ];
-	}
-
-	void finishJob() {
-		finishedJobsCount++;
-	}
-
-	bool addJob( WarpJob job ) {
-		if( finishedJobsCount + size > scheduledJobsCount ) {
-			jobs[ scheduledJobsCount % size ] = job;
-			scheduledJobsCount++;
-
-			return true;
-		}
-		return false;
-	}
-};
-#endif
-
 template<uint warpBlockCount,
 class MoleculeStorage, MoleculeStorage &moleculeStorage,
 class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
-struct CellProcessor {
+struct DomainProcessor {
 	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
 
 	// unified for cells and cell pairs
