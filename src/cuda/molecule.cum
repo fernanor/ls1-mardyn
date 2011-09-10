@@ -9,18 +9,19 @@
 
 typedef Molecule_ComponentType ComponentType;
 
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct Molecule {
-	floatType3 position;
-	Matrix3x3 rotation; // R: relative->global coord system
-
 	floatType3 force;
 	floatType3 torque;
 
-	ComponentType componentType;
+	uint index;
 
-	__device__ Molecule() {}
+	//__device__ Molecule() {}
 
-	__device__ Molecule(const floatType3 &position, const Matrix3x3 &rotation, const floatType3 &force, const floatType3 &torque, const ComponentType &componentType) : position( position ), rotation( rotation ), force( force ), torque( torque ), componentType( componentType ) {}
+	__device__ Molecule( uint index ) : index(index) {
+		force = make_floatType3( 0.0, 0.0, 0.0 );
+		torque = make_floatType3( 0.0, 0.0, 0.0 );
+	}
 
 	__device__ void merge( const Molecule &other ) {
 		force += other.force;
@@ -28,15 +29,16 @@ struct Molecule {
 	}
 
 	__device__ const floatType3 & getPosition() const {
-		return position;
+		return moleculeStorage.getPosition(index);
 	}
 
+	// relative->global coord system
 	__device__ const Matrix3x3 & getRotation() const {
-		return rotation;
+		return moleculeStorage.getRotation(index);
 	}
 
-	__device__ const ComponentType getComponentType() const {
-		return componentType;
+	__device__ ComponentType getComponentType() const {
+		return moleculeStorage.getComponentType(index);
 	}
 
 	__device__ void addForce(const floatType3 &other) {
@@ -54,18 +56,11 @@ struct Molecule {
 	__device__ const floatType3 & getTorque() const {
 		return torque;
 	}
-};
 
-template<class MoleculeStorage, MoleculeStorage &moleculeStorage, bool mergable>
-class MoleculeProxy {
-	uint index;
-
-	floatType3 force;
-	floatType3 torque;
-
-public:
-	__device__ MoleculeProxy(uint index) : index( index ) {}
-
+	__device__ void store() const {
+		moleculeStorage.setForce( index, force + moleculeStorage.getForce( index ) );
+		moleculeStorage.setTorque( index, torque + moleculeStorage.getTorque( index ) );
+	}
 };
 
 #endif

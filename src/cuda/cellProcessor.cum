@@ -44,23 +44,24 @@ struct CellProcessor {
 // actual implementations
 
 // exactly one thread pro block
-template<class Molecule, class MoleculeStorage, MoleculeStorage &moleculeStorage, class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage, class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
 struct ReferenceCellProcessor {
+	typedef Molecule< MoleculeStorage, moleculeStorage > StorageMolecule;
+
 	__device__ void processCellPair(
 			const int threadIndex, const CellInfo & __restrict__ cellA, const CellInfo & __restrict__ cellB
 		) {
 		for( uint indexA = cellA.startIndex ; indexA < cellA.endIndex ; indexA++ ) {
-			Molecule moleculeA;
-			moleculeStorage.get( indexA, moleculeA );
+			StorageMolecule moleculeA(indexA);
+
 			for( uint indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
-				Molecule moleculeB;
-				moleculeStorage.get( indexB, moleculeB );
+				StorageMolecule moleculeB(indexB);
 
 				moleculePairHandler.process( 0, moleculeA, moleculeB );
 
-				moleculeStorage.set( indexB, moleculeB );
+				moleculeB.store();
 			}
-			moleculeStorage.set( indexA, moleculeA );
+			moleculeA.store();
 		}
 	}
 
@@ -68,22 +69,21 @@ struct ReferenceCellProcessor {
 			const int threadIndex, const CellInfo & __restrict__ cell
 		) {
 		for( uint indexA = cell.startIndex ; indexA < cell.endIndex ; indexA++ ) {
-			Molecule moleculeA;
-			moleculeStorage.get( indexA, moleculeA );
+			StorageMolecule moleculeA(indexA);
+
 			for( uint indexB = cell.startIndex ; indexB < indexA; indexB++ ) {
-				Molecule moleculeB;
-				moleculeStorage.get( indexB, moleculeB );
+				StorageMolecule moleculeB(indexB);
 
 				moleculePairHandler.process( 0, moleculeA, moleculeB );
 
-				moleculeStorage.set( indexB, moleculeB );
+				moleculeB.store();
 			}
-			moleculeStorage.set( indexA, moleculeA );
+			moleculeA.store();
 		}
 	}
 };
 
-template<uint blockSize, uint localStorageBlockSize, class Molecule,
+template<uint blockSize, uint localStorageBlockSize,
 class MoleculeStorage, MoleculeStorage &moleculeStorage,
 class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage,
 class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
@@ -94,12 +94,15 @@ struct HighDensityCellProcessor {
 		BPT_SAME_BLOCK   // implies same cell
 	};
 
-	__device__ void processMoleculePair(int threadIndex, uint localIndexB, Molecule & __restrict__ moleculeA) {
-		Molecule moleculeB;
+	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
+	typedef Molecule<MoleculeLocalStorage, moleculeLocalStorage> LocalStorageMolecule;
 
-		moleculeLocalStorage.get( localIndexB, moleculeB );
+	__device__ void processMoleculePair(int threadIndex, uint localIndexB, StorageMolecule & __restrict__ moleculeA) {
+		LocalStorageMolecule moleculeB(localIndexB);
+
 		moleculePairHandler.process( threadIndex, moleculeA, moleculeB );
-		moleculeLocalStorage.set( localIndexB, moleculeB );
+
+		moleculeB.store();
 	}
 
 	// componentLJCenterOffsetFromFirst is only used when blockPairType != BPT_UNRELATED
@@ -109,19 +112,13 @@ struct HighDensityCellProcessor {
 			const uint numMoleculesInBlockA,
 			const uint numMoleculesInBlockB,
 			const uint blockOffsetB,
-			Molecule & __restrict__ moleculeA
+			StorageMolecule & __restrict__ moleculeA
 			) {
-
-		moleculeLocalStorage.setBlockOffset( blockOffsetB );
-
 		const uint indexB = blockOffsetB + threadIndex;
 		// load B data into cache
 		if( threadIndex < numMoleculesInBlockB ) {
 			moleculeLocalStorage.load( threadIndex, indexB );
 		}
-
-		//int count = __syncthreads_count(1);
-		//printf( "%i\n", count );
 
 		// make sure all molecules have been written into the cache
 		// before any one thread tries to access the cache
@@ -147,7 +144,11 @@ struct HighDensityCellProcessor {
 				continue;
 			}
 
+#	ifndef CUDA_HW_CACHE_ONLY
 			processMoleculePair( threadIndex, localIndexB, moleculeA );
+#	else
+			processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
+#	endif
 		}
 #else
 #	if 1
@@ -184,7 +185,11 @@ struct HighDensityCellProcessor {
 					continue;
 				}
 
+#		ifndef CUDA_HW_CACHE_ONLY
 				processMoleculePair( threadIndex, localIndexB, moleculeA );
+#		else
+				processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
+#		endif
 			}
 
 			// sync all warps, so that no two different warps will try to access the same warp data block
@@ -210,7 +215,11 @@ struct HighDensityCellProcessor {
 				continue;
 			}
 
+#		ifndef CUDA_HW_CACHE_ONLY
 			processMoleculePair( threadIndex, localIndexB, moleculeA );
+#		else
+			processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
+#		endif
 		}
 
 		__syncthreads();
@@ -231,13 +240,10 @@ struct HighDensityCellProcessor {
 			const uint numMoleculesInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellA.length, blockSize );
 			const uint blockOffsetA = cellA.startIndex + blockIndexA * blockSize;
 
-			Molecule moleculeA;
-
 			const int indexA = blockOffsetA + threadIndex;
-			// load A data into (register) cache
-			if( threadIndex < numMoleculesInBlockA ) {
-				moleculeStorage.get( indexA, moleculeA );
-			}
+			// if threadIndex >= numMoleculesInBlockA, it doesn't matter here, because molecule is only a proxy
+			// assert that!!
+			StorageMolecule moleculeA( indexA );
 
 			for( uint blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
 				const uint numMoleculesInBlockB = (blockIndexB < numBlocksB - 1) ? localStorageBlockSize : shiftedMod( cellB.length, localStorageBlockSize );
@@ -254,7 +260,7 @@ struct HighDensityCellProcessor {
 
 			// push A data back
 			if( threadIndex < numMoleculesInBlockA ) {
-				moleculeStorage.set(indexA, moleculeA);
+				moleculeA.store();
 			}
 		}
 	}
@@ -266,12 +272,10 @@ struct HighDensityCellProcessor {
 			const uint numMoleculesInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
 			const uint blockOffsetA = cell.startIndex + blockIndexA * blockSize;
 
-			Molecule moleculeA;
-			// load A data into (register) cache
 			const uint indexA = blockOffsetA + threadIndex;
-			if( threadIndex < numMoleculesInBlockA ) {
-				moleculeStorage.getMergable( indexA, moleculeA );
-			}
+			// if threadIndex >= numMoleculesInBlockA, it doesn't matter here, because molecule is only a proxy
+			// assert that!!
+			StorageMolecule moleculeA(indexA);
 
 			processBlock<BPT_SAME_BLOCK>(
 					threadIndex,
@@ -298,7 +302,7 @@ struct HighDensityCellProcessor {
 
 			// push A data back
 			if( threadIndex < numMoleculesInBlockA ) {
-				moleculeStorage.merge( indexA, moleculeA );
+				moleculeA.store();
 			}
 		}
 	}

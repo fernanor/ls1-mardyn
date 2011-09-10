@@ -8,9 +8,10 @@
 __constant__ __device__ floatType cutOffRadiusSquared;
 __constant__ __device__ floatType epsRFInvrc3;
 
-template<typename Auto, Auto &globalStatsCollector>
+template<typename GlobalStatsCollector, GlobalStatsCollector &globalStatsCollector>
 struct MoleculePairHandler {
-	__device__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
+	template<typename MoleculeA, typename MoleculeB>
+	__device__ void process( int threadIndex, MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB ) {
 		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
 		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
 
@@ -35,14 +36,17 @@ struct MoleculePairHandler {
 #endif
 	}
 
+	template<typename MoleculeA, typename MoleculeB>
 	__device__ void processLJCenters( int threadIndex,
-			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
-			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
+			MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+			const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
 		) {
 
-		const floatType xi = componentMixXis[ moleculeA.getComponentType() ][ moleculeB.getComponentType() ];
-		const floatType eta = componentMixEtas[ moleculeA.getComponentType() ][ moleculeB.getComponentType() ];
+		const ComponentType componentTypeA = moleculeA.getComponentType();
+		const ComponentType componentTypeB = moleculeB.getComponentType();
+		const floatType xi = componentMixXis[ componentTypeA ][ componentTypeB ];
+		const floatType eta = componentMixEtas[ componentTypeA ][ componentTypeB ];
 
 		for( int ljIndexA = 0 ; ljIndexA < MAX_NUM_LJCENTERS ; ljIndexA++ ) {
 			if( ljIndexA >= descriptorA.numLJCenters ) {
@@ -86,9 +90,10 @@ struct MoleculePairHandler {
 	}
 
 #if MAX_NUM_CHARGES > 0
-	__device__ __noinline__ void processCharges( int threadIndex,
-			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
-			const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
+	template<typename MoleculeA, typename MoleculeB>
+	__device__ void processCharges( int threadIndex,
+			MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+			const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
 		) {
 		for( int chargeIndexA = 0 ; chargeIndexA < MAX_NUM_CHARGES ; chargeIndexA++ ) {
@@ -119,8 +124,8 @@ struct MoleculePairHandler {
 				moleculeA.addForce( forceAtoB );
 				moleculeB.addForce( -forceAtoB );
 
-				moleculeA.addTorque( cross( relativePositionA, forceAtoB );
-				moleculeB.addTorque( cross( forceAtoB, relativePositionB );
+				moleculeA.addTorque( cross( relativePositionA, forceAtoB ) );
+				moleculeB.addTorque( cross( forceAtoB, relativePositionB ) );
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
@@ -131,9 +136,10 @@ struct MoleculePairHandler {
 #endif
 
 #if MAX_NUM_DIPOLES > 0
-	__device__ __noinline__ void processDipoles( int threadIndex,
-				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
-				const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
+	template<typename MoleculeA, typename MoleculeB>
+	__device__ void processDipoles( int threadIndex,
+				MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
 			) {
 		for( int dipoleIndexA = 0 ; dipoleIndexA < MAX_NUM_DIPOLES ; dipoleIndexA++ ) {
@@ -186,9 +192,10 @@ struct MoleculePairHandler {
 #endif
 
 #if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
-	__device__ __noinline__ void processDipolesCharges( int threadIndex,
-				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
-				const ComponentDescriptor &descriptorA, const ComponentDescriptor &descriptorB,
+	template<typename MoleculeA, typename MoleculeB>
+	__device__ void processDipolesCharges( int threadIndex,
+				MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
 			) {
 		// dipole as outer loop because charges are more light-weight (no rotation of e)

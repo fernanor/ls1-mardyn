@@ -17,7 +17,7 @@ public:
 		: CUDAInteractionCalculationComponent(component),
 		  _cellStats( _module.getGlobal<CellStatsStorage *>("cellStats") ),
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-		  _cellStatsLocks( _module.getGlobal<LockStorage *>("cellStatsLocks") ),
+		  _cellLocks( _module.getGlobal<LockStorage *>("cellLocks") ),
 #endif
 		  _potential( 0.0f ), _virial( 0.0f ) {
 	}
@@ -40,7 +40,7 @@ protected:
 	CUDA::PackedVector<CellStatsStorage> _cellStats;
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-	CUDA::GlobalDeviceBuffer<LockStorage> _cellStatsLocks;
+	CUDA::GlobalDeviceBuffer<LockStorage> _cellLocks;
 #endif
 };
 

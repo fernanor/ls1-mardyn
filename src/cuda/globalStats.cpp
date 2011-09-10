@@ -12,8 +12,8 @@ void GlobalStats::preInteractionCalculation() {
 	_cellStats.zeroDevice();
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-	_cellStatsLocks.resize( _linkedCells.getCells().size() );
-	_cellStatsLocks.zeroDevice();
+	_cellLocks.resize( _linkedCells.getCells().size() );
+	_cellLocks.zeroDevice();
 #endif
 }
 

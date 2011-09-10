@@ -40,7 +40,7 @@ __device__ CellInfo cellInfoFromCellIndex( int index ) {
 #	define STORE_FLOATTYPE3(stream, index, data) (stream[index] = (data))
 #	define STORE_MATRIX3x3(stream, index, data) (stream[index] = (data))
 #else
-#	define LOAD_FLOATTYPE3(index, stream) packFloatType3((stream), (index))
+#	define LOAD_FLOATTYPE3(stream, index) packFloatType3((stream), (index))
 #	define LOAD_MATRIX3x3(stream, index) packMatrix3x3((stream), (index))
 
 #	define STORE_FLOATTYPE3(stream, index, data) unpackFloatType3( stream, index, data )
@@ -48,149 +48,38 @@ __device__ CellInfo cellInfoFromCellIndex( int index ) {
 
 #endif
 
-#define LOAD_MOLECULE_FROM_STREAMS( index, mPosition, mRotation, mForce, mTor, mComponentType ) \
-					Molecule( \
-							LOAD_FLOATTYPE3( mPosition, index ), \
-							LOAD_MATRIX3x3( mRotation, index ), \
-							LOAD_FLOATTYPE3( mForce, index ), \
-							LOAD_FLOATTYPE3( mTor, index ), \
-							mComponentType[index] \
-						)
-
-#define LOAD_MERGABLE_MOLECULE_FROM_STREAMS( index, mPosition, mRotation, mComponentType ) \
-					Molecule( \
-							LOAD_FLOATTYPE3( mPosition, index ), \
-							LOAD_MATRIX3x3( mRotation, index ), \
-							make_floatType3( 0.0 ), \
-							make_floatType3( 0.0 ), \
-							mComponentType[index] \
-						)
-
-#define STORE_MOLECULE_TO_STREAMS( index, mForce, mTorque, molecule ) \
-					do { \
-						STORE_FLOATTYPE3( mForce, index, molecule.getForce() ); \
-						STORE_FLOATTYPE3( mTorque, index, molecule.getTorque() ); \
-					} while( false )
-
-#define MERGE_MOLECULE_TO_STREAMS( index, mForce, mTorque, molecule ) \
-					do { \
-						floatType3 __force = LOAD_FLOATTYPE3( mForce, index ); \
-						__force += molecule.getForce(); \
-						STORE_FLOATTYPE3( mForce, index, __force ); \
-						\
-						floatType3 __torque = LOAD_FLOATTYPE3( mTorque, index ); \
-						__torque += molecule.getTorque(); \
-						STORE_FLOATTYPE3( mTorque, index, __torque); \
-					} while( false )
-
-#define COPY_STREAM_ELEMENT( aIndex, bIndex, aPosition, aRotation, aForce, aTorque, aComponentType, bPosition, bRotation, bForce, bTorque, bComponentType ) \
-					do { \
-						STORE_FLOATTYPE3( aPosition, aIndex, LOAD_FLOATTYPE3( bPosition, bIndex ) ); \
-						STORE_MATRIX3x3( aRotation, aIndex, LOAD_MATRIX3x3( bRotation, bIndex ) ); \
-						STORE_FLOATTYPE3( aForce, aIndex, LOAD_FLOATTYPE3( bForce, bIndex ) ); \
-						STORE_FLOATTYPE3( aTorque, aIndex, LOAD_FLOATTYPE3( bTorque, bIndex ) ); \
-						aComponentType[ aIndex ] = bComponentType[ bIndex ]; \
-					} while( false )
-
-#define COMMIT_STREAM_ELEMENT( aIndex, bIndex, aForce, aTorque, bForce, bTorque ) \
-					do { \
-						STORE_FLOATTYPE3( aForce, aIndex, LOAD_FLOATTYPE3( bForce, bIndex ) ); \
-						STORE_FLOATTYPE3( aTorque, aIndex, LOAD_FLOATTYPE3( bTorque, bIndex ) ); \
-					} while( false )
-
 struct MoleculeStorage {
 	// straight-forward getter/setter
-	__device__ void get(uint index, Molecule & __restrict__ molecule) {
-		molecule = LOAD_MOLECULE_FROM_STREAMS(
-							index,
-							moleculePositions, moleculeRotations,
-							moleculeForces, moleculeTorque,
-							moleculeComponentTypes
-						);
-	}
-
-#if 0
-	__device__ void getUniform(uint index, Molecule & __restrict__ molecule) {
-		// load positions
-#ifdef CUDA_DOUBLE_MODE
-#	define __ldu_vec3( target, source ) \
-		asm ( "ldu.global.f64 %0, [%1];\n" : "=d"( target.x ) : "r"( source ) ); \
-		asm ( "ldu.global.f64 %0, [%1 + 8];\n" : "=d"( target.y ) : "r"( source ) ); \
-		asm ( "ldu.global.f64 %0, [%1 + 16];\n" : "=d"( target.z ) : "r"( source ) );
-#else
-#	define __ldu_vec3( target, source ) \
-		asm ( "ldu.global.f32 %0, [%1];\n" : "=f"( target.x ) : "r"( source ) ); \
-		asm ( "ldu.global.f32 %0, [%1 + 4];\n" : "=f"( target.y ) : "r"( source ) ); \
-		asm ( "ldu.global.f32 %0, [%1 + 8];\n" : "=f"( target.z ) : "r"( source ) );
-#endif
-
-#define __ldu_mat3x3( target, source ) \
-		__ldu_vec3( target.rows[0], ((floatType3*) (source)) ) \
-		__ldu_vec3( target.rows[1], ((floatType3*) (source)) + 1 ) \
-		__ldu_vec3( target.rows[2], ((floatType3*) (source)) + 2 )
-
-#define __ldu_b8( target, source ) \
-		{ \
-			unsigned short temp; \
-			asm ( "ldu.global.b8 %0, [%1];" : "=h"( temp ) : "r"( source ) ); \
-			target = temp; \
-		}
-
-		__ldu_vec3( molecule.position, moleculePositions + index );
-		__ldu_mat3x3( molecule.rotation, moleculeRotations + index );
-		__ldu_vec3( molecule.force, moleculeForces + index );
-		__ldu_vec3( molecule.torque, moleculeTorque + index );
-		__ldu_b8( molecule.componentType, moleculeComponentTypes + index );
-	}
-#endif
-
-	__device__ void set(uint index, const Molecule & __restrict__ molecule) {
-		STORE_MOLECULE_TO_STREAMS( index, moleculeForces, moleculeTorque, molecule );
-	}
-
-	// get the molecule data but in a way that merge will be able to merge changes back into the storage
-	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
-	__device__ void getMergable(uint index, Molecule & __restrict__ molecule) {
-		molecule = LOAD_MERGABLE_MOLECULE_FROM_STREAMS( index, moleculePositions, moleculeRotations, moleculeComponentTypes );
-	}
-
-#if 0
-	__device__ void getMergableUniform(uint index, Molecule & __restrict__ molecule) {
-		__ldu_vec3( molecule.position, moleculePositions + index );
-		__ldu_mat3x3( molecule.rotation, moleculeRotations + index );
-		__ldu_b8( molecule.componentType, moleculeComponentTypes + index );
-
-		molecule.force = make_floatType3( 0.0 );
-		molecule.torque = make_floatType3( 0.0 );
-	}
-#endif
-
-	__device__ void merge(uint index, const Molecule & __restrict__ molecule) {
-		MERGE_MOLECULE_TO_STREAMS( index, moleculeForces, moleculeTorque, molecule );
-	}
-
-	__device__ floatType3 getPosition(uint index) {
+	__device__ floatType3 getPosition(uint index) const {
 		return LOAD_FLOATTYPE3(moleculePositions, index);
 	}
 
-	__device__ Matrix3x3 getRotation(uint index) {
+	__device__ Matrix3x3 getRotation(uint index) const {
 		return LOAD_MATRIX3x3(moleculeRotations, index);
 	}
 
-	__device__ floatType3 getForce(uint index) {
+	__device__ floatType3 getForce(uint index) const {
 		return LOAD_FLOATTYPE3(moleculeForces, index);
 	}
 
-	__device__ floatType3 getTorque(uint index) {
+	__device__ floatType3 getTorque(uint index) const {
 		return LOAD_FLOATTYPE3(moleculeTorque, index);
 	}
 
-	__device__ ComponentType getComponentType(uint index) {
+	__device__ ComponentType getComponentType(uint index) const {
 		return moleculeComponentTypes[index];
+	}
+
+	__device__ void setForce(uint index, const floatType3 &force) {
+		STORE_FLOATTYPE3(moleculeForces, index, force);
+	}
+
+	__device__ void setTorque(uint index, const floatType3 &torque) {
+		STORE_FLOATTYPE3(moleculeTorque, index, torque);
 	}
 };
 
-template<uint blockSize>
+template<uint blockSize, class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct SharedMoleculeLocalStorage {
 #ifndef CUDA_UNPACKED_STORAGE
 	floatType3 positions[blockSize];
@@ -209,102 +98,81 @@ struct SharedMoleculeLocalStorage {
 	ComponentType componentTypes[blockSize];
 
 	// straight-forward getter/setter
-	__device__ void get(uint index, Molecule & __restrict__ molecule) {
-		molecule = LOAD_MOLECULE_FROM_STREAMS( index, positions, rotations, forces, torque, componentTypes );
-	}
-
-	__device__ void set(uint index, const Molecule & __restrict__ molecule) {
-		STORE_MOLECULE_TO_STREAMS( index, forces, torque, molecule );
-	}
-
-	// get the molecule data but in a way that merge will be able to merge changes back into the storage
-	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
-	__device__ void getMergable(uint index, Molecule & __restrict__ molecule) {
-		molecule = LOAD_MERGABLE_MOLECULE_FROM_STREAMS( index, positions, rotations, componentTypes );
-	}
-
-	__device__ void merge(uint index, const Molecule & __restrict__ molecule) {
-		MERGE_MOLECULE_TO_STREAMS( index, forces, torque, molecule );
-	}
-
 	__device__ void load(uint localIndex, uint index) {
-		COPY_STREAM_ELEMENT( localIndex, index,
-				positions, rotations, forces, torque, componentTypes,
-				moleculePositions, moleculeRotations, moleculeForces, moleculeTorque, moleculeComponentTypes );
+		STORE_FLOATTYPE3( positions, localIndex, moleculeStorage.getPosition( index ) );
+		STORE_MATRIX3x3( rotations, localIndex, moleculeStorage.getRotation( index ) );
+		componentTypes[ localIndex ] = moleculeComponentTypes[ index ];
+
+		STORE_FLOATTYPE3( forces, localIndex, make_floatType3( 0.0, 0.0, 0.0 ) );
+		STORE_FLOATTYPE3( torque, localIndex, make_floatType3( 0.0, 0.0, 0.0 ) );
 	}
 
-	__device__ void commit(uint localIndex, uint index) {
-		COMMIT_STREAM_ELEMENT( index, localIndex, moleculeForces, moleculeTorque, forces, torque );
+	__device__ void commit(uint localIndex, uint index) const {
+		moleculeStorage.setForce( index, getForce( localIndex ) + moleculeStorage.getForce( index ) );
+		moleculeStorage.setTorque( index, getTorque( localIndex ) + moleculeStorage.getTorque( index ) );
 	}
 
-	__device__ void setBlockOffset(uint blockOffset) {}
-
-	__device__ floatType3 getPosition(uint index) {
+	__device__ floatType3 getPosition(uint index) const {
 		return LOAD_FLOATTYPE3(positions, index);
 	}
 
-	__device__ Matrix3x3 getRotation(uint index) {
+	__device__ Matrix3x3 getRotation(uint index) const {
 		return LOAD_MATRIX3x3(rotations, index);
 	}
 
-	__device__ floatType3 getForce(uint index) {
+	__device__ floatType3 getForce(uint index) const {
 		return LOAD_FLOATTYPE3(forces, index);
 	}
 
-	__device__ floatType3 getTorque(uint index) {
+	__device__ floatType3 getTorque(uint index) const {
 		return LOAD_FLOATTYPE3(torque, index);
 	}
 
-	__device__ ComponentType getComponentType(uint index) {
+	__device__ ComponentType getComponentType(uint index) const {
 		return componentTypes[index];
+	}
+
+	__device__ void setForce(uint index, const floatType3 &force) {
+		STORE_FLOATTYPE3(forces, index, force);
+	}
+
+	__device__ void setTorque(uint index, const floatType3 &torque) {
+		STORE_FLOATTYPE3(this->torque, index, torque);
 	}
 };
 
 template<int blockSize, class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct WriteThroughMoleculeLocalStorage {
-	uint blockOffset;
-
-	__device__ void setBlockOffset(uint blockOffset) {
-		this->blockOffset = blockOffset;
-	}
-
-	// straight-forward getter/setter
-	__device__ void get(uint index, Molecule & __restrict__ molecule) {
-		moleculeStorage.get( blockOffset + index, molecule );
-	}
-
-	__device__ void set(uint index, const Molecule & __restrict__ molecule) {
-		moleculeStorage.set( blockOffset + index, molecule );
-	}
-
-	// get the molecule data but in a way that merge will be able to merge changes back into the storage
-	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
-	__device__ void getMergable(uint index, Molecule & __restrict__ molecule) {}
-
-	__device__ void merge(uint index, const Molecule & __restrict__ molecule) {}
-
 	__device__ void load(uint localIndex, uint index) {}
 
-	__device__ void commit(uint localIndex, uint index) {}
+	__device__ void commit(uint localIndex, uint index) const {}
 
-	__device__ floatType3 getPosition(uint index) {
+	__device__ floatType3 getPosition(uint index) const {
 		return moleculeStorage.getPosition( index );
 	}
 
-	__device__ Matrix3x3 getRotation(uint index) {
+	__device__ Matrix3x3 getRotation(uint index) const {
 		return moleculeStorage.getRotation( index );
 	}
 
-	__device__ floatType3 getForce(uint index) {
+	__device__ floatType3 getForce(uint index) const {
 		return moleculeStorage.getForce( index );
 	}
 
-	__device__ floatType3 getTorque(uint index) {
+	__device__ floatType3 getTorque(uint index) const {
 		return moleculeStorage.getTorque( index );
 	}
 
-	__device__ ComponentType getComponentType(uint index) {
+	__device__ ComponentType getComponentType(uint index) const {
 		return moleculeStorage.getComponentType( index );
+	}
+
+	__device__ void setForce(uint index, const floatType3 &force) {
+		moleculeStorage.setForce( index, force );
+	}
+
+	__device__ void setTorque(uint index, const floatType3 &torque) {
+		moleculeStorage.setTorque( index, torque );
 	}
 };
 

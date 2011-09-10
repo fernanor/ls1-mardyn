@@ -16,7 +16,7 @@ struct CellStats : CellStatsStorage {
 __constant__ __device__ CellStats * cellStats;
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-__constant__ Lock::Mutex *cellStatsLocks;
+__constant__ Lock::Mutex *cellLocks;
 #endif
 
 // TODO: rename BlockStatsCollector
@@ -96,17 +96,17 @@ struct CellStatsCollector {
 			floatType potential = threadPotential[ threadIndex ];
 			floatType virial = threadVirial[ threadIndex ];
 
-			cellStatsLocks[cellIndex].lock();
+			cellLocks[cellIndex].lock();
 			WARP_PRINTF( "%i cell lock entered\n", cellIndex );
 
 			WARP_PRINTF( "%i: old %f; %f\n", cellIndex, cellStats[cellIndex].potential, potential );
 			cellStats[cellIndex].add( potential, virial );
 
-			__threadfence();
+			//__threadfence();
 			WARP_PRINTF( "%i: new %f\n", cellIndex, cellStats[cellIndex].potential );
 			__threadfence();
 			WARP_PRINTF( "%i cell lock left\n", cellIndex );
-			cellStatsLocks[cellIndex].unlock();
+			cellLocks[cellIndex].unlock();
 		}
 	}
 #endif

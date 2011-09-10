@@ -122,18 +122,18 @@ __device__ MoleculeStorage moleculeStorage;
 
 #ifndef REFERENCE_IMPLEMENTATION
 #	ifndef CUDA_HW_CACHE_ONLY
-__shared__ SharedMoleculeLocalStorage<BLOCK_SIZE> moleculeLocalStorage;
+__shared__ SharedMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	else
 __device__ WriteThroughMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	endif
-__device__ HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE,	Molecule,
+__device__ HighDensityCellProcessor<BLOCK_SIZE, BLOCK_SIZE,
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculeLocalStorage), moleculeLocalStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
 		cellProcessor;
 
 #else
-__device__ ReferenceCellProcessor<Molecule,
+__device__ ReferenceCellProcessor<
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
 		cellProcessor;
@@ -217,7 +217,7 @@ __global__ void destroySchedulers() {
 __shared__ CellStatsCollector<BLOCK_SIZE> globalStatsCollector;
 __device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
 __device__ MoleculeStorage moleculeStorage;
-__device__ WarpBlockMode::CellProcessor<NUM_WARPS, Molecule,
+__device__ WarpBlockMode::CellProcessor<NUM_WARPS,
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
 		cellProcessor;

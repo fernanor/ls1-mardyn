@@ -134,11 +134,11 @@ std::string getCompileFlags() {
 #else
 #	ifdef REFERENCE_IMPLEMENTATION
 		flags << " REFERENCE_IMPLEMENTATION ";
-#	else
-#		ifdef CUDA_HW_CACHE_ONLY
-			flags << " CUDA_HW_CACHE_ONLY ";
-#		endif
 #	endif
+#endif
+
+#if defined( CUDA_HW_CACHE_ONLY ) && !defined( REFERENCE_IMPLEMENTATION )
+		flags << " CUDA_HW_CACHE_ONLY ";
 #endif
 
 #ifdef NO_CONSTANT_MEMORY
