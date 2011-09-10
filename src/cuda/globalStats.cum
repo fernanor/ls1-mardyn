@@ -3,7 +3,7 @@
 
 #include "sharedDecls.h"
 
-#include "locks.cum"
+#include "util/locks.cum"
 
 struct CellStats : CellStatsStorage {
 	__device__ void add( floatType potential, floatType virial ) {

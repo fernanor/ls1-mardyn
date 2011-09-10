@@ -3,8 +3,6 @@
 
 #include <host_defines.h>
 
-#include "sharedDecls.h"
-
 namespace Lock {
 	class WaitForFirstWarp {
 		volatile uint lockValue;
