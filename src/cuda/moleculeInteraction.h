@@ -60,6 +60,7 @@ public:
 			_domainTraverser.preInterCellStage( stageIndex );
 
 			for( int subStageIndex = 0 ; subStageIndex < _domainTraverser.getInterCellSubStageCount( stageIndex ) ; subStageIndex++ ) {
+				printf( "inter-cell: %i:%i\n", stageIndex, subStageIndex );
 				_domainTraverser.preInterCellSubStage( stageIndex, subStageIndex );
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
@@ -85,6 +86,7 @@ public:
 #endif
 
 		CUDASingleProcessingTimer.begin();
+		printf( "intra-cell\n" );
 
 		_domainTraverser.preIntraCellStage();
 		_cellProcessor.call().

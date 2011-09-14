@@ -4,47 +4,8 @@
 
 #include "cellInfo.cum"
 
-// "concepts" that have to be implemented
-#if 0
-// general handler
-template<class Molecule>
-struct MoleculePairHandler {
-	void process( int threadIndex, Molecule &moleculeA, Molecule &moleculeB);
-};
-
-template<class Molecule>
-struct MoleculeDataAccessor {
-	// straight-forward getter/setter
-	void get(int index, Molecule &molecule);
-	void set(int index, const Molecule &molecule);
-
-	// get the molecule data but in a way that merge will be able to merge changes back into the storage
-	// (ie. force is set 0 in getMergable, so that merge can add molecule.force to the stored value instead of assigning it
-	void getMergable(int index, Molecule &molecule);
-	void merge(int index, const Molecule &molecule);
-};
-
-template<class Molecule>
-struct MoleculeStorage : MoleculeDataAccessor<Molecule> {
-};
-
-template<int blockSize>
-struct MoleculeLocalStorage : MoleculeDataAccessor<Molecule> {
-	void setBlockOffset(uint blockOffset);
-	void load(int localIndex, MoleculeDataAccessor<Molecule> &storage, int index);
-	void commit(int localIndex, MoleculeDataAccessor<Molecule> &storage, int index);
-};
-
-struct DomainProcessor {
-	void processCellPair(int cellA, int cellB);
-	void processCell(int cell);
-};
-#endif
-
-// actual implementations
-
 // exactly one thread pro block
-template<class MoleculeStorage, MoleculeStorage &moleculeStorage, class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct ReferenceCellProcessor {
 	typedef Molecule< MoleculeStorage, moleculeStorage > StorageMolecule;
 
@@ -57,7 +18,7 @@ struct ReferenceCellProcessor {
 			for( uint indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
 				StorageMolecule moleculeB(indexB);
 
-				moleculePairHandler.process( 0, moleculeA, moleculeB );
+				MoleculePairHandler::process( 0, moleculeA, moleculeB );
 
 				moleculeB.store();
 			}
@@ -74,7 +35,7 @@ struct ReferenceCellProcessor {
 			for( uint indexB = cell.startIndex ; indexB < indexA; indexB++ ) {
 				StorageMolecule moleculeB(indexB);
 
-				moleculePairHandler.process( 0, moleculeA, moleculeB );
+				MoleculePairHandler::process( 0, moleculeA, moleculeB );
 
 				moleculeB.store();
 			}
@@ -85,8 +46,7 @@ struct ReferenceCellProcessor {
 
 template<uint blockSize, uint localStorageBlockSize,
 class MoleculeStorage, MoleculeStorage &moleculeStorage,
-class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage,
-class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
+class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage>
 struct HighDensityDomainProcessor {
 
 	enum BlockPairType {
@@ -100,7 +60,7 @@ struct HighDensityDomainProcessor {
 	__device__ void processMoleculePair(int threadIndex, uint localIndexB, StorageMolecule & __restrict__ moleculeA) {
 		LocalStorageMolecule moleculeB(localIndexB);
 
-		moleculePairHandler.process( threadIndex, moleculeA, moleculeB );
+		MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
 
 		moleculeB.store();
 	}

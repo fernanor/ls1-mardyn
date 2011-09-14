@@ -13,12 +13,12 @@ public:
 		:
 			CUDAComponent(component),
 
-			_startIndex( _module.getGlobal<int>("_ZN13PairTraverser10startIndexE") ),
-			_dimension( _module.getGlobal<int2>("_ZN13PairTraverser9dimensionE") ),
-			_gridOffsets( _module.getGlobal<int3>("_ZN13PairTraverser11gridOffsetsE") ),
-			_neighborOffset( _module.getGlobal<int>("_ZN13PairTraverser14neighborOffsetE") ),
+			_startIndex( _module.getGlobal<int>("_ZN15DomainTraverser10startIndexE") ),
+			_dimension( _module.getGlobal<int2>("_ZN15DomainTraverser9dimensionE") ),
+			_gridOffsets( _module.getGlobal<int3>("_ZN15DomainTraverser11gridOffsetsE") ),
+			_neighborOffset( _module.getGlobal<int>("_ZN15DomainTraverser14neighborOffsetE") ),
 
-			_numJobs( _module.getGlobal<int>("_ZN13PairTraverser7numJobsE") )
+			_numJobs( _module.getGlobal<int>("_ZN15DomainTraverser7numJobsE") )
 	{
 		initStages();
 		testStages();

@@ -529,7 +529,7 @@ public:
 		void executeAtLeast( int numJobs ) const {
 			for( int log2_y = 0 ; log2_y < 15 ; log2_y++ ) {
 				int y = 1 << log2_y;
-				int x = numJobs >> log2_y;
+				int x = ((numJobs + y - 1) >> log2_y);
 				if( x < 65536 ) {
 					execute( x, y );
 					return;
@@ -575,7 +575,7 @@ public:
 			CUdeviceptr dptr;
 			size_t dataSize;
 
-			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &dataSize, _module, name ) );
+			CUDA_THROW_ON_ERROR_EX( cuModuleGetGlobal( &dptr, &dataSize, _module, name ), "\twhen trying to access global '%s'\n", name );
 
 			assert( dataSize == CUDADetail::TypeInfo<DataType>::size );
 
@@ -587,7 +587,7 @@ public:
 			CUdeviceptr dptr;
 			size_t dataSize;
 
-			CUDA_THROW_ON_ERROR( cuModuleGetGlobal( &dptr, &dataSize, _module, name ) );
+			CUDA_THROW_ON_ERROR_EX( cuModuleGetGlobal( &dptr, &dataSize, _module, name ), "\twhen trying to access array global '%s'\n", name );
 
 			assert( dataSize == CUDADetail::TypeInfo<DataType>::size * size );
 

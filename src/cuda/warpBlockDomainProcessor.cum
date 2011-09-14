@@ -32,9 +32,8 @@ struct WarpBlockPairInfo {
 	__device__ WarpBlockPairInfo( const WarpBlockPairInfo &other ) : warpBlockA( other.warpBlockA ), cellB( other.cellB ) {}
 };
 
-template< uint warpBlockCount, typename WarpJobDescriptor >
 struct ThreadBlockInfo {
-	RingQueue<WarpJobDescriptor, WBM_QUEUE_SIZE> warpJobQueue[warpBlockCount];
+	RingQueue<WarpBlockPairInfo, WBM_QUEUE_SIZE> warpJobQueue[NUM_WARPS];
 
 	// bitmask for
 	volatile uint jobIdleSignal;
@@ -44,7 +43,7 @@ struct ThreadBlockInfo {
 	__device__ ThreadBlockInfo() : hasMoreJobs( true ), jobIdleSignal( 0 ) {}
 };
 
-template<uint warpBlockCount, typename WarpJobDescriptor, template<uint> class SpecificScheduler>
+template<class SpecificScheduler>
 class SchedulerTemplate {
 private:
 	Lock::Mutex globalMutex;
@@ -53,7 +52,7 @@ public:
 #if 1
 #warning semaphore scheduler
 	// returns false if the specific warp block should terminate
-		__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo<warpBlockCount, WarpJobDescriptor> & __restrict__ threadBlockInfo ) {
+		__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo & __restrict__ threadBlockInfo ) {
 			const uint warpBit = 1 << threadIdx.y;
 
 			// only thread 0 of the current warp runs here
@@ -102,7 +101,7 @@ public:
 	// safe implementation
 
 	// returns false if the specific warp block should terminate
-	__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo<warpBlockCount, WarpJobDescriptor> & __restrict__ threadBlockInfo ) {
+	__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo & __restrict__ threadBlockInfo ) {
 		// only thread 0 of the current warp runs here
 		if( threadIdx.x == 0 ) {
 			// wait until it's our turn for the lock
@@ -124,7 +123,7 @@ public:
 #endif
 
 
-	__device__ void assignJobs( ThreadBlockInfo<warpBlockCount, WarpJobDescriptor> & __restrict__ threadBlockInfo, uint idleJobMask ) {
+	__device__ void assignJobs( ThreadBlockInfo & __restrict__ threadBlockInfo, uint idleJobMask ) {
 		const uint idleWarpCount = __popc( idleJobMask );
 		//WARP_PRINTF( "assigning jobs for %i warps\n", idleWarpCount );
 
@@ -134,12 +133,12 @@ public:
 				int warpIndex = __ffs( warpMask ) - 1;
 
 				// assign jobs
-				if( !reinterpret_cast<SpecificScheduler<warpBlockCount> *>(this)->nextWarpBlock() ) {
+				if( !reinterpret_cast<SpecificScheduler *>(this)->nextWarpBlock() ) {
 					threadBlockInfo.hasMoreJobs = false;
 					return;
 				}
 
-				const WarpJobDescriptor job = reinterpret_cast<SpecificScheduler<warpBlockCount> *>(this)->getWarpBlock();
+				const WarpBlockPairInfo job = reinterpret_cast<SpecificScheduler *>(this)->getWarpBlock();
 				threadBlockInfo.warpJobQueue[warpIndex].push( job );
 
 				//WARP_PRINTF("assignJobs: %i, %i\n", warpInfos.warps[warpIndex].warpBlockA.cellIndex, warpInfos.warps[warpIndex].warpBlockA.warpBlockIndex );
@@ -151,8 +150,7 @@ public:
 	}
 };
 
-template<uint warpBlockCount>
-class CellScheduler : public SchedulerTemplate<warpBlockCount, WarpBlockPairInfo, CellScheduler> {
+class CellScheduler : public SchedulerTemplate<CellScheduler> {
 private:
 	int jobIndex;
 
@@ -192,8 +190,7 @@ public:
 	__device__ CellScheduler() : jobIndex( -1 ), cellIndex( 0 ), cell( CellInfo( 0, 0 ) ), numWarpBlocks( 0 ), warpBlockIndex( 0 ) {}
 };
 
-template<uint warpBlockCount>
-class CellPairScheduler : public SchedulerTemplate<warpBlockCount, WarpBlockPairInfo, CellPairScheduler> {
+class CellPairScheduler : public SchedulerTemplate<CellPairScheduler> {
 private:
 	int jobIndex;
 
@@ -249,9 +246,7 @@ public:
 		  cellIndexA( 0 ), numWarpBlocksA( 0 ), warpBlockIndexA( 0 ) {}
 };
 
-template<uint warpBlockCount,
-class MoleculeStorage, MoleculeStorage &moleculeStorage,
-class MoleculePairHandler, MoleculePairHandler &moleculePairHandler>
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct DomainProcessor {
 	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
 
@@ -276,7 +271,7 @@ struct DomainProcessor {
 			StorageMolecule moleculeB(indexB);
 
 			if( indexA != indexB ) {
-				moleculePairHandler.process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
+				MoleculePairHandler::process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
 			}
 		}
 #else
@@ -284,7 +279,7 @@ struct DomainProcessor {
 			StorageMolecule moleculeB(indexB);
 
 			if( indexA != indexB ) {
-				moleculePairHandler.process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
+				MoleculePairHandler::process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
 			}
 		}
 #endif

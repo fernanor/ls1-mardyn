@@ -79,23 +79,23 @@ struct MoleculeStorage {
 	}
 };
 
-template<uint blockSize, class MoleculeStorage, MoleculeStorage &moleculeStorage>
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct SharedMoleculeLocalStorage {
 #ifndef CUDA_UNPACKED_STORAGE
-	floatType3 positions[blockSize];
-	Matrix3x3 rotations[blockSize];
+	floatType3 positions[BLOCK_SIZE];
+	Matrix3x3 rotations[BLOCK_SIZE];
 
-	floatType3 forces[blockSize];
-	floatType3 torque[blockSize];
+	floatType3 forces[BLOCK_SIZE];
+	floatType3 torque[BLOCK_SIZE];
 #else
-	floatType positions[3][blockSize];
-	floatType rotations[9][blockSize];
+	floatType positions[3][BLOCK_SIZE];
+	floatType rotations[9][BLOCK_SIZE];
 
-	floatType forces[3][blockSize];
-	floatType torque[3][blockSize];
+	floatType forces[3][BLOCK_SIZE];
+	floatType torque[3][BLOCK_SIZE];
 #endif
 
-	ComponentType componentTypes[blockSize];
+	ComponentType componentTypes[BLOCK_SIZE];
 
 	// straight-forward getter/setter
 	__device__ void load(uint localIndex, uint index) {

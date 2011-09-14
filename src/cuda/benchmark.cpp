@@ -31,18 +31,50 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 	}
 	else {
 		file = fopen( buildFile.c_str(), "wt" );
-		fprintf( file, "timeSteps, moleculeCount, totalTime" );
+		fprintf( file, "timeSteps,moleculeCount,cutOffRadius,totalTime" );
 #ifndef NO_CUDA
-		fprintf( file, ", numWarps, maxRegisterCount, CUDA_totalTime, CUDA_preTime, CUDA_postTime, CUDA_singleTime, CUDA_pairTime, CUDA_processingTime" );
+		fprintf( file, ",numWarps,maxRegisterCount,"
+				"warpBlockCellProcessor,sortCellsByComponent,hwCacheOnly,doubleMode,unpackedStorage,"
+				"maxNumComponents,maxNumLJCenters,maxNumCharges,maxNumDipoles,"
+				"CUDA_totalTime,CUDA_preTime,CUDA_postTime,CUDA_singleTime,CUDA_pairTime,CUDA_processingTime" );
 #endif
-		fprintf( file, ", name\n" );
+		fprintf( file, ",name\n" );
 	}
 
 
-	fprintf( file, "%i, %i, %e", timeSteps, moleculeCount, (double) totalTime );
+	fprintf( file, "%i,%i,%e,%e", timeSteps, moleculeCount, cutOffRadius, (double) totalTime );
 #ifndef NO_CUDA
-	fprintf( file, ", %i, %i, %e, %e, %e, %e, %e, %e",
+	fprintf( file, ",%i,%i,"
+			"%i,%i,%i,%i,%i,"
+			"%i,%i,%i,%i,"
+			"%e,%e,%e,%e,%e,%e",
 			NUM_WARPS, MAX_REGISTER_COUNT,
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+			1,
+#else
+			0,
+#endif
+#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
+			1,
+#else
+			0,
+#endif
+#ifdef CUDA_HW_CACHE_ONLY
+			1,
+#else
+			0,
+#endif
+#ifdef CUDA_DOUBLE_MODE
+			1,
+#else
+			0,
+#endif
+#ifdef CUDA_UNPACKED_STORAGE
+			1,
+#else
+			0,
+#endif
+			MAX_NUM_COMPONENTS, MAX_NUM_LJCENTERS, MAX_NUM_CHARGES, MAX_NUM_DIPOLES,
 			(double) CUDA_frameTime, (double) CUDA_preTime, (double) CUDA_postTime, (double) CUDA_singleTime, (double) CUDA_pairTime, (double) CUDA_processingTime
 			);
 #endif

@@ -820,6 +820,7 @@ void Simulation::initialize() {
 
 void Simulation::simulate() {
 	simulationStats.moleculeCount = _domain->getglobalNumMolecules();
+	simulationStats.cutOffRadius = _moleculeContainer->getCutoff();
 	simulationStats.timeSteps = _numberOfTimesteps;
 	simulationStats.name = _outputPrefix;
 
@@ -1003,11 +1004,13 @@ void Simulation::simulate() {
 		/* END PHYSICAL SECTION */
 
 		// measure per timestep IO
+#if 1
 		loopTimer.stop();
 		perStepIoTimer.start();
 		output(_simstep);
 		perStepIoTimer.stop();
 		loopTimer.start();
+#endif
 
 		simulationStats.potentials.addDataPoint( _domain->getLocalUpot() );
 		simulationStats.virials.addDataPoint( _domain->getLocalVirial() );
@@ -1017,7 +1020,7 @@ void Simulation::simulate() {
 	/* END MAIN LOOP                                                           */
 	/***************************************************************************/
 
-
+#if 0
 	ioTimer.start();
 	string cpfile(_outputPrefix + ".restart.xdr");
 	_domain->writeCheckpoint(cpfile, _moleculeContainer, _domainDecomposition);
@@ -1028,6 +1031,7 @@ void Simulation::simulate() {
 		delete (*outputIter);
 	}
 	ioTimer.stop();
+#endif
 
 	global_log->info() << "Computation in main loop took: " << loopTimer.get_etime() << " sec" << endl;
 	global_log->info() << "IO in main loop  took:         " << perStepIoTimer.get_etime() << " sec" << endl;

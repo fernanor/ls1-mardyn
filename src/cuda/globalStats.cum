@@ -19,10 +19,9 @@ __constant__ __device__ CellStats * cellStats;
 __constant__ Lock::Mutex *cellLocks;
 #endif
 
-template<int blockSize>
-struct ThreadBlockCellStats {
-	floatType threadPotential[blockSize];
-	floatType threadVirial[blockSize];
+namespace ThreadBlockCellStats {
+	__shared__ floatType threadPotential[BLOCK_SIZE];
+	__shared__ floatType threadVirial[BLOCK_SIZE];
 
 	__device__ void initThreadLocal(int threadIndex) {
 		threadPotential[threadIndex] = 0.0f;
@@ -66,7 +65,7 @@ struct ThreadBlockCellStats {
 #endif
 	}
 
-	__device__ __noinline__ void reduceAndStore(int threadIndex, int cellIndexA, int cellIndexB) {
+	__device__ void reduceAndStore(int threadIndex, int cellIndexA, int cellIndexB) {
 		reduceWarps( threadIndex );
 
 		__syncthreads();
@@ -75,7 +74,7 @@ struct ThreadBlockCellStats {
 			floatType potential = 0.0;
 			floatType virial = 0.0;
 
-			for( int warpIndex = 0 ; warpIndex < (blockSize / WARP_SIZE) ; warpIndex++ ) {
+			for( int warpIndex = 0 ; warpIndex < (BLOCK_SIZE / WARP_SIZE) ; warpIndex++ ) {
 				potential += threadPotential[ warpIndex * WARP_SIZE ];
 				virial += threadVirial[ warpIndex * WARP_SIZE ];
 			}
@@ -87,7 +86,7 @@ struct ThreadBlockCellStats {
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
 	__device__ __noinline__ void reduceAndStoreWarp(int threadIndex, int cellIndex) {
-		// no synchronization required since every warp is automatically synchronized
+		// no synchronization required since every warp is implicitly synchronized
 		reduceWarps( threadIndex );
 
 		if( threadIdx.x == 0 ) {
@@ -95,15 +94,10 @@ struct ThreadBlockCellStats {
 			floatType virial = threadVirial[ threadIndex ];
 
 			cellLocks[cellIndex].lock();
-			WARP_PRINTF( "%i cell lock entered\n", cellIndex );
 
-			WARP_PRINTF( "%i: old %f; %f\n", cellIndex, cellStats[cellIndex].potential, potential );
 			cellStats[cellIndex].add( potential, virial );
-
-			//__threadfence();
-			WARP_PRINTF( "%i: new %f\n", cellIndex, cellStats[cellIndex].potential );
 			__threadfence();
-			WARP_PRINTF( "%i cell lock left\n", cellIndex );
+
 			cellLocks[cellIndex].unlock();
 		}
 	}

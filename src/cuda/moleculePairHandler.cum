@@ -8,8 +8,7 @@
 __constant__ __device__ floatType cutOffRadiusSquared;
 __constant__ __device__ floatType epsRFInvrc3;
 
-template<typename GlobalStatsCollector, GlobalStatsCollector &globalStatsCollector>
-struct MoleculePairHandler {
+namespace MoleculePairHandler {
 	template<typename MoleculeA, typename MoleculeB>
 	__device__ void process( int threadIndex, MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB ) {
 		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
@@ -84,7 +83,7 @@ struct MoleculePairHandler {
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
-				globalStatsCollector.add( threadIndex, potential, virial );
+				ThreadBlockCellStats::add( threadIndex, potential, virial );
 			}
 		}
 	}
@@ -129,7 +128,7 @@ struct MoleculePairHandler {
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
-				globalStatsCollector.add( threadIndex, potential, virial );
+				ThreadBlockCellStats::add( threadIndex, potential, virial );
 			}
 		}
 	}
@@ -185,7 +184,7 @@ struct MoleculePairHandler {
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
 				// NOTE: virial sign, so its [..] - 3. * [..] and not [..] + 3. * [..]
-				globalStatsCollector.add( threadIndex, potential + myRF, virial - 3. * myRF);
+				ThreadBlockCellStats::add( threadIndex, potential + myRF, virial - 3. * myRF);
 			}
 		}
 	}
@@ -234,7 +233,7 @@ struct MoleculePairHandler {
 
 				const floatType virial = dot( distanceAtoB, forceAtoB );
 
-				globalStatsCollector.add( threadIndex, potential, virial );
+				ThreadBlockCellStats::add( threadIndex, potential, virial );
 			}
 		}
 	}

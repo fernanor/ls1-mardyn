@@ -34,18 +34,18 @@
 #	define CUDA_DOUBLE_MODE
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_WBDP
+#	define CONFIG_NAME "cuda_double_unsorted_wbdp"
+#	define CUDA_DOUBLE_MODE
+
+#	define CUDA_HW_CACHE_ONLY
+#	define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#endif
+
 #ifdef CONFIG_CUDA_DOUBLE_SORTED
 #	define CONFIG_NAME "cuda_double_sorted"
 #	define CUDA_DOUBLE_MODE
 #	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_SORTED_NO_CONSTANT_MEMORY
-#	define CONFIG_NAME "cuda_double_sorted_no_constant_memory"
-
-#	define CUDA_DOUBLE_MODE
-#	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-#	define NO_CONSTANT_MEMORY
 #endif
 
 #ifdef CONFIG_CUDA_DOUBLE_SORTED_HWCACHEONLY
@@ -58,10 +58,10 @@
 #endif
 
 #ifndef CONFIG_NAME
-#	define CONFIG_NAME "special_cuda_config"
+#error no CONFIG_* specified!
 #endif
 
-#define CUDA_WARP_BLOCK_CELL_PROCESSOR
+//#define CUDA_WARP_BLOCK_CELL_PROCESSOR
 
 //#define CUDA_UNPACKED_STORAGE
 
@@ -69,7 +69,7 @@
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-//#define COMPARE_TO_CPU
+#define COMPARE_TO_CPU
 //#define USE_BEHAVIOR_PROBE
 
 //#define DEBUG_COMPONENT_DESCRIPTORS
@@ -106,10 +106,6 @@
 	typedef float3 floatType3;
 
 #	define make_floatType3 make_float3
-#endif
-
-#ifdef NO_CONSTANT_MEMORY
-#	define __constant__
 #endif
 
 //#define __restrict__

@@ -54,6 +54,7 @@ struct SimulationStats {
 	// run/build info
 	int timeSteps;
 	int moleculeCount;
+	double cutOffRadius;
 
 	std::string name;
 

@@ -74,7 +74,7 @@ namespace Lock {
 				;
 		}
 
-		// locks but supports being interrupted when signal & bitMask becomes 0
+		// locks but supports being interrupted when (signal & bitMask) becomes 0
 		// returns true if unlocked must be called
 		// returns false if unlocked mustn't be called
 		// assumption:
@@ -83,7 +83,6 @@ namespace Lock {
 		__device__ bool lock(volatile uint *signal, uint bitMask) {
 			while( atomicCAS( &lockValue, 0u, 1u ) == 1u ) {
 				if( (*signal & bitMask) == 0 ) {
-					WARP_PRINTF( "signal: 0x%x!\n", *signal );
 					return false;
 				}
 			}

@@ -26,6 +26,8 @@ __device__ int getSM() {
 
 #include "componentDescriptor.cum"
 
+#include "moleculePairHandler.cum"
+
 #include "domainTraverser.cum"
 
 #include "domainProcessor.cum"
@@ -35,10 +37,6 @@ __device__ int getSM() {
 #include "cellInfo.cum"
 
 #include "molecule.cum"
-
-#include "potForce.cum"
-
-#include "moleculePairHandler.cum"
 
 #include "warpBlockDomainProcessor.cum"
 
@@ -76,8 +74,7 @@ __device__ int getSM() {
 
 extern "C" {
 /* TODO: possible refactoring
- * create a prepare method in MoleculeStorage and make rawQuaternions a global pointer
- * and forward the kernel call to it
+ * create a prepare method in MoleculeStorage
  */
 // TODO: interesting to benchmark idea: unrolled loop in this kernel vs the way it is now---overhead?
 __global__ void convertQuaternionsToRotations( int numMolecules ) {
@@ -115,21 +112,17 @@ __global__ void convertQuaternionsToRotations( int numMolecules ) {
 
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
 
-__shared__ ThreadBlockCellStats<BLOCK_SIZE> globalStatsCollector;
-__device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
-
 __device__ MoleculeStorage moleculeStorage;
 
 #ifndef REFERENCE_IMPLEMENTATION
 #	ifndef CUDA_HW_CACHE_ONLY
-__shared__ SharedMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
+__shared__ SharedMoleculeLocalStorage< typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	else
-__device__ WriteThroughMoleculeLocalStorage<BLOCK_SIZE, typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
+__device__ WriteThroughMoleculeLocalStorage<typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	endif
 __device__ HighDensityDomainProcessor<BLOCK_SIZE, BLOCK_SIZE,
 	typeof(moleculeStorage), moleculeStorage,
-	typeof(moleculeLocalStorage), moleculeLocalStorage,
-	typeof(moleculePairHandler), moleculePairHandler>
+	typeof(moleculeLocalStorage), moleculeLocalStorage>
 		domainProcessor;
 
 #else
@@ -157,10 +150,10 @@ __global__ void processCellPair() {
 		return;
 	}
 
-	globalStatsCollector.initThreadLocal( threadIndex );
+	ThreadBlockCellStats::initThreadLocal( threadIndex );
 	domainProcessor.processCellPair( threadIndex, cellA, cellB );
 
-	globalStatsCollector.reduceAndStore( threadIndex, cellIndex, neighborIndex );
+	ThreadBlockCellStats::reduceAndStore( threadIndex, cellIndex, neighborIndex );
 }
 
 //__launch_bounds__(BLOCK_SIZE, 2)
@@ -178,20 +171,20 @@ __global__ void processCell() {
 		return;
 	}
 
-	globalStatsCollector.initThreadLocal( threadIndex );
+	ThreadBlockCellStats::initThreadLocal( threadIndex );
 	domainProcessor.processCell( threadIndex, cell );
 
-	globalStatsCollector.reduceAndStore( threadIndex, cellIndex, cellIndex );
+	ThreadBlockCellStats::reduceAndStore( threadIndex, cellIndex, cellIndex );
 }
 #else
 
-__device__ WBDP::CellScheduler< NUM_WARPS > *cellScheduler;
-__device__ WBDP::CellPairScheduler< NUM_WARPS > *cellPairScheduler;
+__device__ WBDP::CellScheduler *cellScheduler;
+__device__ WBDP::CellPairScheduler *cellPairScheduler;
 
 __global__ void createSchedulers() {
 	if( threadIdx.x + threadIdx.y == 0 ) {
-		cellScheduler = new WBDP::CellScheduler< NUM_WARPS >();
-		cellPairScheduler = new WBDP::CellPairScheduler< NUM_WARPS >();
+		cellScheduler = new WBDP::CellScheduler();
+		cellPairScheduler = new WBDP::CellPairScheduler();
 	}
 }
 
@@ -202,31 +195,26 @@ __global__ void destroySchedulers() {
 	}
 }
 
-__shared__ ThreadBlockCellStats<BLOCK_SIZE> globalStatsCollector;
-__device__ MoleculePairHandler<typeof(globalStatsCollector), globalStatsCollector> moleculePairHandler;
 __device__ MoleculeStorage moleculeStorage;
-__device__ WBDP::DomainProcessor<NUM_WARPS,
-	typeof(moleculeStorage), moleculeStorage,
-	typeof(moleculePairHandler), moleculePairHandler>
-		domainProcessor;
+__device__ WBDP::DomainProcessor<typeof(moleculeStorage), moleculeStorage> domainProcessor;
 
 __global__ void processCellPair() {
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
-	__shared__ WBDP::ThreadBlockInfo<NUM_WARPS, WBDP::WarpBlockPairInfo> warpInfos;
+	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
 
 	do {
-		cellPairScheduler->scheduleWarpBlocks( warpInfos );
+		cellPairScheduler->scheduleWarpBlocks( threadBlockInfo );
 
-		while( !warpInfos.warpJobQueue[threadIdx.y].isEmpty() ) {
-			globalStatsCollector.initThreadLocal( threadIndex );
+		while( !threadBlockInfo.warpJobQueue[threadIdx.y].isEmpty() ) {
+			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
-			WBDP::WarpBlockPairInfo warpBlockPairInfo = warpInfos.warpJobQueue[threadIdx.y].pop();
+			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[threadIdx.y].pop();
 			domainProcessor.processCellPair( warpBlockPairInfo );
 
-			globalStatsCollector.reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
+			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 		}
-	} while( warpInfos.hasMoreJobs );
+	} while( threadBlockInfo.hasMoreJobs );
 
 	WARP_PRINTF( "terminating..\n" );
 }
@@ -235,20 +223,20 @@ __global__ void processCell() {
 	// TODO: remove?
 	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
 
-	__shared__ WBDP::ThreadBlockInfo<NUM_WARPS, WBDP::WarpBlockPairInfo> warpInfos;
+	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
 
 	do {
-		cellScheduler->scheduleWarpBlocks( warpInfos );
+		cellScheduler->scheduleWarpBlocks( threadBlockInfo );
 
-		while( !warpInfos.warpJobQueue[threadIdx.y].isEmpty() ) {
-			globalStatsCollector.initThreadLocal( threadIndex );
+		while( !threadBlockInfo.warpJobQueue[threadIdx.y].isEmpty() ) {
+			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
-			WBDP::WarpBlockPairInfo warpBlockPairInfo = warpInfos.warpJobQueue[threadIdx.y].pop();
+			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[threadIdx.y].pop();
 			domainProcessor.processCellPair( warpBlockPairInfo );
 
-			globalStatsCollector.reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
+			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 		}
-	} while( warpInfos.hasMoreJobs );
+	} while( threadBlockInfo.hasMoreJobs );
 
 	WARP_PRINTF( "terminating\n" );
 }

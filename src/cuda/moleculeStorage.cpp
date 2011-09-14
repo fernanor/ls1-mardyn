@@ -17,9 +17,9 @@
 
 void MoleculeStorage::uploadState() {
 	_moleculePositions.clear();
-	_moleculeRotations.clear();
-#ifdef TEST_QUATERNION_MATRIX_CONVERSION
 	_moleculeQuaternions.clear();
+#ifdef TEST_QUATERNION_MATRIX_CONVERSION
+	_moleculeRotations.clear();
 #endif
 
 	_moleculeForces.clear();
@@ -132,8 +132,6 @@ void MoleculeStorage::uploadState() {
 			parameter(numMolecules).
 			setBlockShape(QUATERNION_BLOCK_SIZE, 1, 1).
 			executeAtLeast((numMolecules + QUATERNION_BLOCK_SIZE - 1) / QUATERNION_BLOCK_SIZE);
-
-	CUDA_THROW_ON_ERROR( cuCtxSynchronize() );
 }
 
 struct CPUCudaVectorErrorMeasure {
