@@ -58,7 +58,8 @@ struct HighDensityDomainProcessor {
 	typedef Molecule<MoleculeLocalStorage, moleculeLocalStorage> LocalStorageMolecule;
 
 	__device__ void processMoleculePair(int threadIndex, uint localIndexB, StorageMolecule & __restrict__ moleculeA) {
-		LocalStorageMolecule moleculeB(localIndexB);
+		LocalStorageMolecule moleculeB;
+		moleculeB.load(localIndexB);
 
 		MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
 
@@ -200,10 +201,12 @@ struct HighDensityDomainProcessor {
 			const uint numMoleculesInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellA.length, blockSize );
 			const uint blockOffsetA = cellA.startIndex + blockIndexA * blockSize;
 
+			StorageMolecule moleculeA;
+
 			const int indexA = blockOffsetA + threadIndex;
-			// if threadIndex >= numMoleculesInBlockA, it doesn't matter here, because molecule is only a proxy
-			// assert that!!
-			StorageMolecule moleculeA( indexA );
+			if( threadIndex < numMoleculesInBlockA ) {
+				moleculeA.load( indexA );
+			}
 
 			for( uint blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
 				const uint numMoleculesInBlockB = (blockIndexB < numBlocksB - 1) ? localStorageBlockSize : shiftedMod( cellB.length, localStorageBlockSize );
@@ -232,10 +235,12 @@ struct HighDensityDomainProcessor {
 			const uint numMoleculesInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
 			const uint blockOffsetA = cell.startIndex + blockIndexA * blockSize;
 
+			StorageMolecule moleculeA;
+
 			const uint indexA = blockOffsetA + threadIndex;
-			// if threadIndex >= numMoleculesInBlockA, it doesn't matter here, because molecule is only a proxy
-			// assert that!!
-			StorageMolecule moleculeA(indexA);
+			if( threadIndex < numMoleculesInBlockA ) {
+				moleculeA.load( indexA );
+			}
 
 			processBlock<BPT_SAME_BLOCK>(
 					threadIndex,

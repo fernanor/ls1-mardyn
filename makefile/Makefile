@@ -23,8 +23,6 @@ VTK ?= 0
 CUDA_CONFIG ?= CUDA_DOUBLE_SORTED
 NUM_WARPS ?= 4
 
-NUM_LOCAL_STORAGE_WARPS ?= $(NUM_WARPS)
-
 MAX_REGISTER_COUNT ?= 63 
 
 MAX_NUM_COMPONENTS ?= 2
@@ -100,7 +98,6 @@ $(BINARY): make_config .deps $(OBJECTS) cppunit
 make_config:
 	@echo "#define CONFIG_$(CUDA_CONFIG)" > current_make_config.h
 	@echo "#define MAX_NUM_WARPS $(NUM_WARPS)" >> current_make_config.h
-	@echo "#define NUM_LOCAL_STORAGE_WARPS $(NUM_LOCAL_STORAGE_WARPS)" >> current_make_config.h
 	@echo "#define MAX_REGISTER_COUNT $(MAX_REGISTER_COUNT)" >> current_make_config.h
 	@echo "#define MAX_NUM_COMPONENTS $(MAX_NUM_COMPONENTS)" >> current_make_config.h
 	@echo "#define MAX_NUM_LJCENTERS $(MAX_NUM_LJCENTERS)" >> current_make_config.h
@@ -127,8 +124,8 @@ include ./cuda/kernel.deps
 cuda/kernel.ptx: cuda/kernel.cu
 
 %.ptx: %.cu 
-	$(NVCC) -arch=sm_21 --ptx -Xptxas -v $< --output-directory $(<D)
-	$(PTXAS) -arch=sm_21 -maxrregcount $(MAX_REGISTER_COUNT) -v $@
+	$(NVCC) -arch=compute_20 --use_fast_math -code=sm_20 --ptx -Xptxas -v $< --output-directory $(<D)
+	-$(PTXAS) -arch=sm_20 -maxrregcount $(MAX_REGISTER_COUNT) -v $@
 %.o: %.ptx
 	ld -r -b binary -o $@ $<
 

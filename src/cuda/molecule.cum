@@ -16,9 +16,8 @@ struct Molecule {
 
 	uint index;
 
-	//__device__ Molecule() {}
-
-	__device__ Molecule( uint index ) : index(index) {
+	__device__ void load( uint index ) {
+		this->index = index;
 		force = make_floatType3( 0.0, 0.0, 0.0 );
 		torque = make_floatType3( 0.0, 0.0, 0.0 );
 	}

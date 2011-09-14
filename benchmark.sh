@@ -1,8 +1,12 @@
 #!/bin/bash
 
 NUM_WARPS=
-NUM_LOCAL_STORAGE_WARPS=
 MAX_REGISTER_COUNT=
+
+MAX_NUM_COMPONENTS=
+MAX_NUM_LJCENTERS=
+MAX_NUM_CHARGES=
+MAX_NUM_DIPOLES=
 
 LOGFILE="benchmark.$(date +%Y.%m.%d.%H.%M.%S).log"
 
@@ -24,39 +28,51 @@ function fatal_error {
 
 # CUDA_CONFIG
 function build {
-	echo "Building $1 with $NUM_WARPS warps${NUM_LOCAL_STORAGE_WARPS:+, $NUM_LOCAL_STORAGE_WARPS local storage warps}${MAX_REGISTER_COUNT:+, $MAX_REGISTER_COUNT max registers count}:\n"
+	echo "Building $1 with $NUM_WARPS warps${MAX_REGISTER_COUNT:+, $MAX_REGISTER_COUNT max registers count}:\n"
 	
 	BUILD_NUM_WARPS=$NUM_WARPS
-	BUILD_NUM_LOCAL_STORAGE_WARPS=${NUM_LOCAL_STORAGE_WARPS:-$NUM_WARPS}
 	BUILD_MAX_REGISTER_COUNT=${MAX_REGISTER_COUNT:-63}
+	BUILD_MAX_NUM_COMPONENTS=${MAX_NUM_COMPONENTS:-2}
+	BUILD_MAX_NUM_LJCENTERS=${MAX_NUM_LJCENTERS:-1}
+	BUILD_MAX_NUM_CHARGES=${MAX_NUM_CHARGES:-0}
+	BUILD_MAX_NUM_DIPOLES=${MAX_NUM_DIPOLES:-0}
 	
-	make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$BUILD_NUM_WARPS NUM_LOCAL_STORAGE_WARPS=$BUILD_NUM_LOCAL_STORAGE_WARPS MAX_REGISTER_COUNT=$BUILD_MAX_REGISTER_COUNT 
+	make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$BUILD_NUM_WARPS MAX_REGISTER_COUNT=$BUILD_MAX_REGISTER_COUNT  MAX_NUM_COMPONENTS=$BUILD_MAX_NUM_COMPONENTS MAX_NUM_LJCENTERS=$BUILD_MAX_NUM_LJCENTERS MAX_NUM_CHARGES=$BUILD_MAX_NUM_CHARGES MAX_NUM_DIPOLES=$BUILD_MAX_NUM_DIPOLES
 
 	if [ $? != "0" ]; then
-		fatal_error "TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$BUILD_NUM_WARPS NUM_LOCAL_STORAGE_WARPS=$BUILD_NUM_LOCAL_STORAGE_WARPS MAX_REGISTER_COUNT=$BUILD_MAX_REGISTER_COUNT failed"
+		fatal_error "TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$BUILD_NUM_WARPS MAX_REGISTER_COUNT=$BUILD_MAX_REGISTER_COUNT  MAX_NUM_COMPONENTS=$BUILD_MAX_NUM_COMPONENTS MAX_NUM_LJCENTERS=$BUILD_MAX_NUM_LJCENTERS MAX_NUM_CHARGES=$BUILD_MAX_NUM_CHARGES MAX_NUM_DIPOLES=$BUILD_MAX_NUM_DIPOLES failed"
 	fi
 }
 
-# CUDA_CONFIG NUM_WARPS CFGS
-function benchmark {
-	build $1
+BENCHMARK_IN_ORDER_INDEX=0
 
+# CUDA_CONFIG CFGS
+function benchmark {
+	BENCHMARK_BUILT=0
+
+	BENCHMARK_CFG_INDEX=0
 	for cfg in $2; do
-		outputPrefix=$( echo $1_${BUILD_NUM_WARPS}_${BUILD_NUM_LOCAL_STORAGE_WARPS}_${BUILD_MAX_REGISTER_COUNT}_$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
+		outputPrefix=$( echo $1_$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
 		if [ ! -f benchmark/$outputPrefix.results.csv ]; then
+			if (( $BENCHMARK_BUILT == 0 )); then
+				build $1
+				cp src/MarDyn MarDyn_$1
+			fi
+
 			echo -e "\nBenchmarking $outputPrefix:\n"
-			./src/MarDyn $cfg 10 $outputPrefix
+			./src/MarDyn $cfg 4 $outputPrefix
 			if [ $? != "0" ]; then
 				log "$outputPrefix benchmark failed!"
 				echo "continuing"
 			else
 				log "$outputPrefix benchmarked successfully"
 			fi
-			
 		else
 			log "$outputPrefix has been benchmarked already" 
 		fi
+		BENCHMARK_CFG_INDEX=$((BENCHMARK_CFG_INDEX+1))
 	done
+	BENCHMARK_IN_ORDER_INDEX=$((BENCHMARK_IN_ORDER_INDEX+1))
 }
 
 case $1 in
@@ -75,6 +91,56 @@ case $1 in
 		for NUM_WARPS in {1,2,4,8}; do
 			benchmark CUDA_DOUBLE_SORTED "$CFGs"
 		done
+		;;
+	"cell_density" )
+		log "Benchmarking with different densities:"
+		MAX_NUM_COMPONENTS=1
+		MAX_NUM_LJCENTERS=1
+		MAX_NUM_CHARGES=0
+		MAX_NUM_DIPOLES=0
+
+		CFGs_1=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20}.cfg)
+		NUM_WARPS=1
+		benchmark CUDA_DOUBLE_UNSORTED "$CFGs_1"
+
+		NUM_WARPS=2
+		benchmark CUDA_DOUBLE_UNSORTED "$CFGs_1"
+
+		CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,40,50,60}.cfg)
+		for NUM_WARPS in {4,8}; do
+			benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
+		done
+		for NUM_WARPS in {1,2,4,8,16}; do
+			benchmark CUDA_DOUBLE_UNSORTED_WBDP "$CFGs"
+		done
+
+		;;
+	"sorted_vs_unsorted" )
+		log "Benchmarking sorted vs unsorted on mixed molecule domains:"
+		#CFGs=$(echo benchmark/lj3d1_lj2d1_50000_{40,50,60}.cfg benchmark/lj3d1_lj2d1_100000_30.cfg)
+		CFGs=$(echo benchmark/lj3d1_lj2d1_50000{,_10,_15,_20}.cfg)
+		
+		MAX_NUM_COMPONENTS=2
+		MAX_NUM_LJCENTERS=3
+		MAX_NUM_CHARGES=0
+		MAX_NUM_DIPOLES=1
+		
+		#NUM_WARPS=1
+		#benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
+		NUM_WARPS=1
+		benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
+		benchmark CUDA_DOUBLE_SORTED "$CFGs"
+		;;
+	"debug" )
+		CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,40,50,60}.cfg)
+		
+		MAX_NUM_COMPONENTS=1
+		MAX_NUM_LJCENTERS=1
+		MAX_NUM_CHARGES=0
+		MAX_NUM_DIPOLES=0
+		
+		NUM_WARPS=1
+		benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
 		;;
 	* )
 		log "Benchmarking everything without cuda:"

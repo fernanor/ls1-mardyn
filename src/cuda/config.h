@@ -16,7 +16,7 @@
 // created by the makefile to avoid having to call make clean all the time
 #include "make_config.h"
 
-//#define BENCHMARKING
+#define BENCHMARKING
 
 //#define CONFIG_CUDA_DOUBLE_SORTED
 
@@ -69,7 +69,7 @@
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-#define COMPARE_TO_CPU
+//#define COMPARE_TO_CPU
 //#define USE_BEHAVIOR_PROBE
 
 //#define DEBUG_COMPONENT_DESCRIPTORS

@@ -10,7 +10,7 @@ __constant__ __device__ floatType epsRFInvrc3;
 
 namespace MoleculePairHandler {
 	template<typename MoleculeA, typename MoleculeB>
-	__device__ void process( int threadIndex, MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB ) {
+	__device__ /*__noinline__*/ void process( int threadIndex, MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB ) {
 		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
 		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
 

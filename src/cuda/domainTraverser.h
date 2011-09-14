@@ -204,11 +204,6 @@ protected:
 		}
 	}
 
-	void testReferenceInteractions() {
-		const int3 dimensions = *(int3*) _linkedCells.getCellDimensions();
-
-	}
-
 	void testStages() const {
 
 		struct InteractionLog {
