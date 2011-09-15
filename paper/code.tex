@@ -50,7 +50,7 @@ There are quite a few different components:
 \item[GlobalStats] keeps track of the total potential and virial statistics
 \item[MoleculePairHandler] calculates the force between two given molecules
 \item[MoleculeStorage] manages all per-molecule data like positions, forces or orientations
-\item[PairTraverser] enumerates all cell pairs in a way that allows for maximum parallelization
+\item[DomainTraverser] enumerates all cell pairs in a way that allows for maximum parallelization
 \item[PotForce] calculates the force between Lennard-Jones centers, dipoles, etc
 \end{compactdesc}
 
@@ -113,14 +113,14 @@ The \cuda{} SDK provides a helper file called \filename{cutil\_math.h} which add
 \filename{cutil\_double\_math.h} adds support for these datatypes.
 This makes it possible to switch between single- and double-precision using a simple preprocessor \#define.
 
-\subsubsection{Pair Traverser}
+\subsubsection{Domain Traverser}
 \begin{figure}
   \centering
   \subfloat[Even start plane]{\includegraphics[width=0.5\textwidth]{figures/pairtraverser_even.pdf} }                
   \subfloat[Odd start plane]{\includegraphics[width=0.5\textwidth]{figures/pairtraverser_odd.pdf} }
   \caption{Schematic of the two steps the pair traverser performs}
 \end{figure}
-The simulation space is divided into a grid of cells. \TODO{add picture} The pair traverser iterates over all neighbors pairings in the volume while maximizing parallelism. Each cell inside the volume has 26 neighbors. There are 13 directions, so that two neighbors always lie on a line. It doesn't matter if you calculate the interactions between cell A and B or cells B and A. This symmetry allows for a straight-forward parallelization.
+The simulation space is divided into a grid of cells. \TODO{add picture} The domain traverser iterates over all neighbor pairings in the volume while maximizing parallelism. Each cell inside the volume has 26 neighbors. There are 13 directions, so that two neighbors always lie on a line. It doesn't matter if you calculate the interactions between cell A and B or cells B and A. This symmetry allows for a straight-forward parallelization.
 I am going to introduce it using the special case of the direction along the x-axis:
 \begin{compactenum}
 \item calculate the interactions between all cells $ \left ( 2*k, y, z \right ) $ and $ \left ( 2*k + 1, y, z \right ) $ in parallel (even case)
@@ -129,7 +129,7 @@ I am going to introduce it using the special case of the direction along the x-a
 It's easy to see that this covers all neighbor pairings along the x-axis. \TODO{add picture}
 The algorithm takes the even or odd layers parallel to the yz-plane and computes the interaction with the neighboring cells.
 
-All other directions can be treated like this. You only have to make sure that the boundaries are not invalidated.
+All other directions can be treated like this. You only have to make sure that there are no out of boundary accesses.
 
 The cells are flattened into a one-dimensional array and the CPU code calculates:
 \begin{compactitem}
@@ -147,7 +147,7 @@ The molecule data such as position, orientation, total force and torque, and mol
 
 The molecule orientation is stored and uploaded as quaternions, but converted to conventional $ 3 \times 3 $-matrices on the GPU.
 
-The \cuda{} code wraps accesses to the data through a \lstinline!MoleculeStorage! class, which has \lstinline!get! and \lstinline!set! methods, which operate on a \lstinline!Molecule! structure. So the abstraction is that the data is interleaved or rather stored as an array of \lstinline!Molecule!s. This makes it possible to write the molecule interaction code without having to care for the actual implementation.
+The \cuda{} code wraps accesses to the data through a \lstinline!MoleculeStorage! class, which has \lstinline!get! and \lstinline!set! methods, which are called transparently from a \lstinline!Molecule! structure. This makes it possible to write the molecule interaction code without having to care for the actual implementation.
 
 There is also a \lstinline!MoleculeLocalStorage<blockSize>! class. It provides a cache for frequently used molecules. Its objects are supposed to be instanciated as \lstinline!__shared__! objects and there are methods to load, merge and commit molecules from the cache to the regular storage.
 
