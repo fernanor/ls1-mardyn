@@ -46,17 +46,18 @@ function build {
 
 BENCHMARK_IN_ORDER_INDEX=0
 
-# CUDA_CONFIG CFGS
+# CUDA_CONFIG CFGS OPT_SUFFIX
 function benchmark {
 	BENCHMARK_BUILT=0
 
 	BENCHMARK_CFG_INDEX=0
 	for cfg in $2; do
-		outputPrefix=$( echo $1_$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
+		outputPrefix=$( echo $1_$3$(basename $cfg .cfg) | tr '[:upper:]' '[:lower:]' )
 		if [ ! -f benchmark/$outputPrefix.results.csv ]; then
 			if (( $BENCHMARK_BUILT == 0 )); then
 				build $1
 				cp src/MarDyn MarDyn_$1
+				BENCHMARK_BUILT=1
 			fi
 
 			echo -e "\nBenchmarking $outputPrefix:\n"
@@ -98,20 +99,19 @@ case $1 in
 		MAX_NUM_LJCENTERS=1
 		MAX_NUM_CHARGES=0
 		MAX_NUM_DIPOLES=0
-
-		CFGs_1=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20}.cfg)
+		
 		NUM_WARPS=1
-		benchmark CUDA_DOUBLE_UNSORTED "$CFGs_1"
-
-		NUM_WARPS=2
-		benchmark CUDA_DOUBLE_UNSORTED "$CFGs_1"
-
-		CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,40,50,60}.cfg)
-		for NUM_WARPS in {4,8}; do
-			benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
+		CFGs_NO_CUDA=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30}.cfg)
+		benchmark NO_CUDA "$CFGs_NO_CUDA" 
+		
+		CFGs_NORMAL=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20}.cfg)
+		for NUM_WARPS in {1,2,4,8}; do
+			benchmark CUDA_DOUBLE_UNSORTED "$CFGs_NORMAL" "${NUM_WARPS}_"
 		done
+		
+		CFGs_WBDP=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
 		for NUM_WARPS in {1,2,4,8,16}; do
-			benchmark CUDA_DOUBLE_UNSORTED_WBDP "$CFGs"
+			benchmark CUDA_DOUBLE_UNSORTED_WBDP "$CFGs_WBDP" "${NUM_WARPS}_"
 		done
 
 		;;

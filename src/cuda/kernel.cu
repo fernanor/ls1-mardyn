@@ -120,7 +120,7 @@ __shared__ SharedMoleculeLocalStorage< typeof(moleculeStorage), moleculeStorage>
 #	else
 __device__ WriteThroughMoleculeLocalStorage<typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
 #	endif
-__device__ HighDensityDomainProcessor<BLOCK_SIZE, BLOCK_SIZE,
+__device__ HighDensityDomainProcessor<
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculeLocalStorage), moleculeLocalStorage>
 		domainProcessor;

@@ -13,10 +13,10 @@ void SimulationStats::writeFrameStats( const std::string &frameFile ) {
 
 	file = fopen( frameFile.c_str(), "wt" );
 
-	fprintf( file, "potential, virial\n" );
+	fprintf( file, "potential,virial\n" );
 
 	for( int i = 0 ; i < potentials.getCount() ; i++ ) {
-		fprintf( file, "%.18e, %.18e\n", potentials[i], virials[i] );
+		fprintf( file, "%.18e,%.18e\n", potentials[i], virials[i] );
 	}
 
 	fclose( file );
@@ -78,7 +78,7 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 			(double) CUDA_frameTime, (double) CUDA_preTime, (double) CUDA_postTime, (double) CUDA_singleTime, (double) CUDA_pairTime, (double) CUDA_processingTime
 			);
 #endif
-	fprintf( file, ", %s\n", name.c_str() );
+	fprintf( file, ",%s\n", name.c_str() );
 }
 
 SimulationStats simulationStats;

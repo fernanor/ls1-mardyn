@@ -179,7 +179,7 @@ public:
 		}
 		while( cell.length == 0 );
 
-		numWarpBlocks = iceil( cell.length, WARP_SIZE );
+		numWarpBlocks = cell.getWarpCount();
 		warpBlockIndex = 0;
 
 		//WARP_PRINTF( "nextWarpBlock: %i\n", cellIndex );
@@ -235,7 +235,7 @@ public:
 		}
 		while( cellA.length == 0 || cellB.length == 0 );
 
-		numWarpBlocksA = iceil( cellA.length, WARP_SIZE );
+		numWarpBlocksA = cellA.getWarpCount();
 		warpBlockIndexA = 0;
 		return true;
 	}
@@ -256,19 +256,21 @@ struct DomainProcessor {
 
 		WarpBlockInfo warpBlockA = warpBlockPairInfo.warpBlockA;
 
-		const uint indexA = warpBlockA.cell.startIndex + warpBlockA.warpBlockIndex * WARP_SIZE + threadIdx.x;
+		const uint indexA = warpBlockA.cell.getWarpOffset(warpBlockA.warpBlockIndex) + threadIdx.x;
 		if( indexA >= warpBlockA.cell.endIndex ) {
 			return;
 		}
 
-		StorageMolecule moleculeA(indexA);
+		StorageMolecule moleculeA;
+		moleculeA.load(indexA);
 
 		// now loop over all molecules in this cell
 		CellInfo cellB = warpBlockPairInfo.cellB;
 
 #ifdef CUDA_HW_CACHE_ONLY
 		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
-			StorageMolecule moleculeB(indexB);
+			StorageMolecule moleculeB;
+			moleculeB.load(indexB);
 
 			if( indexA != indexB ) {
 				MoleculePairHandler::process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );

@@ -44,8 +44,7 @@ struct ReferenceCellProcessor {
 	}
 };
 
-template<uint blockSize, uint localStorageBlockSize,
-class MoleculeStorage, MoleculeStorage &moleculeStorage,
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage,
 class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage>
 struct HighDensityDomainProcessor {
 
@@ -194,12 +193,12 @@ struct HighDensityDomainProcessor {
 	}
 
 	__device__ void processCellPair( const int threadIndex, const CellInfoEx & cellA, const CellInfoEx & cellB) {
-		const uint numBlocksA = iceil<uint>( cellA.length, blockSize );
-		const uint numBlocksB = iceil<uint>( cellB.length, localStorageBlockSize );
+		const uint numBlocksA = cellA.getBlockCount();
+		const uint numBlocksB = cellB.getBlockCount();
 
 		for( uint blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
-			const uint numMoleculesInBlockA = (blockIndexA < numBlocksA - 1) ? blockSize : shiftedMod( cellA.length, blockSize );
-			const uint blockOffsetA = cellA.startIndex + blockIndexA * blockSize;
+			const uint numMoleculesInBlockA = (blockIndexA < numBlocksA - 1) ? BLOCK_SIZE : cellA.getLastBlockSize();
+			const uint blockOffsetA = cellA.getBlockOffset(blockIndexA);
 
 			StorageMolecule moleculeA;
 
@@ -209,8 +208,8 @@ struct HighDensityDomainProcessor {
 			}
 
 			for( uint blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
-				const uint numMoleculesInBlockB = (blockIndexB < numBlocksB - 1) ? localStorageBlockSize : shiftedMod( cellB.length, localStorageBlockSize );
-				const uint blockOffsetB = cellB.startIndex + blockIndexB * localStorageBlockSize;
+				const uint numMoleculesInBlockB = (blockIndexB < numBlocksB - 1) ? BLOCK_SIZE : cellB.getLastBlockSize();
+				const uint blockOffsetB = cellB.getBlockOffset(blockIndexB);
 
 				processBlock<BPT_UNRELATED>(
 						threadIndex,
@@ -229,11 +228,11 @@ struct HighDensityDomainProcessor {
 	}
 
 	__device__ void processCell(const int threadIndex, const CellInfoEx cell) {
-		const uint numBlocks = iceil<uint>( cell.length, blockSize );
+		const uint numBlocks = cell.getBlockCount();
 
 		for( uint blockIndexA = 0 ; blockIndexA < numBlocks ; blockIndexA++ ) {
-			const uint numMoleculesInBlockA = (blockIndexA < numBlocks - 1) ? blockSize : shiftedMod( cell.length, blockSize );
-			const uint blockOffsetA = cell.startIndex + blockIndexA * blockSize;
+			const uint numMoleculesInBlockA = (blockIndexA < numBlocks - 1) ? BLOCK_SIZE : cell.getLastBlockSize();
+			const uint blockOffsetA = cell.getBlockOffset(blockIndexA);
 
 			StorageMolecule moleculeA;
 
@@ -252,15 +251,12 @@ struct HighDensityDomainProcessor {
 
 			//assert: everything is synced here because of the __syncthreads calls in processBlock
 			for( uint blockIndexB = 0 ; blockIndexB < blockIndexA; blockIndexB++ ) {
-				// blockIndexB < blockIndexA - 1  < numBlocks - 1 implies numCellsInBlock = BLOCK_SIZE
-				const uint numMoleculesInBlockB = blockSize;
-				const uint blockOffsetB = cell.startIndex + blockIndexB * blockSize;
-
+				// blockIndexB < blockIndexA <= numBlocks - 1 implies numCellsInBlockB = BLOCK_SIZE
 				processBlock<BPT_UNRELATED>(
 						threadIndex,
 						numMoleculesInBlockA,
-						numMoleculesInBlockB,
-						blockOffsetB,
+						BLOCK_SIZE,
+						cell.getBlockOffset(blockIndexB),
 						moleculeA
 					);
 			}

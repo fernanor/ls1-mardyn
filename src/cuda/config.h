@@ -94,7 +94,7 @@
 #	define MAX_REGISTER_COUNT 63
 #endif
 
-#define BLOCK_SIZE (WARP_SIZE*NUM_WARPS)
+#define BLOCK_SIZE uint(WARP_SIZE*NUM_WARPS)
 
 #ifdef CUDA_DOUBLE_MODE
 	typedef double floatType;
