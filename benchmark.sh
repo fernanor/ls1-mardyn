@@ -100,11 +100,7 @@ case $1 in
 		MAX_NUM_CHARGES=0
 		MAX_NUM_DIPOLES=0
 		
-		NUM_WARPS=1
-		CFGs_NO_CUDA=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30}.cfg)
-		benchmark NO_CUDA "$CFGs_NO_CUDA" 
-		
-		CFGs_NORMAL=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20}.cfg)
+		CFGs_NORMAL=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
 		for NUM_WARPS in {1,2,4,8}; do
 			benchmark CUDA_DOUBLE_UNSORTED "$CFGs_NORMAL" "${NUM_WARPS}_"
 		done
@@ -113,6 +109,11 @@ case $1 in
 		for NUM_WARPS in {1,2,4,8,16}; do
 			benchmark CUDA_DOUBLE_UNSORTED_WBDP "$CFGs_WBDP" "${NUM_WARPS}_"
 		done
+		benchmark CUDA_DOUBLE_UNSORTED "benchmark/lj_80000_50.cfg" "${NUM_WARPS}_"
+
+		NUM_WARPS=1
+		CFGs_NO_CUDA=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
+		benchmark NO_CUDA "$CFGs_NO_CUDA" 
 
 		;;
 	"sorted_vs_unsorted" )
