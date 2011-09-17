@@ -141,7 +141,7 @@ struct SharedMoleculeLocalStorage {
 	}
 };
 
-template<int blockSize, class MoleculeStorage, MoleculeStorage &moleculeStorage>
+template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct WriteThroughMoleculeLocalStorage {
 	__device__ void load(uint localIndex, uint index) {}
 

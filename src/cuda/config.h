@@ -48,6 +48,14 @@
 #	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_HWCACHEONLY
+#       define CONFIG_NAME "cuda_double_unsorted_hwcacheonly"
+
+#       define CUDA_DOUBLE_MODE
+
+#       define CUDA_HW_CACHE_ONLY
+#endif
+
 #ifdef CONFIG_CUDA_DOUBLE_SORTED_HWCACHEONLY
 #	define CONFIG_NAME "cuda_double_sorted_hwcacheonly"
 

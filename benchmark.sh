@@ -93,6 +93,16 @@ case $1 in
 			benchmark CUDA_DOUBLE_SORTED "$CFGs"
 		done
 		;;
+        "shared_vs_cache" )
+	        log "Benchmarking shared memory vs a bigger L2 cache:"
+                CFGs=$(echo benchmark/lj_80000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_50000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_lj2d1_50000{,_10,_15,_20,_30,_40}.cfg)
+                for NUM_WARPS in {4,8}; do
+                        benchmark CUDA_DOUBLE_UNSORTED "$CFGs" "${NUM_WARPS}_"
+                done
+                for NUM_WARPS in {4,8}; do
+                        benchmark CUDA_DOUBLE_UNSORTED_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+                done
+                ;;
 	"cell_density" )
 		log "Benchmarking with different densities:"
 		MAX_NUM_COMPONENTS=1
