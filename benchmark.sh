@@ -33,9 +33,9 @@ function build {
 	BUILD_NUM_WARPS=$NUM_WARPS
 	BUILD_MAX_REGISTER_COUNT=${MAX_REGISTER_COUNT:-63}
 	BUILD_MAX_NUM_COMPONENTS=${MAX_NUM_COMPONENTS:-2}
-	BUILD_MAX_NUM_LJCENTERS=${MAX_NUM_LJCENTERS:-1}
+	BUILD_MAX_NUM_LJCENTERS=${MAX_NUM_LJCENTERS:-3}
 	BUILD_MAX_NUM_CHARGES=${MAX_NUM_CHARGES:-0}
-	BUILD_MAX_NUM_DIPOLES=${MAX_NUM_DIPOLES:-0}
+	BUILD_MAX_NUM_DIPOLES=${MAX_NUM_DIPOLES:-1}
 	
 	make -C src TARGET=RELEASE CUDA_CONFIG=$1 NUM_WARPS=$BUILD_NUM_WARPS MAX_REGISTER_COUNT=$BUILD_MAX_REGISTER_COUNT  MAX_NUM_COMPONENTS=$BUILD_MAX_NUM_COMPONENTS MAX_NUM_LJCENTERS=$BUILD_MAX_NUM_LJCENTERS MAX_NUM_CHARGES=$BUILD_MAX_NUM_CHARGES MAX_NUM_DIPOLES=$BUILD_MAX_NUM_DIPOLES
 
@@ -79,7 +79,13 @@ function benchmark {
 case $1 in
 	"no_constant_memory" )
 		log "Benchmarking no constant memory vs constant memory:"
-		CFGs=$(echo benchmark/lj_{1,2,4,8,16,32}0000.cfg benchmark/lj3d1_{1,5,10}0000.cfg benchmark/lj3d1_lj2d1_{1,5,10}0000.cfg)
+		
+                MAX_NUM_COMPONENTS=2
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
+                CFGs=$(echo benchmark/lj_{1,2,4,8,16,32}0000.cfg benchmark/lj3d1_{1,5,10}0000.cfg benchmark/lj3d1_lj2d1_{1,5,10}0000.cfg)
 		
 		NUM_WARPS=1
 		
@@ -88,6 +94,12 @@ case $1 in
 		;;
 	"warp_count_with_cache" )
 		log "Benchmarking different warp counts with cache:"
+
+                MAX_NUM_COMPONENTS=2
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
 		CFGs=$(echo benchmark/lj_{8,16,32,64,128}0000.cfg benchmark/lj3d1_{1,5,10}0000.cfg benchmark/lj3d1_lj2d1_{1,5,10}0000.cfg)
 		for NUM_WARPS in {1,2,4,8}; do
 			benchmark CUDA_DOUBLE_SORTED "$CFGs"
@@ -95,6 +107,12 @@ case $1 in
 		;;
          "packed_vs_unpacked_storage" )
                 log "Benchmarking packed vs unpacked storage:"
+
+                MAX_NUM_COMPONENTS=2
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
                 CFGs=$(echo benchmark/lj_80000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_50000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_lj2d1_50000{,_10,_1\
 5,_20,_30,_40}.cfg)
                 for NUM_WARPS in {4,8}; do
@@ -109,6 +127,12 @@ case $1 in
                 ;;
          "shared_vs_cache" )
 	        log "Benchmarking shared memory vs a bigger L2 cache:"
+
+                MAX_NUM_COMPONENTS=2
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
                 CFGs=$(echo benchmark/lj_80000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_50000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_lj2d1_50000{,_10,_15,_20,_30,_40}.cfg)
                 for NUM_WARPS in {4,8}; do
                         benchmark CUDA_DOUBLE_UNSORTED "$CFGs" "${NUM_WARPS}_"
@@ -119,6 +143,7 @@ case $1 in
                 ;;
 	"cell_density" )
 		log "Benchmarking with different densities:"
+
 		MAX_NUM_COMPONENTS=1
 		MAX_NUM_LJCENTERS=1
 		MAX_NUM_CHARGES=0
@@ -205,9 +230,8 @@ case $1 in
 		benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
 		;;
 	* )
-		log "Benchmarking everything without cuda:"
-		
-		benchmark NO_CUDA "$ALL_CFGs"
+		log "No benchmark specified---see the source code!"
+
 		;;
 esac
 
