@@ -370,7 +370,7 @@ public:
 
 			collection.clear();
 
-			const int numElements = this->_streamBuffers[0].size();
+			const int numElements = this->_hostBuffers[0].size();
 			collection.resize( numElements );
 			for( int index = 0 ; index < numElements ; index++ ) {
 				collection[index] = make_floatType3(

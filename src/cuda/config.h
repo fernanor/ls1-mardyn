@@ -65,6 +65,23 @@
 #	define CUDA_HW_CACHE_ONLY
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_UNPACKED_STORAGE
+#       define CONFIG_NAME "cuda_double_unsorted_unpacked_storage"
+
+#       define CUDA_DOUBLE_MODE
+
+#       define CUDA_UNPACKED_STORAGE
+#endif
+
+#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_WBDP_UNPACKED_STORAGE
+#       define CONFIG_NAME "cuda_double_unsorted_wbdp_unpacked_storage"
+
+#       define CUDA_DOUBLE_MODE
+
+#       define CUDA_UNPACKED_STORAGE
+#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#endif
+
 #ifndef CONFIG_NAME
 #error no CONFIG_* specified!
 #endif

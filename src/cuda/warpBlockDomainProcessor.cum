@@ -267,7 +267,6 @@ struct DomainProcessor {
 		// now loop over all molecules in this cell
 		CellInfo cellB = warpBlockPairInfo.cellB;
 
-#ifdef CUDA_HW_CACHE_ONLY
 		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
 			StorageMolecule moleculeB;
 			moleculeB.load(indexB);
@@ -276,15 +275,6 @@ struct DomainProcessor {
 				MoleculePairHandler::process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
 			}
 		}
-#else
-		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
-			StorageMolecule moleculeB(indexB);
-
-			if( indexA != indexB ) {
-				MoleculePairHandler::process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
-			}
-		}
-#endif
 
 		moleculeA.store();
 

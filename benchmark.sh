@@ -93,7 +93,21 @@ case $1 in
 			benchmark CUDA_DOUBLE_SORTED "$CFGs"
 		done
 		;;
-        "shared_vs_cache" )
+         "packed_vs_unpacked_storage" )
+                log "Benchmarking packed vs unpacked storage:"
+                CFGs=$(echo benchmark/lj_80000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_50000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_lj2d1_50000{,_10,_1\
+5,_20,_30,_40}.cfg)
+                for NUM_WARPS in {4,8}; do
+                        benchmark CUDA_DOUBLE_UNSORTED "$CFGs" "${NUM_WARPS}_"
+                done
+                for NUM_WARPS in {4,8}; do
+                        benchmark CUDA_DOUBLE_UNSORTED_UNPACKED_STORAGE "$CFGs" "${NUM_WARPS}_"
+                done
+		for NUM_WARPS in {4,8,16}; do
+                        benchmark CUDA_DOUBLE_UNSORTED_WBDP_UNPACKED_STORAGE "$CFGs" "${NUM_WARPS}_"
+                done
+                ;;
+         "shared_vs_cache" )
 	        log "Benchmarking shared memory vs a bigger L2 cache:"
                 CFGs=$(echo benchmark/lj_80000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_50000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_lj2d1_50000{,_10,_15,_20,_30,_40}.cfg)
                 for NUM_WARPS in {4,8}; do
