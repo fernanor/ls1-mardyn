@@ -471,11 +471,17 @@ public:
 	protected:
 		CUfunction _function;
 		int _offset;
+		bool _blockShapeSet;
 
 		friend class Function;
 
-		FunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ) {}
+		FunctionCall( const CUfunction &function ) : _function( function ), _offset( 0 ), _blockShapeSet( false ) {}
 
+		void defaultBlockShape() const {
+			if( !_blockShapeSet ) {
+				CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, 1, 1, 1 ) );
+			}
+		}
 	public:
 		template<typename T>
 		FunctionCall & parameter( const T &param ) {
@@ -507,17 +513,21 @@ public:
 		FunctionCall & setBlockShape( int x, int y, int z ) {
 			CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, x, y, z ) );
 
+			_blockShapeSet = true;
 			return *this;
 		}
 
 		FunctionCall & setBlockShape( const dim3 &shape) {
 			CUDA_THROW_ON_ERROR( cuFuncSetBlockShape( _function, shape.x, shape.y, shape.z ) );
 
+			_blockShapeSet = true;
 			return *this;
 		}
 
 		void execute(int gridWidth, int gridHeight) const {
 			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
+
+			defaultBlockShape();
 
 			CUDA_THROW_ON_ERROR_EX( cuLaunchGrid( _function, gridWidth, gridHeight ), "\twhile launching a grid of size %i x %i\n", gridWidth, gridHeight );
 		}
@@ -526,6 +536,8 @@ public:
 			execute( numJobs, 1 );
 		}
 
+		// execute with at least numJobs thread blocks
+		// at most (1<<(ceil(log2(numJobs)-15)) - 1 thread blocks too many
 		void executeAtLeast( int numJobs ) const {
 			for( int log2_y = 0 ; log2_y < 15 ; log2_y++ ) {
 				int y = 1 << log2_y;
@@ -541,6 +553,8 @@ public:
 
 		void execute() const {
 			CUDA_THROW_ON_ERROR( cuParamSetSize( _function, _offset ) );
+
+			defaultBlockShape();
 
 			CUDA_THROW_ON_ERROR( cuLaunch( _function ) );
 		}

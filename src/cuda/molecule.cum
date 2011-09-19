@@ -14,10 +14,10 @@ struct Molecule {
 	floatType3 force;
 	floatType3 torque;
 
-	uint index;
+	uint dataIndex;
 
-	__device__ void load( uint index ) {
-		this->index = index;
+	__device__ void init( uint dataIndex ) {
+		this->dataIndex = dataIndex;
 		force = make_floatType3( 0.0, 0.0, 0.0 );
 		torque = make_floatType3( 0.0, 0.0, 0.0 );
 	}
@@ -28,16 +28,16 @@ struct Molecule {
 	}
 
 	__device__ floatType3 getPosition() const {
-		return moleculeStorage.getPosition(index);
+		return moleculeStorage.getPosition(dataIndex);
 	}
 
 	// relative->global coord system
 	__device__ Matrix3x3 getRotation() const {
-		return moleculeStorage.getRotation(index);
+		return moleculeStorage.getRotation(dataIndex);
 	}
 
 	__device__ ComponentType getComponentType() const {
-		return moleculeStorage.getComponentType(index);
+		return moleculeStorage.getComponentType(dataIndex);
 	}
 
 	__device__ void addForce(const floatType3 &other) {
@@ -57,8 +57,13 @@ struct Molecule {
 	}
 
 	__device__ void store() const {
-		moleculeStorage.setForce( index, force + moleculeStorage.getForce( index ) );
-		moleculeStorage.setTorque( index, torque + moleculeStorage.getTorque( index ) );
+		moleculeStorage.addForce( dataIndex, force );
+		moleculeStorage.addTorque( dataIndex, torque );
+	}
+
+	__device__ void store(uint storeIndex) const {
+		moleculeStorage.addForce( storeIndex, force );
+		moleculeStorage.addTorque( storeIndex, torque );
 	}
 };
 

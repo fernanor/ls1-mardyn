@@ -1,6 +1,8 @@
 #ifndef WARPBLOCKCELLPROCESSOR_CUM__
 #define WARPBLOCKCELLPROCESSOR_CUM__
 
+#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
+
 #include <host_defines.h>
 
 #include "util.cum"
@@ -40,7 +42,11 @@ struct ThreadBlockInfo {
 	volatile bool hasMoreJobs;
 
 	// global lock
-	__device__ ThreadBlockInfo() : hasMoreJobs( true ), jobIdleSignal( 0 ) {}
+	//__device__ ThreadBlockInfo() : hasMoreJobs( true ), jobIdleSignal( 0 ) {}
+	__device__ void init() {
+		hasMoreJobs = true;
+		jobIdleSignal = 0u;
+	}
 };
 
 template<class SpecificScheduler>
@@ -49,14 +55,18 @@ private:
 	Lock::Mutex globalMutex;
 
 public:
+	__device__ SchedulerTemplate() {
+		globalMutex.init();
+	}
+
 #if 1
 #warning semaphore scheduler
 	// returns false if the specific warp block should terminate
 		__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo & __restrict__ threadBlockInfo ) {
-			const uint warpBit = 1 << threadIdx.y;
+			const uint warpBit = 1 << warpIdx;
 
 			// only thread 0 of the current warp runs here
-			if( threadIdx.x == 0 ) {
+			if( warpThreadIdx == 0 ) {
 				// signal that this warp is idle right now
 				atomicOr( (uint*) &threadBlockInfo.jobIdleSignal, warpBit );
 
@@ -103,14 +113,14 @@ public:
 	// returns false if the specific warp block should terminate
 	__device__ __noinline__ void scheduleWarpBlocks( ThreadBlockInfo & __restrict__ threadBlockInfo ) {
 		// only thread 0 of the current warp runs here
-		if( threadIdx.x == 0 ) {
+		if( warpThreadIdx == 0 ) {
 			// wait until it's our turn for the lock
 			globalMutex.lock();
 
 			WARP_PRINTF( "globalMutex enter\n" );
 
 			// assign jobs
-			assignJobs( threadBlockInfo, threadIdx.y );
+			assignJobs( threadBlockInfo, warpIdx );
 
 			WARP_PRINTF( "globalMutex leave\n" );
 			__threadfence();
@@ -211,9 +221,11 @@ public:
 			return true;
 		}
 
+#ifdef CUDA_HW_CACHE_ONLY
 		do {
 			jobIndex++;
 
+			// every interaction has to be calculated twice
 			if( jobIndex >= 2 * DomainTraverser::numJobs ) {
 				return false;
 			}
@@ -234,6 +246,35 @@ public:
 			cellB = CellInfoEx( cellInfoFromCellIndex( cellIndexB ) );
 		}
 		while( cellA.length == 0 || cellB.length == 0 );
+#else
+		do {
+			if( ++jobIndex >= DomainTraverser::numJobs ) {
+				return false;
+			}
+
+			const int originalCellIndex = DomainTraverser::getCellIndexFromJobIndex( jobIndex );
+			const int neighborCellIndex = DomainTraverser::getNeighborCellIndex( originalCellIndex );
+
+			const CellInfoEx cellOriginal = CellInfoEx( cellInfoFromCellIndex( originalCellIndex ) );
+			const CellInfoEx cellNeighbor = CellInfoEx( cellInfoFromCellIndex( neighborCellIndex ) );
+
+			if( cellOriginal.length != 0 && cellNeighbor.length != 0 ) {
+				// set cellA and cellB to maximize parallelization
+				if( cellOriginal.length > cellNeighbor.length ) {
+					cellIndexA = originalCellIndex;
+					cellA = cellOriginal;
+					cellB = cellNeighbor;
+				}
+				else {
+					cellIndexA = neighborCellIndex;
+					cellA = cellNeighbor;
+					cellB = cellOriginal;
+				}
+				break;
+			}
+		}
+		while( true );
+#endif
 
 		numWarpBlocksA = cellA.getWarpCount();
 		warpBlockIndexA = 0;
@@ -246,41 +287,127 @@ public:
 		  cellIndexA( 0 ), numWarpBlocksA( 0 ), warpBlockIndexA( 0 ) {}
 };
 
-template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
+template<MoleculeStorage &moleculeStorage,
+class ResultLocalStorage, ResultLocalStorage &resultLocalStorage>
 struct DomainProcessor {
 	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
+	typedef Molecule<ResultLocalStorage, resultLocalStorage> ResultStorageMolecule;
 
-	// unified for cells and cell pairs
 	__device__ __noinline__ void processCellPair( WarpBlockPairInfo warpBlockPairInfo ) {
 		WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
 
 		WarpBlockInfo warpBlockA = warpBlockPairInfo.warpBlockA;
 
-		const uint indexA = warpBlockA.cell.getWarpOffset(warpBlockA.warpBlockIndex) + threadIdx.x;
+		const uint indexA = warpBlockA.cell.getWarpOffset(warpBlockA.warpBlockIndex) + warpThreadIdx;
 		if( indexA >= warpBlockA.cell.endIndex ) {
 			return;
 		}
 
 		StorageMolecule moleculeA;
-		moleculeA.load(indexA);
+		moleculeA.init(indexA);
 
 		// now loop over all molecules in this cell
 		CellInfo cellB = warpBlockPairInfo.cellB;
 
 		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
 			StorageMolecule moleculeB;
-			moleculeB.load(indexB);
+			moleculeB.init(indexB);
 
-			if( indexA != indexB ) {
-				MoleculePairHandler::process( threadIdx.x + threadIdx.y * WARP_SIZE, moleculeA, moleculeB );
-			}
+			MoleculePairHandler::process( warpThreadIdx + warpIdx * WARP_SIZE, moleculeA, moleculeB );
 		}
 
 		moleculeA.store();
-
 	}
+
+	__device__ __noinline__ void processCellPairWithCache( WarpBlockPairInfo warpBlockPairInfo ) {
+		WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
+
+		WarpBlockInfo warpBlockA = warpBlockPairInfo.warpBlockA;
+
+		const uint indexA = warpBlockA.cell.getWarpOffset(warpBlockA.warpBlockIndex) + warpThreadIdx;
+
+		StorageMolecule moleculeA;
+		moleculeA.init(indexA);
+
+		// now loop over all molecules in this cell
+		CellInfo cellB = warpBlockPairInfo.cellB;
+		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB += WARP_SIZE ) {
+			const uint threadIndex = getThreadIndex();
+			resultLocalStorage.reset( threadIndex );
+
+			if( indexA < warpBlockA.cell.endIndex ) {
+				for( int shift = 0 ; shift < WARP_SIZE ; shift++ ) {
+					const uint shiftedWarpThreadIdx = (warpThreadIdx + shift) % WARP_SIZE;
+					const uint moleculeIndex = indexB + shiftedWarpThreadIdx;
+
+					ResultStorageMolecule moleculeB;
+					moleculeB.init( moleculeIndex );
+
+					if( indexB + shiftedWarpThreadIdx < cellB.endIndex ) {
+						MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
+
+						const int targetIndex = warpIdx * WARP_SIZE + shiftedWarpThreadIdx;
+						moleculeB.store( targetIndex );
+
+						__threadfence_block();
+					}
+				}
+			}
+
+			// store the processed molecules
+			{
+				if( warpThreadIdx == 0 ) {
+					cellLocks[warpBlockPairInfo.warpBlockA.cellIndex].lock();
+				}
+
+				if( indexB + warpThreadIdx < cellB.endIndex ) {
+					resultLocalStorage.commit( threadIndex, indexB + warpThreadIdx );
+				}
+
+				__threadfence();
+
+				if( warpThreadIdx == 0 ) {
+					cellLocks[warpBlockPairInfo.warpBlockA.cellIndex].unlock();
+				}
+			}
+		}
+
+		if( indexA < warpBlockA.cell.endIndex ) {
+			moleculeA.store();
+		}
+	}
+
+	__device__ __noinline__ void processCell( WarpBlockPairInfo warpBlockPairInfo ) {
+			WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
+
+			WarpBlockInfo warpBlockA = warpBlockPairInfo.warpBlockA;
+
+			const uint indexA = warpBlockA.cell.getWarpOffset(warpBlockA.warpBlockIndex) + warpThreadIdx;
+			if( indexA >= warpBlockA.cell.endIndex ) {
+				return;
+			}
+
+			StorageMolecule moleculeA;
+			moleculeA.init(indexA);
+
+			// now loop over all molecules in this cell
+			CellInfo cellB = warpBlockPairInfo.cellB;
+
+			for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB++ ) {
+				StorageMolecule moleculeB;
+				moleculeB.init(indexB);
+
+				if( indexA != indexB ) {
+					MoleculePairHandler::process( warpThreadIdx + warpIdx * WARP_SIZE, moleculeA, moleculeB );
+				}
+			}
+
+			moleculeA.store();
+		}
 };
 
 }
+
+#endif
 
 #endif

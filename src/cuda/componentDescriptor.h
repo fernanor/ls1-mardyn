@@ -10,6 +10,8 @@
 
 #include <vector>
 
+#include "utils/Logger.h"
+
 #include "cutil_math.h"
 
 #include "sharedDecls.h"
@@ -33,13 +35,40 @@ public:
 
 		const std::vector<Component> &components = _domain.getComponents();
 
-		for( int i = 0 ; i < components.size() ; i++ ) {
+		const int numComponents = components.size();
+		if( numComponents >= MAX_NUM_COMPONENTS ) {
+			// error
+			Log::global_log->fatal() << "Domain has " << numComponents <<
+					" components, but MAX_NUM_COMPONENTS = " << MAX_NUM_COMPONENTS << std::endl;
+			exit(-1);
+		}
+
+		for( int i = 0 ; i < numComponents ; i++ ) {
 			const Component &component = components[i];
 			ComponentDescriptor &componentDescriptor = componentDescriptors[i];
 
 			componentDescriptor.numLJCenters = component.numLJcenters();
 			componentDescriptor.numCharges = component.numCharges();
 			componentDescriptor.numDipoles = component.numDipoles();
+
+			if( componentDescriptor.numLJCenters >= MAX_NUM_LJCENTERS ) {
+				// error
+				Log::global_log->fatal() << "A component has " << numComponents <<
+						" lj centers, but MAX_NUM_LJCENTERS = " << MAX_NUM_LJCENTERS << std::endl;
+				exit(-1);
+			}
+			if( componentDescriptor.numCharges >= MAX_NUM_CHARGES ) {
+				// error
+				Log::global_log->fatal() << "A component has " << numComponents <<
+						" charges, but MAX_NUM_CHARGES = " << MAX_NUM_CHARGES << std::endl;
+				exit(-1);
+			}
+			if( componentDescriptor.numDipoles >= MAX_NUM_DIPOLES ) {
+				// error
+				Log::global_log->fatal() << "A component has " << numComponents <<
+						" dipoles, but MAX_NUM_DIPOLES = " << MAX_NUM_DIPOLES << std::endl;
+				exit(-1);
+			}
 
 			// TODO: use inheritance for relativePosition?
 #if MAX_NUM_LJCENTERS > 0
@@ -98,7 +127,7 @@ public:
 		_componentMixEtas.set( etas );
 
 #ifdef DEBUG_COMPONENT_DESCRIPTORS
-		_debugComponentDescriptors.call().parameter( componentDescriptors.size() ).execute();
+		_debugComponentDescriptors.call().parameter( components.size() ).execute();
 #endif
 	}
 

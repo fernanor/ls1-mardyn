@@ -1,4 +1,9 @@
 #include <host_defines.h>
+#include <stdio.h>
+
+#include "cutil_math.h"
+
+#include "config.h"
 
 __device__ int getSM() {
 	uint smID;
@@ -8,19 +13,22 @@ __device__ int getSM() {
 	return smID;
 }
 
+#define warpThreadIdx threadIdx.x
+#define warpIdx threadIdx.y
+
+__device__ __forceinline__ uint getThreadIndex() {
+	return warpThreadIdx + WARP_SIZE * warpIdx;
+}
+
 #if 0
-#	define WARP_PRINTF(format, ...) if( threadIdx.x == 0 ) printf( "(%i W%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, threadIdx.y, getSM(), ##__VA_ARGS__ )
-#	define BLOCK_PRINTF(format, ...) if( threadIdx.y == 0 ) printf( "(%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, getSM(), ##__VA_ARGS__ )
-#	define GRID_PRINTF(format, ...) if( blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0 ) printf( "{%i} " format, getSM(), ##__VA_ARGS__ )
+#	define WARP_PRINTF(format, ...) if( warpLane == 0 ) printf( "(%i W%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, getWarp(), getSM(), ##__VA_ARGS__ )
+#	define BLOCK_PRINTF(format, ...) if( warpIdx == 0 ) printf( "(%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, getSM(), ##__VA_ARGS__ )
+#	define GRID_PRINTF(format, ...) if( blockIdx.x == 0 && blockIdx.y == 0 && warpLane == 0 && warpIdx == 0 ) printf( "{%i} " format, getSM(), ##__VA_ARGS__ )
 #else
 #	define WARP_PRINTF(format, ...)
 #	define BLOCK_PRINTF(format, ...)
 #	define GRID_PRINTF(format, ...)
 #endif
-
-#include <stdio.h>
-
-#include "cutil_math.h"
 
 #include "moleculeStorage.cum"
 
@@ -39,8 +47,6 @@ __device__ int getSM() {
 #include "molecule.cum"
 
 #include "warpBlockDomainProcessor.cum"
-
-#include "config.h"
 
 #ifndef REFERENCE_IMPLEMENTATION
 #warning using fast cell processor
@@ -116,9 +122,9 @@ __device__ MoleculeStorage moleculeStorage;
 
 #ifndef REFERENCE_IMPLEMENTATION
 #	ifndef CUDA_HW_CACHE_ONLY
-__shared__ SharedMoleculeLocalStorage< typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
+__shared__ SharedMoleculeLocalStorage< moleculeStorage > moleculeLocalStorage;
 #	else
-__device__ WriteThroughMoleculeLocalStorage<typeof(moleculeStorage), moleculeStorage> moleculeLocalStorage;
+__device__ WriteThroughMoleculeLocalStorage< moleculeStorage > moleculeLocalStorage;
 #	endif
 __device__ HighDensityDomainProcessor<
 	typeof(moleculeStorage), moleculeStorage,
@@ -133,7 +139,7 @@ __device__ ReferenceCellProcessor<
 #endif
 
 __global__ void processCellPair() {
-	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int threadIndex = getThreadIndex();
 
 	const int jobIndex = blockIdx.y * gridDim.x + blockIdx.x;
 	if( jobIndex >= DomainTraverser::numJobs ) {
@@ -158,7 +164,7 @@ __global__ void processCellPair() {
 
 //__launch_bounds__(BLOCK_SIZE, 2)
 __global__ void processCell() {
-	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int threadIndex = getThreadIndex();
 
 	int jobIndex = blockIdx.y * gridDim.x + blockIdx.x;
 	if( jobIndex >= DomainTraverser::numJobs ) {
@@ -182,37 +188,44 @@ __device__ WBDP::CellScheduler *cellScheduler;
 __device__ WBDP::CellPairScheduler *cellPairScheduler;
 
 __global__ void createSchedulers() {
-	if( threadIdx.x + threadIdx.y == 0 ) {
-		cellScheduler = new WBDP::CellScheduler();
-		cellPairScheduler = new WBDP::CellPairScheduler();
-	}
+	cellScheduler = new WBDP::CellScheduler();
+	cellPairScheduler = new WBDP::CellPairScheduler();
 }
 
 __global__ void destroySchedulers() {
-	if( threadIdx.x + threadIdx.y == 0 ) {
-		delete cellScheduler;
-		delete cellPairScheduler;
-	}
+	delete cellScheduler;
+	delete cellPairScheduler;
 }
 
 __device__ MoleculeStorage moleculeStorage;
-__device__ WBDP::DomainProcessor<typeof(moleculeStorage), moleculeStorage> domainProcessor;
+__shared__ ResultLocalStorage< moleculeStorage > resultLocalStorage;
+__device__ WBDP::DomainProcessor< moleculeStorage, typeof(resultLocalStorage), resultLocalStorage > domainProcessor;
 
 __global__ void processCellPair() {
-	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int threadIndex = getThreadIndex();
 
 	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
+	if( threadIndex ) {
+		threadBlockInfo.init();
+	}
+	__syncthreads();
 
 	do {
 		cellPairScheduler->scheduleWarpBlocks( threadBlockInfo );
 
-		while( !threadBlockInfo.warpJobQueue[threadIdx.y].isEmpty() ) {
+		while( !threadBlockInfo.warpJobQueue[warpIdx].isEmpty() ) {
 			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
-			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[threadIdx.y].pop();
+			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
+#ifdef CUDA_HW_CACHE_ONLY
 			domainProcessor.processCellPair( warpBlockPairInfo );
 
 			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
+#else
+			domainProcessor.processCellPairWithCache( warpBlockPairInfo );
+
+			ThreadBlockCellStats::reduceAndStoreWarpForPair( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
+#endif
 		}
 	} while( threadBlockInfo.hasMoreJobs );
 
@@ -221,18 +234,22 @@ __global__ void processCellPair() {
 
 __global__ void processCell() {
 	// TODO: remove?
-	const int threadIndex = threadIdx.y * WARP_SIZE + threadIdx.x;
+	const int threadIndex = getThreadIndex();
 
 	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
+	if( threadIndex == 0 ) {
+		threadBlockInfo.init();
+	}
+	__syncthreads();
 
 	do {
 		cellScheduler->scheduleWarpBlocks( threadBlockInfo );
 
-		while( !threadBlockInfo.warpJobQueue[threadIdx.y].isEmpty() ) {
+		while( !threadBlockInfo.warpJobQueue[warpIdx].isEmpty() ) {
 			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
-			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[threadIdx.y].pop();
-			domainProcessor.processCellPair( warpBlockPairInfo );
+			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
+			domainProcessor.processCell( warpBlockPairInfo );
 
 			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 		}

@@ -58,7 +58,7 @@ struct HighDensityDomainProcessor {
 
 	__device__ void processMoleculePair(int threadIndex, uint localIndexB, StorageMolecule & __restrict__ moleculeA) {
 		LocalStorageMolecule moleculeB;
-		moleculeB.load(localIndexB);
+		moleculeB.init(localIndexB);
 
 		MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
 
@@ -89,7 +89,7 @@ struct HighDensityDomainProcessor {
 		// process block
 #if NUM_WARPS == 1
 		for( uint moleculeShiftIndex = 0 ; moleculeShiftIndex < WARP_SIZE ; moleculeShiftIndex++ ) {
-			const uint localIndexB = (threadIdx.x + moleculeShiftIndex) % WARP_SIZE;
+			const uint localIndexB = (warpThreadIdx + moleculeShiftIndex) % WARP_SIZE;
 
 			// only do something when there is a molecule in A and a molecule in B to interact with
 			if( localIndexA >= numMoleculesInBlockA || localIndexB >= numMoleculesInBlockB ) {
@@ -126,11 +126,11 @@ struct HighDensityDomainProcessor {
 		const uint numWarpBlocksInBlockB = iceil( numMoleculesInBlockB, WARP_SIZE );
 
 		for( uint warpShiftIndex = 0 ; warpShiftIndex < numWarpBlocks ; warpShiftIndex++ ) {
-			const uint warpBlockIndexB = (threadIdx.y + warpShiftIndex) % numWarpBlocks;
+			const uint warpBlockIndexB = (warpIdx + warpShiftIndex) % numWarpBlocks;
 			const uint warpBlockOffsetB = warpBlockIndexB * WARP_SIZE;
 
 			for( uint moleculeShiftIndex = 0 ; moleculeShiftIndex < WARP_SIZE ; moleculeShiftIndex++ ) {
-				const uint localIndexB = warpBlockOffsetB + ((threadIdx.x + moleculeShiftIndex) % WARP_SIZE);
+				const uint localIndexB = warpBlockOffsetB + ((warpThreadIdx + moleculeShiftIndex) % WARP_SIZE);
 
 				// only do something when there is a molecule in A and a molecule in B to interact with
 				if( localIndexA >= numMoleculesInBlockA || localIndexB >= numMoleculesInBlockB ) {
@@ -203,9 +203,7 @@ struct HighDensityDomainProcessor {
 			StorageMolecule moleculeA;
 
 			const int indexA = blockOffsetA + threadIndex;
-			if( threadIndex < numMoleculesInBlockA ) {
-				moleculeA.load( indexA );
-			}
+			moleculeA.init( indexA );
 
 			for( uint blockIndexB = 0 ; blockIndexB < numBlocksB ; blockIndexB++ ) {
 				const uint numMoleculesInBlockB = (blockIndexB < numBlocksB - 1) ? BLOCK_SIZE : cellB.getLastBlockSize();
@@ -237,9 +235,7 @@ struct HighDensityDomainProcessor {
 			StorageMolecule moleculeA;
 
 			const uint indexA = blockOffsetA + threadIndex;
-			if( threadIndex < numMoleculesInBlockA ) {
-				moleculeA.load( indexA );
-			}
+			moleculeA.init( indexA );
 
 			processBlock<BPT_SAME_BLOCK>(
 					threadIndex,

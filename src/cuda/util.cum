@@ -96,4 +96,17 @@ __device__ inline IntType shiftedMod( IntType a, IntType b ) {
 	return (r > 0) ? r : b;
 }
 
+__device__ double atomicAdd(double *address, double val) {
+	unsigned long long int *ull_address = (unsigned long long int*) address;
+	unsigned long long int old = *ull_address;
+	unsigned long long int assumed;
+
+	do {
+		assumed = old;
+		old = atomicCAS( ull_address, assumed, __double_as_longlong(val + __longlong_as_double(assumed)) );
+	} while( assumed != old );
+
+	return __longlong_as_double( old );
+}
+
 #endif
