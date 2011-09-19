@@ -121,7 +121,7 @@ case $1 in
                 for NUM_WARPS in {4,8}; do
                         benchmark CUDA_DOUBLE_UNSORTED_UNPACKED_STORAGE "$CFGs" "${NUM_WARPS}_"
                 done
-		for NUM_WARPS in {4,8,16}; do
+		for NUM_WARPS in {8,16}; do
                         benchmark CUDA_DOUBLE_UNSORTED_WBDP_UNPACKED_STORAGE "$CFGs" "${NUM_WARPS}_"
                 done
                 ;;
