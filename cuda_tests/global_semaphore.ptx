@@ -1,0 +1,234 @@
+	.version 2.3
+	.target sm_20
+	.address_size 32
+	// compiled with /usr/local/cuda/open64/lib//be
+	// nvopencc 4.0 built on 2011-05-12
+
+	.extern .func (.param .s32 __cudaretf_printf) printf (.param .u32 __cudaparmf1_printf)
+
+	.extern .func (.param .s32 __cudaretf_vprintf) vprintf (.param .u32 __cudaparmf1_vprintf, .param .u32 __cudaparmf2_vprintf)
+
+	.visible .func (.param .s32 __cudaretf__ZN5Mutex4lockEPVjj) _ZN5Mutex4lockEPVjj (.param .u32 __cudaparmf1__ZN5Mutex4lockEPVjj, .param .u32 __cudaparmf2__ZN5Mutex4lockEPVjj, .param .u32 __cudaparmf3__ZN5Mutex4lockEPVjj)
+
+	//-----------------------------------------------------------
+	// Compiling /tmp/tmpxft_000024f3_00000000-9_global_semaphore.cpp3.i (/tmp/ccBI#.zDmv7z)
+	//-----------------------------------------------------------
+
+	//-----------------------------------------------------------
+	// Options:
+	//-----------------------------------------------------------
+	//  Target:ptx, ISA:sm_20, Endian:little, Pointer Size:32
+	//  -O3	(Optimization level)
+	//  -g0	(Debug level)
+	//  -m2	(Report advisories)
+	//-----------------------------------------------------------
+
+	.file	1	"<command-line>"
+	.file	2	"/tmp/tmpxft_000024f3_00000000-8_global_semaphore.cudafe2.gpu"
+	.file	3	"global_semaphore.cu"
+	.file	4	"/usr/lib/gcc/i486-linux-gnu/4.4.3/include/stddef.h"
+	.file	5	"/usr/local/cuda/bin/../include/crt/device_runtime.h"
+	.file	6	"/usr/local/cuda/bin/../include/host_defines.h"
+	.file	7	"/usr/local/cuda/bin/../include/builtin_types.h"
+	.file	8	"/usr/local/cuda/bin/../include/device_types.h"
+	.file	9	"/usr/local/cuda/bin/../include/driver_types.h"
+	.file	10	"/usr/local/cuda/bin/../include/surface_types.h"
+	.file	11	"/usr/local/cuda/bin/../include/texture_types.h"
+	.file	12	"/usr/local/cuda/bin/../include/vector_types.h"
+	.file	13	"/usr/local/cuda/bin/../include/device_launch_parameters.h"
+	.file	14	"/usr/local/cuda/bin/../include/crt/storage_class.h"
+	.file	15	"/usr/include/bits/types.h"
+	.file	16	"/usr/include/time.h"
+	.file	17	"/usr/local/cuda/bin/../include/sm_11_atomic_functions.h"
+	.file	18	"/usr/local/cuda/bin/../include/common_functions.h"
+	.file	19	"/usr/local/cuda/bin/../include/math_functions.h"
+	.file	20	"/usr/local/cuda/bin/../include/math_constants.h"
+	.file	21	"/usr/local/cuda/bin/../include/device_functions.h"
+	.file	22	"/usr/local/cuda/bin/../include/sm_12_atomic_functions.h"
+	.file	23	"/usr/local/cuda/bin/../include/sm_13_double_functions.h"
+	.file	24	"/usr/local/cuda/bin/../include/sm_20_atomic_functions.h"
+	.file	25	"/usr/local/cuda/bin/../include/sm_20_intrinsics.h"
+	.file	26	"/usr/local/cuda/bin/../include/surface_functions.h"
+	.file	27	"/usr/local/cuda/bin/../include/texture_fetch_functions.h"
+	.file	28	"/usr/local/cuda/bin/../include/math_functions_dbl_ptx3.h"
+
+	.global .align 4 .b8 globalMutex[4];
+	.global .u32 globalCounter;
+
+	.entry _Z4initv
+	{
+	.reg .u32 %r<4>;
+	.loc	3	44	0
+$LDWbegin__Z4initv:
+	.loc	3	45	0
+	mov.u32 	%r1, 0;
+	st.volatile.global.u32 	[globalMutex+0], %r1;
+	.loc	3	46	0
+	mov.u32 	%r2, 0;
+	st.volatile.global.u32 	[globalCounter], %r2;
+	.loc	3	47	0
+	exit;
+$LDWend__Z4initv:
+	} // _Z4initv
+	.global .align 1 .b8 __constant851[4] = {0x25,0x69,0xa,0x0};
+
+	.entry _Z12printResultsv
+	{
+	.reg .u32 %r<5>;
+	.local .align 8 .b8 __cuda__temp__valist_array_41_16[4];
+	.param .u32 __cudaparma1_vprintf;
+	.param .u32 __cudaparma2_vprintf;
+	.loc	3	49	0
+$LDWbegin__Z12printResultsv:
+	.loc	3	50	0
+	ld.volatile.global.u32 	%r1, [globalCounter];
+	st.local.u32 	[__cuda__temp__valist_array_41_16+0], %r1;
+	cvta.global.u32 	%r2, __constant851;
+	st.param.u32 	[__cudaparma1_vprintf], %r2;
+	cvta.local.u32 	%r3, __cuda__temp__valist_array_41_16;
+	st.param.u32 	[__cudaparma2_vprintf], %r3;
+	call.uni (_), vprintf, (__cudaparma1_vprintf, __cudaparma2_vprintf);
+	.loc	3	51	0
+	exit;
+$LDWend__Z12printResultsv:
+	} // _Z12printResultsv
+	.shared .u32 warpSignals;
+	.global .align 1 .b8 __constant854[12] = {0x77,0x61,0x72,0x70,0x20,0x31,0x20,0x6c,0x61,0x67,0xa,0x0};
+
+	.entry _Z6kernelv
+	{
+	.reg .u32 %r<37>;
+	.reg .pred %p<8>;
+	.param .u32 __cudaparma1_vprintf;
+	.param .u32 __cudaparma2_vprintf;
+	// _temp__valist_args_43 = 16
+	.loc	3	55	0
+$LDWbegin__Z6kernelv:
+	mov.u32 	%r1, %tid.x;
+	mov.u32 	%r2, %tid.y;
+	add.u32 	%r3, %r2, %r1;
+	mov.u32 	%r4, 0;
+	setp.eq.u32 	%p1, %r3, %r4;
+	@!%p1 bra 	$Lt_2_5634;
+	.loc	3	57	0
+	cvta.global.u32 	%r5, __constant854;
+	st.param.u32 	[__cudaparma1_vprintf], %r5;
+	mov.s32 	%r6, %r7;
+	st.param.u32 	[__cudaparma2_vprintf], %r6;
+	call.uni (_), vprintf, (__cudaparma1_vprintf, __cudaparma2_vprintf);
+$Lt_2_5634:
+	@!%p1 bra 	$Lt_2_6146;
+	.loc	3	61	0
+	mov.u32 	%r8, 0;
+	st.volatile.shared.u32 	[warpSignals], %r8;
+$Lt_2_6146:
+	.loc	3	63	0
+	bar.sync 	0;
+	mov.u32 	%r9, 0;
+	setp.ne.u32 	%p2, %r1, %r9;
+	@%p2 bra 	$Lt_2_6658;
+	.loc	17	198	0
+	cvt.s32.u32 	%r10, %tid.y;
+	shl.b32 	%r11, 1, %r10;
+	cvta.shared.u32 	%r12, warpSignals;
+	atom.or.b32 	%r13, [%r12], %r11;
+	.loc	3	25	0
+	cvta.global.u32 	%r14, globalMutex;
+	mov.u32 	%r15, 1;
+	atom.exch.b32 	%r16, [%r14], %r15;
+	mov.s32 	%r17, %r16;
+	mov.u32 	%r18, 0;
+	setp.eq.u32 	%p3, %r17, %r18;
+	@%p3 bra 	$Lt_2_7170;
+$Lt_2_7682:
+	ld.volatile.shared.u32 	%r19, [warpSignals];
+	and.b32 	%r20, %r11, %r19;
+	mov.u32 	%r21, 0;
+	setp.ne.u32 	%p4, %r20, %r21;
+	@%p4 bra 	$Lt_2_7938;
+	.loc	3	27	0
+	mov.s32 	%r22, 0;
+	bra.uni 	$LDWendi__ZN5Mutex4lockEPVjj_186_1;
+$Lt_2_7938:
+	.loc	3	25	0
+	cvta.global.u32 	%r23, globalMutex;
+	mov.u32 	%r24, 1;
+	atom.exch.b32 	%r25, [%r23], %r24;
+	mov.s32 	%r26, %r25;
+	mov.u32 	%r27, 0;
+	setp.ne.u32 	%p5, %r26, %r27;
+	@%p5 bra 	$Lt_2_7682;
+$Lt_2_7170:
+	.loc	3	31	0
+	mov.s32 	%r22, 1;
+$LDWendi__ZN5Mutex4lockEPVjj_186_1:
+	.loc	3	75	0
+	mov.u32 	%r28, 0;
+	setp.eq.s32 	%p6, %r22, %r28;
+	@%p6 bra 	$Lt_2_8706;
+	.loc	3	78	0
+	ld.volatile.shared.u32 	%r29, [warpSignals];
+	.loc	3	80	0
+	ld.volatile.global.u32 	%r30, [globalCounter];
+	popc.b32 	%r31, %r29;
+	add.u32 	%r32, %r30, %r31;
+	st.volatile.global.u32 	[globalCounter], %r32;
+	.loc	17	208	0
+	cvta.shared.u32 	%r33, warpSignals;
+	atom.xor.b32 	%r34, [%r33], %r29;
+	.loc	3	86	0
+	mov.u32 	%r35, 0;
+	st.volatile.global.u32 	[globalMutex+0], %r35;
+$Lt_2_8706:
+$Lt_2_6658:
+	.loc	3	92	0
+	exit;
+$LDWend__Z6kernelv:
+	} // _Z6kernelv
+
+	.visible .func (.param .s32 __cudaretf__ZN5Mutex4lockEPVjj) _ZN5Mutex4lockEPVjj (.param .u32 __cudaparmf1__ZN5Mutex4lockEPVjj, .param .u32 __cudaparmf2__ZN5Mutex4lockEPVjj, .param .u32 __cudaparmf3__ZN5Mutex4lockEPVjj)
+	{
+	.reg .u32 %r<20>;
+	.reg .pred %p<5>;
+	.loc	3	24	0
+$LDWbegin__ZN5Mutex4lockEPVjj:
+	ld.param.u32 	%r1, [__cudaparmf1__ZN5Mutex4lockEPVjj];
+	mov.s32 	%r2, %r1;
+	ld.param.u32 	%r3, [__cudaparmf2__ZN5Mutex4lockEPVjj];
+	mov.s32 	%r4, %r3;
+	ld.param.u32 	%r5, [__cudaparmf3__ZN5Mutex4lockEPVjj];
+	mov.s32 	%r6, %r5;
+	.loc	3	25	0
+	mov.u32 	%r7, 1;
+	atom.exch.b32 	%r8, [%r2], %r7;
+	mov.s32 	%r9, %r8;
+	mov.u32 	%r10, 0;
+	setp.eq.u32 	%p1, %r9, %r10;
+	@%p1 bra 	$Lt_3_2050;
+$Lt_3_2562:
+	ld.volatile.u32 	%r11, [%r4+0];
+	and.b32 	%r12, %r11, %r6;
+	mov.u32 	%r13, 0;
+	setp.ne.u32 	%p2, %r12, %r13;
+	@%p2 bra 	$Lt_3_2818;
+	.loc	3	27	0
+	mov.s32 	%r14, 0;
+	bra.uni 	$LBB6__ZN5Mutex4lockEPVjj;
+$Lt_3_2818:
+	.loc	3	25	0
+	mov.u32 	%r15, 1;
+	atom.exch.b32 	%r16, [%r2], %r15;
+	mov.s32 	%r9, %r16;
+	mov.u32 	%r17, 0;
+	setp.ne.u32 	%p3, %r9, %r17;
+	@%p3 bra 	$Lt_3_2562;
+$Lt_3_2050:
+	.loc	3	31	0
+	mov.s32 	%r14, 1;
+$LBB6__ZN5Mutex4lockEPVjj:
+	mov.s32 	%r18, %r14;
+	st.param.s32 	[__cudaretf__ZN5Mutex4lockEPVjj], %r18;
+	ret;
+$LDWend__ZN5Mutex4lockEPVjj:
+	} // _ZN5Mutex4lockEPVjj
+
