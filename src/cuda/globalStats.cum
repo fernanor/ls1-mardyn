@@ -8,14 +8,14 @@
 #include "domainTraverser.cum"
 
 struct CellStats : CellStatsStorage {
-	__device__ void add( floatType potential, floatType virial ) volatile {
+	__device__ void add( floatType potential, floatType virial ) {
 		this->potential += potential;
 		this->virial += virial;
 	}
 };
 
 // should be: __device__ CellStats cellStats[CellCount]
-__constant__ __device__ volatile CellStats * cellStats;
+__constant__ __device__ CellStats * cellStats;
 
 #ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
 __constant__ Lock::Mutex *cellLocks;
@@ -112,13 +112,17 @@ namespace ThreadBlockCellStats {
 			floatType potential = threadPotential[ threadIndex ];
 			floatType virial = threadVirial[ threadIndex ];
 
-			cellLocks[cellIndex].lock();
+			const int neighborIndex = DomainTraverser::getNeighborCellIndex(cellIndex);
+			// use the neighbor lock
+			// the processor uses the cellIndex lock
+			// so there is less unnecessary inter-locking
+			cellLocks[neighborIndex].lock();
 
 			cellStats[cellIndex].add( potential, virial );
-			cellStats[DomainTraverser::getNeighborCellIndex(cellIndex)].add( potential, virial );
+			cellStats[neighborIndex].add( potential, virial );
 			__threadfence();
 
-			cellLocks[cellIndex].unlock();
+			cellLocks[neighborIndex].unlock();
 		}
 	}
 #endif

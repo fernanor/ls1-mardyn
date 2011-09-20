@@ -28,6 +28,14 @@ struct CellInfoEx : CellInfo {
 	__device__ CellInfoEx() {}
 	__device__ CellInfoEx( const CellInfo cell ) : CellInfo( cell.startIndex , cell.endIndex ), length( endIndex - startIndex ) {}
 
+	__device__ CellInfoEx( const volatile CellInfoEx &other ) : CellInfo( other.startIndex , other.endIndex ), length( other.length ) {}
+	__device__ volatile CellInfoEx & operator =( const CellInfoEx &other ) volatile {
+		startIndex = other.startIndex;
+		endIndex = other.endIndex;
+		length = other.length;
+		return *this;
+	}
+
 	__device__ uint getBlockCount() const {
 		return iceil( length, BLOCK_SIZE );
 	}
@@ -36,7 +44,7 @@ struct CellInfoEx : CellInfo {
 		return shiftedMod( length, BLOCK_SIZE );
 	}
 
-	__device__ uint getWarpCount() const {
+	__device__ uint getWarpCount() const volatile {
 		return iceil( length, WARP_SIZE );
 	}
 };

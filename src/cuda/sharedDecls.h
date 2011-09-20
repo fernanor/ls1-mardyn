@@ -19,8 +19,8 @@ struct LockStorage {
 typedef char Molecule_ComponentType;
 
 struct CellStatsStorage {
-	floatType potential;
-	floatType virial;
+	volatile floatType potential;
+	volatile floatType virial;
 };
 
 struct Matrix3x3Storage {

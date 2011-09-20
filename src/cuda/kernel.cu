@@ -21,9 +21,9 @@ __device__ __forceinline__ uint getThreadIndex() {
 }
 
 #if 0
-#	define WARP_PRINTF(format, ...) if( warpLane == 0 ) printf( "(%i W%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, getWarp(), getSM(), ##__VA_ARGS__ )
+#	define WARP_PRINTF(format, ...) if( warpThreadIdx == 0 ) printf( "(%i W%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, warpIdx, getSM(), ##__VA_ARGS__ )
 #	define BLOCK_PRINTF(format, ...) if( warpIdx == 0 ) printf( "(%i {%i}) " format, blockIdx.x + blockIdx.y * gridDim.x, getSM(), ##__VA_ARGS__ )
-#	define GRID_PRINTF(format, ...) if( blockIdx.x == 0 && blockIdx.y == 0 && warpLane == 0 && warpIdx == 0 ) printf( "{%i} " format, getSM(), ##__VA_ARGS__ )
+#	define GRID_PRINTF(format, ...) if( blockIdx.x == 0 && blockIdx.y == 0 && warpThreadIdx == 0 && warpIdx == 0 ) printf( "{%i} " format, getSM(), ##__VA_ARGS__ )
 #else
 #	define WARP_PRINTF(format, ...)
 #	define BLOCK_PRINTF(format, ...)
@@ -205,7 +205,7 @@ __global__ void processCellPair() {
 	const int threadIndex = getThreadIndex();
 
 	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
-	if( threadIndex ) {
+	if( threadIndex == 0 ) {
 		threadBlockInfo.init();
 	}
 	__syncthreads();

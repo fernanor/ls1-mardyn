@@ -52,7 +52,7 @@ namespace MoleculePairHandler {
 				continue;
 			}
 
-			const ComponentDescriptor::LJCenter ljCenterA = descriptorA.ljCenters[ljIndexA];
+			const ComponentDescriptor::LJCenter &ljCenterA = descriptorA.ljCenters[ljIndexA];
 			const floatType3 relativePositionA = moleculeA.getRotation() * ljCenterA.relativePosition;
 
 			for( int ljIndexB = 0 ; ljIndexB < MAX_NUM_LJCENTERS ; ljIndexB++ ) {
@@ -60,7 +60,7 @@ namespace MoleculePairHandler {
 					continue;
 				}
 
-				const ComponentDescriptor::LJCenter ljCenterB = descriptorB.ljCenters[ljIndexB];
+				const ComponentDescriptor::LJCenter &ljCenterB = descriptorB.ljCenters[ljIndexB];
 				const floatType3 relativePositionB = moleculeB.getRotation() * ljCenterB.relativePosition;
 
 				LJParameters mixedParameters;

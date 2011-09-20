@@ -36,7 +36,7 @@ public:
 		const std::vector<Component> &components = _domain.getComponents();
 
 		const int numComponents = components.size();
-		if( numComponents >= MAX_NUM_COMPONENTS ) {
+		if( numComponents > MAX_NUM_COMPONENTS ) {
 			// error
 			Log::global_log->fatal() << "Domain has " << numComponents <<
 					" components, but MAX_NUM_COMPONENTS = " << MAX_NUM_COMPONENTS << std::endl;
@@ -51,21 +51,21 @@ public:
 			componentDescriptor.numCharges = component.numCharges();
 			componentDescriptor.numDipoles = component.numDipoles();
 
-			if( componentDescriptor.numLJCenters >= MAX_NUM_LJCENTERS ) {
+			if( componentDescriptor.numLJCenters > MAX_NUM_LJCENTERS ) {
 				// error
-				Log::global_log->fatal() << "A component has " << numComponents <<
+				Log::global_log->fatal() << "A component has " << componentDescriptor.numLJCenters <<
 						" lj centers, but MAX_NUM_LJCENTERS = " << MAX_NUM_LJCENTERS << std::endl;
 				exit(-1);
 			}
-			if( componentDescriptor.numCharges >= MAX_NUM_CHARGES ) {
+			if( componentDescriptor.numCharges > MAX_NUM_CHARGES ) {
 				// error
-				Log::global_log->fatal() << "A component has " << numComponents <<
+				Log::global_log->fatal() << "A component has " << componentDescriptor.numCharges <<
 						" charges, but MAX_NUM_CHARGES = " << MAX_NUM_CHARGES << std::endl;
 				exit(-1);
 			}
-			if( componentDescriptor.numDipoles >= MAX_NUM_DIPOLES ) {
+			if( componentDescriptor.numDipoles > MAX_NUM_DIPOLES ) {
 				// error
-				Log::global_log->fatal() << "A component has " << numComponents <<
+				Log::global_log->fatal() << "A component has " << componentDescriptor.numDipoles <<
 						" dipoles, but MAX_NUM_DIPOLES = " << MAX_NUM_DIPOLES << std::endl;
 				exit(-1);
 			}

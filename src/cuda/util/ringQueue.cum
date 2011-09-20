@@ -14,7 +14,12 @@ private:
 	volatile uint writeIndex;
 
 public:
-	__device__ RingQueue() : readIndex( 0 ), writeIndex( 0 ) {}
+	__device__ RingQueue() {}
+
+	__device__ void init() {
+		readIndex = 0;
+		writeIndex = 0;
+	}
 
 	__device__ bool isEmpty()  {
 		return readIndex == writeIndex;
