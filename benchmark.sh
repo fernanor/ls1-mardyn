@@ -141,6 +141,42 @@ case $1 in
                         benchmark CUDA_DOUBLE_UNSORTED_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
                 done
                 ;;
+        "wbdp_cache_or_no_cache" )
+	        log "Benchmarking wbdp code paths:"
+                MAX_NUM_COMPONENTS=1
+                MAX_NUM_LJCENTERS=1
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=0
+
+                CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
+                for NUM_WARPS in {8,16}; do
+                        benchmark CUDA_DOUBLE_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_DOUBLE_SORTED_WBDP_WITH_CACHE "$CFGs" "${NUM_WARPS}_"
+                done
+
+                MAX_NUM_COMPONENTS=1
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
+                CFGs=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40}.cfg)
+                for NUM_WARPS in {8,16}; do
+                        benchmark CUDA_DOUBLE_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
+                        benchmark CUDA_DOUBLE_SORTED_WBDP_WITH_CACHE "$CFGs" "${NUM_WARPS}_"
+                done
+
+                MAX_NUM_COMPONENTS=2
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
+                CFGs=$(echo benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40}.cfg)
+		for NUM_WARPS in {8,16}; do
+                        benchmark CUDA_DOUBLE_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
+                        benchmark CUDA_DOUBLE_SORTED_WBDP_WITH_CACHE "$CFGs" "${NUM_WARPS}_"
+                done
+
+		;;
 	"cell_density" )
 		log "Benchmarking with different densities:"
 
@@ -165,8 +201,7 @@ case $1 in
 		NUM_WARPS=1
 		CFGs_NO_CUDA=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
 		benchmark NO_CUDA "$CFGs_NO_CUDA" 
-	#	;;
-	#"cell_density_2" )
+	
 		log "Benchmarking with different densities (part 2):"
 		MAX_NUM_COMPONENTS=1
 		MAX_NUM_LJCENTERS=3
@@ -183,8 +218,7 @@ case $1 in
 		NUM_WARPS=1
 		CFGs_NO_CUDA=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40}.cfg)
 		benchmark NO_CUDA "$CFGs_NO_CUDA"
-	#	;;
-	#"cell_density_3" )
+	
 		log "Benchmarking with different densities (part 3):"
 		MAX_NUM_COMPONENTS=2
 		MAX_NUM_LJCENTERS=3

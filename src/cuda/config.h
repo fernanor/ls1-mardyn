@@ -42,6 +42,16 @@
 #	define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP
+#       define CONFIG_NAME "cuda_double_sorted_wbdp"
+#       define CUDA_DOUBLE_MODE
+
+#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+
+#       define CUDA_HW_CACHE_ONLY
+#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#endif
+
 #ifdef CONFIG_CUDA_DOUBLE_SORTED
 #	define CONFIG_NAME "cuda_double_sorted"
 #	define CUDA_DOUBLE_MODE
@@ -78,7 +88,19 @@
 
 #       define CUDA_DOUBLE_MODE
 
+#       define CUDA_HW_CACHE_ONLY
+
 #       define CUDA_UNPACKED_STORAGE
+#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#endif
+
+#ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP_WITH_CACHE
+#       define CONFIG_NAME "cuda_double_sorted_wbdp_with_cache"
+
+#       define CUDA_DOUBLE_MODE
+
+#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+
 #       define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
