@@ -152,6 +152,15 @@ Simulation::Simulation(optparse::Values& options, vector<string>& args)
 
 	string inputfilename(args[0]);
 	initConfigFile(inputfilename);
+
+
+#ifdef DUMP_CELL_LENGTHS
+#	ifndef NO_CUDA
+#		error DUMP_CELL_LENGTHS only works with NO_CUDA!
+#	endif
+	SimulationStats::writeCellStats( "benchmark/domainInfos.csv", static_cast<LinkedCells*>(_moleculeContainer)->getCells(), inputfilename );
+	exit(0);
+#endif
 }
 
 Simulation::~Simulation() {

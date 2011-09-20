@@ -10,11 +10,6 @@ public:
 		lockValue = 0u;
 	}
 
-	__device__ void lock() {
-		while( atomicExch( (uint*) &lockValue, 1u ) == 0u )
-			;
-	}
-
 	// locks but supports being interrupted when (signal & bitMask) becomes 0
 	// returns true if unlocked must be called
 	// returns false if unlocked mustn't be called

@@ -79,6 +79,21 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 			);
 #endif
 	fprintf( file, ",%s\n", name.c_str() );
+
+	fclose( file );
+}
+
+void SimulationStats::writeCellStats(const std::string &domainInfoFile, const std::vector<Cell> &cells, const std::string &domainInfo ) {
+	FILE *file = fopen( domainInfoFile.c_str(), "at" );
+
+	fprintf( file, "\"%s\"", domainInfo.c_str() );
+
+	for( int i = 0 ; i < cells.size() ; i++ ) {
+		fprintf( file, ",%i", cells[i].getMoleculeCount() );
+	}
+
+	fprintf( file, "\n" );
+	fclose( file );
 }
 
 SimulationStats simulationStats;

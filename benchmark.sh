@@ -218,6 +218,13 @@ case $1 in
 		benchmark CUDA_DOUBLE_UNSORTED "$CFGs"
 		benchmark CUDA_DOUBLE_SORTED "$CFGs"
 		;;
+	"no_cuda_all" )
+		log "Benchmarking all configurations on the CPU:"
+		CFGs=benchmark/*.cfg
+		
+		NUM_WARPS=1		
+		benchmark NO_CUDA "$CFGs"
+		;;
 	"debug" )
 		CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,40,50,60}.cfg)
 		

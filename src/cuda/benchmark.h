@@ -13,6 +13,7 @@
 #include <string>
 
 #include "config.h"
+#include "particleContainer/Cell.h"
 
 class Measure {
 protected:
@@ -60,6 +61,8 @@ struct SimulationStats {
 
 	void writeFrameStats( const std::string &frameFile );
 	void writeRunStats( const std::string &buildFile );
+
+	static void writeCellStats( const std::string &domainInfoFile, const std::vector<Cell> &cells, const std::string &domainInfo );
 };
 
 extern SimulationStats simulationStats;

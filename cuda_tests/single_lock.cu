@@ -15,22 +15,6 @@ public:
 			;
 	}
 
-	// locks but supports being interrupted when (signal & bitMask) becomes 0
-	// returns true if unlocked must be called
-	// returns false if unlocked mustn't be called
-	// assumption:
-	// the signal can only be reset by a warp/thread that is inside the same semaphore,
-	// only the caller can set it
-	__device__ bool lock(volatile uint *signal, uint bitMask) {
-		while( atomicCAS( (uint*) &lockValue, 0u, 1u ) == 1u ) {
-			if( (*signal & bitMask) == 0 ) {
-				return false;
-			}
-		}
-
-		return true;
-	}
-
 	__device__ void unlock() {
 		lockValue = 0u;
 	}
