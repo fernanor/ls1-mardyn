@@ -29,6 +29,17 @@
 #	define CONFIG_NAME "cuda_float_unsorted"
 #endif
 
+#ifdef CONFIG_CUDA_FLOAT_SORTED
+#       define CONFIG_NAME "cuda_float_unsorted"
+#endif
+
+#ifdef CONFIG_CUDA_FLOAT_SORTED_WBDP
+#       define CONFIG_NAME "cuda_float_unsorted"
+
+#       define CUDA_HW_CACHE_ONLY
+#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#endif
+
 #ifdef CONFIG_CUDA_DOUBLE_UNSORTED
 #	define CONFIG_NAME "cuda_double_unsorted"
 #	define CUDA_DOUBLE_MODE

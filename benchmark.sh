@@ -141,6 +141,43 @@ case $1 in
                         benchmark CUDA_DOUBLE_UNSORTED_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
                 done
                 ;;
+        "float_mode" )
+                log "Benchmarking float speed:"
+                MAX_NUM_COMPONENTS=1
+                MAX_NUM_LJCENTERS=1
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=0
+
+                CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
+                for NUM_WARPS in {8,16}; do
+                        benchmark CUDA_FLOAT_SORTED "$CFGs" "${NUM_WARPS}_"
+                        benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
+                done
+
+                MAX_NUM_COMPONENTS=1
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
+                CFGs=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40}.cfg)
+                for NUM_WARPS in {8,16}; do
+                        benchmark CUDA_FLOAT_SORTED "$CFGs" "${NUM_WARPS}_"
+                        benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
+                done
+
+                MAX_NUM_COMPONENTS=2
+                MAX_NUM_LJCENTERS=3
+                MAX_NUM_CHARGES=0
+                MAX_NUM_DIPOLES=1
+
+                CFGs=$(echo benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40}.cfg)
+                for NUM_WARPS in {8,16}; do
+                        benchmark CUDA_FLOAT_SORTED "$CFGs" "${NUM_WARPS}_"
+                        benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
+                done
+
+                ;;
+
         "wbdp_cache_or_no_cache" )
 	        log "Benchmarking wbdp code paths:"
                 MAX_NUM_COMPONENTS=1
