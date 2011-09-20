@@ -120,7 +120,7 @@ This makes it possible to switch between single- and double-precision using a si
   \subfloat[Odd start plane]{\includegraphics[width=0.5\textwidth]{figures/pairtraverser_odd.pdf} }
   \caption{Schematic of the two steps the pair traverser performs}
 \end{figure}
-The simulation space is divided into a grid of cells. \TODO{add picture} The domain traverser iterates over all neighbor pairings in the volume while maximizing parallelism. Each cell inside the volume has 26 neighbors. There are 13 directions, so that two neighbors always lie on a line. It doesn't matter if you calculate the interactions between cell A and B or cells B and A. This symmetry allows for a straight-forward parallelization.
+The simulation space is divided into a grid of cells. \TODO{add picture} The domain traverser iterates over all neighbor pairings in the volume while maximizing parallelism. Each cell inside the volume has 26 neighbors. There are 13 directions because it doesn't matter if you calculate the interactions between cell A and B or cells B and A. This symmetry allows for a straight-forward parallelization.
 I am going to introduce it using the special case of the direction along the x-axis:
 \begin{compactenum}
 \item calculate the interactions between all cells $ \left ( 2*k, y, z \right ) $ and $ \left ( 2*k + 1, y, z \right ) $ in parallel (even case)
@@ -138,7 +138,7 @@ The cells are flattened into a one-dimensional array and the CPU code calculates
 \item offsets to move in x-, y- and z-direction in the one-dimensional cell array, whereas this constitutes a local coordinate system, such that the x- and y- span the two-dimensional grid and z- moves along the layers (\lstinline!gridOffsets!)
 \item offset to get the neighbor cell for a cell (\lstinline!neighborOffset!)
 \end{compactitem}
-With these parameters, the \lstinline!processCellPair! kernel can be launched with $ \text{dimension} \times     \text{number of layers} $ thread blocks\footnote{one thread block per cell pair}.
+With these parameters, the \lstinline!processCellPair! kernel can be launched with a grid of $ \text{dimension} \times \text{number of layers} $ thread blocks\footnote{one thread block per cell pair}.
 
 \subsubsection{Molecule Storage}
 The molecule storage component manages everything related to molecule data. The molecules of all the cells are flattened into a one-dimensional array. For each cell the start index into this array is stored in a \lstinline!cellStartIndices! array. \TODO{add picture}
@@ -154,9 +154,11 @@ There is also a \lstinline!MoleculeLocalStorage<blockSize>! class. It provides a
 \subsubsection{Global Statistics}
 The potential and virial are calculated per cell on the GPU. For this the CPU code creates shared arrays for one potential and one virial value per thread in a threadblock, so the values can be updated by their threads without locks. The \lstinline!CellStatsCollector! class has a \lstinline!reduceAndSave! which sum-reduces the two arrays into a cell potential and cell virial values.
 
-The CPU code then reduces these per-cell values into per-domain values. Potentials and virials are calculated per molecule pair and added to the cells the molecules belong to\footnote{in the case of molecules from the same cell, the values are added to the same cell twice}. Now the domain values, as sum of call cell values, count each potential and virial twice, so the code halves the values.
+It does this by first summing all potentials inside a warp without any locking. Then it loops over all warps and reduces them sequentially.
 
-There is also an implementation difference to the regular MarDyn code: the force interaction code in MarDyn defines \lstinline!distanceAtoB! as \lstinline!positionA - positionB!, while the \cuda{} code defines it as \lstinline!positionB - positionA!\footnote{which makes more sense sementically}. Because of this sign change, the calculated GPU virial has to be sign inverted, too, to match the CPU virial value.
+The CPU code then reduces these per-cell values into per-domain values. Potentials and virials are calculated per molecule pair and added to the cells the molecules belong to\footnote{in the case of molecules from the same cell, the values are added to the same cell twice}. Now the domain values, as sum of all cell values, count each potential and virial value twice, so the code halves the values.
+
+There is also a difference to the regular MarDyn code: the force interaction code in MarDyn defines \lstinline!distanceAtoB! as \lstinline!positionA - positionB!, while the \cuda{} code defines it as \lstinline!positionB - positionA!\footnote{which makes more sense sementically}. Because of this sign change, the calculated GPU virial has to be sign inverted, too, to match the CPU virial value.
 
 \subsubsection{Cell Processor}
 The cell processor processes all molecules in the same cell (intra-cell) or between two cells (intra-cell).
@@ -205,9 +207,10 @@ __device__ void processCell(const int threadIndex, const CellInfo & cell) {
 }
 \end{lstlisting}
 
+\paragraph{Thread Block Cell Processor}
 The main idea in the parallelized approach is to divide the cells into smaller blocks that can be kept in shared memory and process interactions inside between the different blocks. Parallelized matrix multiplication is based on the same idea. \TODO{see cuda reference}
 
-Thus the fast cell processor divides the cells into blocks. Each block contains one molecule per thread in a thread block.
+Thus the cell processor divides the cells into blocks. Each block contains one molecule per thread in a thread block.
 The code then iterates over all block pairs in both cells and calculates the interactions between molecules of the two blocks.
 The inter-cell case is straight-forward:
 \begin{lstlisting}[label=intercellloop,caption=Inter-Cell Block Processing]
@@ -227,8 +230,8 @@ for( int blockIndexA = 0 ; blockIndexA < numBlocksA ; blockIndexA++ ) {
 \end{lstlisting}
 Likewise, the calculation of interactions inside the same block (ie intra-block) have to be treated as special case.
 
-There is one molecule per thread in a thread block in each block. Since there are as many threads as molecules in a block, each thread can be assigned a fixed molecule of block A (outer block loop). This molecule can be stored in registers or in local memory.
-The molecules of block B (inner block loop) can be stored in shared memory, since they are only accessed by diffferent threads of the same thread block.
+There is one molecule per thread in a thread block in each block. Since there are as many threads as molecules in a block, each thread can be assigned a fixed molecule of block A (in the outer loop). This molecule can be stored in registers or in local memory.
+The molecules of block B (of the inner loop) can be stored in shared memory, since they are only accessed by diffferent threads of the same thread block.
 
 \begin{figure}
 \caption{Schematic of one block iteration (with a thread blocks of size 8 and warps of size 4, and all 8 parallel molecule pair iterations are shown for the block pair)}
@@ -236,12 +239,36 @@ The molecules of block B (inner block loop) can be stored in shared memory, sinc
 \includegraphics{figures/cellprocessor_block_iteration_1.pdf}
 \end{figure}
 
-Straight-forward block processing would simply loop over all molecules in block B and each thread would calculate the interactions of its fixed molecule from block A with one molecule from block B.
-Again this is not the best solution. Instead a block is divided into \textbf{warp-blocks}. Each warp-block contains 32 molecules\footnote{exactly the warp size}.
+A straight-forward algorithm would simply loop over all molecules in block B and each thread would calculate the interactions of its fixed molecule from block A with one molecule from block B.
+This is not the best solution however. Instead a block is divided into \textbf{warp blocks}. Each warp block contains 32 molecules\footnote{exactly the warp size}.
 The aim here is not to improve cache usage, but to require less explicit synchronization.
 In the naive approach there would have to be a barrier after each interaction calculation to make sure that each thread is done with processing its molecule pair because another thread will access the molecule from block B in shared memory next.
 Threads in the same warp are synchronized by design, because they are executed in lockstep, so processing  molecule interactions warp-block by warp-block improves parallelism.
 Again there is a special case when interactions of molecules of the same warp-block are calculated.
+
+\subsubsection{Warp Block Cell Processor}
+A another cell processor was adedd, because the performance of the thread block cell processor, which we have just looked at, doesn't scale well for sparsely populated cells. See \autoref{sec:opts_and_results} for further explanations.
+
+The main problem is the sparse granularity of the thread block cell processor, which assigns the same amount of warps to each cell regardless of the number of molecules in it. The warp block cell processor fixes this.
+
+It works by using a dynamic scheduler and processing cells on a warp level. This means that a cell or cell pair is not processed by exactly one thread block, but by a varying number of warps inside possibly different thread blocks.
+
+One thread block is running in each SM. A thread block can ask for jobs which are assigned to its different warps. A short jobs queue is used for every warp. Each warp processes a warp block inside the cell. For cell pairs the warp block inside one cell stays fixed while it iterates over all molecules of the other cell.
+
+To synchronize all thread blocks and warps a global mutex is used. Idle warps try to acquire the lock and get new jobs. Multiple warps of the same thread block are joined together to reduce the amount of locking needed.
+
+Because every warps calculates interactions on its own, storing back potential and virial values requires a per-cell lock to avoid race conditions.
+
+There are two different code paths for calculating interactions. The simpler one calculates all  interactions twice: between molecules in cells A and B and between molecules in cells B and A.
+The molecules of cell A are assigned to different warps and each warp iterates over all molecules in cell B and calculates the interactions and only stores them back into their molecules of cell A.
+When this is done, the cells are switched and now all interactions are calculated again and stored back into cell B.
+This avoids the need for additional locks and synchronization.
+
+\TODO{add code example}
+
+The other code path only calculates all interactions once and writes them to molecules from both cells. However, it needs additional locking because multiple warps might attempt to write into cell B at the same time.
+
+\TODO{add code example}
 
 \subsection{MarDyn Integration}
 The \cuda{} calculations are intergrated MarDyn through the \lstinline!LinkedCellsCUDADecorator! class. It implements the \lstinline!ParticleContainer! interface and decorates an internal \lstinline!LinkedCells! object to calculate the molecule interactions using the GPU instead of the CPU.

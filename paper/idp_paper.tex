@@ -8,8 +8,18 @@
 \usepackage{graphicx}
 \usepackage{subfig}
 
+\usepackage{float}
+\usepackage{rotfloat}
+
+\usepackage{hyperref}
+
 \usepackage{paralist}
 \input{listingsconfig}
+
+
+\newfloat{chart}{t}{charts.aux}
+\floatname{chart}{Chart}
+\def\chartautorefname{Chart}
 
 \author{Andreas Kirsch}
 
@@ -33,17 +43,19 @@ This paper discusses the parallelization of the force calculation in the molecul
 
 \section{Chronology of the IDP}
 
-\input{chronology}
+%\input{chronology}
 
 %\section{Code Design and Architecture}
 
-\input{code}
+%\input{code}
 
 \section{Optimizations}
 
 \input{optimizations}
 
-\section{Results}
+\section{Benchmark Results}
+
+\input{results}
 
 \section{Issues}
 
