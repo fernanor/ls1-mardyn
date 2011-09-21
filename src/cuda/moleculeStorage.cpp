@@ -15,6 +15,8 @@
 
 #include "math.h"
 
+#include "benchmark.h"
+
 void MoleculeStorage::uploadState() {
 	_moleculePositions.clear();
 	_moleculeQuaternions.clear();
@@ -135,18 +137,18 @@ void MoleculeStorage::uploadState() {
 }
 
 struct CPUCudaVectorErrorMeasure {
-	double totalCPUMagnitude, totalCudaMagnitude;
+	double totalCPUMagnitude, totalCudaMagnitude, totalSquareDeviation;
 	double totalError, totalRelativeError;
 	int numDataPoints;
 
 	const char *name;
 
 	CPUCudaVectorErrorMeasure(const char *name)
-	: name(name), totalCPUMagnitude(0.0f), totalCudaMagnitude(0.0f), totalError(0.0f), totalRelativeError(0.0f), numDataPoints(0) {
+	: name(name), totalCPUMagnitude(0.0f), totalSquareDeviation(0.0f), totalCudaMagnitude(0.0f), totalError(0.0f), totalRelativeError(0.0f), numDataPoints(0) {
 	}
 
 	void registerErrorFor( const floatType3 &cpuResult, const floatType3 &cudaResult ) {
-		const double epsilon = 5.96e-06f;
+		const double epsilon = 5.96e-09f;
 
 		// TODO: add convert_double3 macro/define!
 #ifndef CUDA_DOUBLE_MODE
@@ -157,10 +159,12 @@ struct CPUCudaVectorErrorMeasure {
 
 		const double cpuLength = length(cpuResult);
 		const double cudaLength = length(cudaResult);
-		const double deltaLength = length(delta);
+		const double deltaLengthSquared = dot(delta, delta);
+		const double deltaLength = sqrt( deltaLengthSquared );
 
 		totalCPUMagnitude += cpuLength;
 		totalCudaMagnitude += cudaLength;
+		totalSquareDeviation += deltaLengthSquared;
 
 		totalError += deltaLength;
 		if( cpuLength > epsilon ) {
@@ -169,15 +173,37 @@ struct CPUCudaVectorErrorMeasure {
 		numDataPoints++;
 	}
 
+	double getAverageCPUMagnitude() {
+		return totalCPUMagnitude / numDataPoints;
+	}
+
+	double getAverageCUDAMagnitude() {
+		return totalCudaMagnitude / numDataPoints;
+	}
+
+	double getAbsoluteAverageError() {
+		return totalError / numDataPoints;
+	}
+
+	double getRelativeAverageError() {
+		return totalRelativeError / numDataPoints;
+	}
+
+	double getRMSError() {
+		return sqrt( numDataPoints * totalSquareDeviation ) / totalCPUMagnitude;
+	}
+
 	void report() {
 		printf( "%s:\n"
 				"  average CPU: %f\n"
 				"  average CUDA: %f\n"
 				"\n"
-				"  average error: %f; average relative error: %f\n",
+				"  average error: %f; average relative error: %f\n"
+				"  RMS error: %f\n",
 				name,
-				totalCPUMagnitude / numDataPoints, totalCudaMagnitude / numDataPoints,
-				totalError / numDataPoints, totalRelativeError / numDataPoints
+				getAverageCPUMagnitude(), getAverageCUDAMagnitude(),
+				getAbsoluteAverageError(), getRelativeAverageError(),
+				getRMSError()
 			);
 	}
 };
@@ -230,6 +256,9 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 
 	forceErrorMeasure.report();
 	torqueErrorMeasure.report();
+
+	simulationStats.forceRMSError.addDataPoint( forceErrorMeasure.getRMSError() );
+	simulationStats.torqueRMSError.addDataPoint( torqueErrorMeasure.getRMSError() );
 }
 
 void MoleculeStorage::downloadResults() {

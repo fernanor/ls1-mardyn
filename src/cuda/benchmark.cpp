@@ -13,10 +13,18 @@ void SimulationStats::writeFrameStats( const std::string &frameFile ) {
 
 	file = fopen( frameFile.c_str(), "wt" );
 
-	fprintf( file, "potential,virial\n" );
+	fprintf( file, "potential,virial" );
+#ifdef COMPARE_TO_CPU
+	fprintf( file, ",forceRMSError,torqueRMSError" );
+#endif
+	fprintf( file, "\n" );
 
 	for( int i = 0 ; i < potentials.getCount() ; i++ ) {
-		fprintf( file, "%.18e,%.18e\n", potentials[i], virials[i] );
+		fprintf( file, "%.18e,%.18e", potentials[i], virials[i] );
+#ifdef COMPARE_TO_CPU
+		fprintf( file, ",%.18e,%.18e", forceRMSError[i], torqueRMSError[i] );
+#endif
+		fprintf( file, "\n" );
 	}
 
 	fclose( file );

@@ -51,6 +51,7 @@ struct SimulationStats {
 
 	// frame measurements
 	Measure potentials, virials;
+	Measure forceRMSError, torqueRMSError;
 
 	// run/build info
 	int timeSteps;
