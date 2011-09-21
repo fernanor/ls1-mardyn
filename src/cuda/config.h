@@ -29,12 +29,19 @@
 #	define CONFIG_NAME "cuda_float_unsorted"
 #endif
 
-#ifdef CONFIG_CUDA_FLOAT_SORTED
-#       define CONFIG_NAME "cuda_float_unsorted"
+#ifdef CONFIG_CUDA_FLOAT_SORTED_HWCACHEONLY
+#       define CONFIG_NAME "cuda_float_sorted"
+
+#       define CUDA_HW_CACHE_ONLY
+
+#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+
 #endif
 
 #ifdef CONFIG_CUDA_FLOAT_SORTED_WBDP
-#       define CONFIG_NAME "cuda_float_unsorted"
+#       define CONFIG_NAME "cuda_float_sorted_wbdp"
+
+#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 
 #       define CUDA_HW_CACHE_ONLY
 #       define CUDA_WARP_BLOCK_CELL_PROCESSOR
@@ -105,6 +112,18 @@
 #       define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
+#ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP
+#       define CONFIG_NAME "cuda_double_sorted_wbdp"
+
+#       define CUDA_DOUBLE_MODE
+
+#       define CUDA_HW_CACHE_ONLY
+
+#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
+
+#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#endif
+
 #ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP_WITH_CACHE
 #       define CONFIG_NAME "cuda_double_sorted_wbdp_with_cache"
 
@@ -127,7 +146,7 @@
 
 //#define REFERENCE_IMPLEMENTATION
 //#define TEST_QUATERNION_MATRIX_CONVERSION
-//#define COMPARE_TO_CPU
+#define COMPARE_TO_CPU
 //#define USE_BEHAVIOR_PROBE
 //#define DUMP_CELL_LENGTHS
 //#define DEBUG_COMPONENT_DESCRIPTORS

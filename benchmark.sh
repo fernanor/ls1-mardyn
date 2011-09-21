@@ -8,6 +8,8 @@ MAX_NUM_LJCENTERS=
 MAX_NUM_CHARGES=
 MAX_NUM_DIPOLES=
 
+NUM_FRAMES=4
+
 LOGFILE="benchmark.$(date +%Y.%m.%d.%H.%M.%S).log"
 
 # find all cfg files
@@ -61,7 +63,7 @@ function benchmark {
 			fi
 
 			echo -e "\nBenchmarking $outputPrefix:\n"
-			./src/MarDyn $cfg 4 $outputPrefix
+			./src/MarDyn $cfg $NUM_FRAMES $outputPrefix
 			if [ $? != "0" ]; then
 				log "$outputPrefix benchmark failed!"
 				echo "continuing"
@@ -92,18 +94,22 @@ case $1 in
 		benchmark CUDA_DOUBLE_SORTED_NO_CONSTANT_MEMORY "$CFGs"
 		benchmark CUDA_DOUBLE_SORTED "$CFGs"
 		;;
-	"warp_count_with_cache" )
-		log "Benchmarking different warp counts with cache:"
+	"measure_error" )
+		log "Measure error:"
 
                 MAX_NUM_COMPONENTS=2
                 MAX_NUM_LJCENTERS=3
                 MAX_NUM_CHARGES=0
                 MAX_NUM_DIPOLES=1
 
-		CFGs=$(echo benchmark/lj_{8,16,32,64,128}0000.cfg benchmark/lj3d1_{1,5,10}0000.cfg benchmark/lj3d1_lj2d1_{1,5,10}0000.cfg)
-		for NUM_WARPS in {1,2,4,8}; do
-			benchmark CUDA_DOUBLE_SORTED "$CFGs"
-		done
+		NUM_FRAMES=40
+		NUM_WARPS=16
+
+		CFGs=$(echo benchmark/lj_80000_10.cfg benchmark/lj3d1_50000_10.cfg benchmark/lj3d1_lj2d1_50000_10.cfg)
+		benchmark NO_CUDA "$CFGs"
+		benchmark CUDA_DOUBLE_SORTED_WBDP "$CFGs"
+		benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs"
+		
 		;;
          "packed_vs_unpacked_storage" )
                 log "Benchmarking packed vs unpacked storage:"
@@ -148,9 +154,11 @@ case $1 in
                 MAX_NUM_CHARGES=0
                 MAX_NUM_DIPOLES=0
 
-                CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
+                CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40,50}.cfg)
+                for NUM_WARPS in {1,2,8,16}; do
+                        benchmark CUDA_FLOAT_SORTED_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+		done
                 for NUM_WARPS in {8,16}; do
-                        benchmark CUDA_FLOAT_SORTED "$CFGs" "${NUM_WARPS}_"
                         benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
                 done
 
@@ -159,9 +167,11 @@ case $1 in
                 MAX_NUM_CHARGES=0
                 MAX_NUM_DIPOLES=1
 
-                CFGs=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40}.cfg)
+                CFGs=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40,50}.cfg)
+                for NUM_WARPS in {1,2,8,16}; do
+                        benchmark CUDA_FLOAT_SORTED_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+                done
                 for NUM_WARPS in {8,16}; do
-                        benchmark CUDA_FLOAT_SORTED "$CFGs" "${NUM_WARPS}_"
                         benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
                 done
 
@@ -170,9 +180,11 @@ case $1 in
                 MAX_NUM_CHARGES=0
                 MAX_NUM_DIPOLES=1
 
-                CFGs=$(echo benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40}.cfg)
+                CFGs=$(echo benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40,50}.cfg)
+                for NUM_WARPS in {1,2,8,16}; do
+                        benchmark CUDA_FLOAT_SORTED_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+                done
                 for NUM_WARPS in {8,16}; do
-                        benchmark CUDA_FLOAT_SORTED "$CFGs" "${NUM_WARPS}_"
                         benchmark CUDA_FLOAT_SORTED_WBDP "$CFGs" "${NUM_WARPS}_"
                 done
 

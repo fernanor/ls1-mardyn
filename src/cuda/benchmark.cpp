@@ -21,7 +21,7 @@ void SimulationStats::writeFrameStats( const std::string &frameFile ) {
 
 	for( int i = 0 ; i < potentials.getCount() ; i++ ) {
 		fprintf( file, "%.18e,%.18e", potentials[i], virials[i] );
-#ifdef COMPARE_TO_CPU
+#if defined(COMPARE_TO_CPU) && !defined(NO_CUDA)
 		fprintf( file, ",%.18e,%.18e", forceRMSError[i], torqueRMSError[i] );
 #endif
 		fprintf( file, "\n" );
