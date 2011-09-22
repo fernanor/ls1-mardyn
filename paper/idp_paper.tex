@@ -13,6 +13,8 @@
 
 \usepackage{hyperref}
 
+\bibliographystyle{alphaurl}
+
 \usepackage{paralist}
 \input{listingsconfig}
 
@@ -35,7 +37,7 @@
 \maketitle
 
 \begin{abstract}
-This paper discusses the parallelization of the force calculation in the molecular dynamics simulator MarDyn with \cuda. It describes the performed optimizations on the code and how support for more advanced potential models was added. It concludes with benchmarking results and suggestions for further work.
+This paper discusses the parallelization of the molecule interaction calculations in the molecular dynamics simulator MarDyn with \cuda. It describes the performed optimizations on the code and how support for more advanced potential models was added. It concludes with benchmarking results and suggestions for further work.
 \end{abstract}
 
 \section{Introduction}
@@ -65,5 +67,7 @@ This paper discusses the parallelization of the force calculation in the molecul
 \section{Summary}
 
 \input{summary}
+
+\bibliography{idp_paper}
 
 \end{document}
