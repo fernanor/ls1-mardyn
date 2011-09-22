@@ -259,14 +259,14 @@ To synchronize all thread blocks and warps a global mutex is used. Idle warps tr
 
 Because every warps calculates interactions on its own, storing back potential and virial values requires a per-cell lock to avoid race conditions.
 
-There are two different code paths for calculating interactions. The simpler one calculates all  interactions twice: between molecules in cells A and B and between molecules in cells B and A.
-The molecules of cell A are assigned to different warps and each warp iterates over all molecules in cell B and calculates the interactions and only stores them back into their molecules of cell A.
+There are two different implementations for calculating interactions. The simpler one calculates all  interactions twice: between molecules in cells A and B and between molecules in cells B and A.
+The molecules of cell A are assigned to different warps and each warp iterates over all molecules in cell B and calculates the interactions and only stores them back into the molecules of cell A.
 When this is done, the cells are switched and now all interactions are calculated again and stored back into cell B.
 This avoids the need for additional locks and synchronization.
 
 \TODO{add code example}
 
-The other code path only calculates all interactions once and writes them to molecules from both cells. However, it needs additional locking because multiple warps might attempt to write into cell B at the same time.
+The other implementation only calculates all interactions once and writes them to molecules from both cells. However, it needs additional locking because multiple warps might attempt to write into cell B at the same time. It uses shared memory to cache several molecules and iterate over them before writing them back. This reduces the amount of locking needed.
 
 \TODO{add code example}
 
