@@ -45,7 +45,7 @@ The current code also does not make use of pinned or mapped memory. The amount o
 \subsection{\cuda{} Interface}
 I have intenionally used the driver API, because I prefer its cleaner code separation between GPU and CPU code. Moreover, it could be possible to write code that dumps all parameters and calls to the API to replay kernel calls on different systems for debugging\footnote{a prime example would be a Windows workstation with NVIDIA's Parallel Nsight---\url{http://developer.nvidia.com/nvidia-parallel-nsight}}. I have not had time to write this.
 
-There is a good reason to switch back to the runtime CUDA API: most third-party tools support only it. Ocelot\footnote{\url{http://code.google.com/p/gpuocelot/} is a good example and certainly a reason to switch back.
+There is a good reason to switch back to the runtime CUDA API: most third-party tools support only it. Ocelot\footnote{\url{http://code.google.com/p/gpuocelot/}} is a good example and certainly a reason to switch back.
 
 I think that switching back to the runtime API is less work than the other way around because the code is cleanly separated.
 
