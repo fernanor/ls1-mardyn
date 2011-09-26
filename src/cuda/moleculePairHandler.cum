@@ -64,7 +64,6 @@ namespace MoleculePairHandler {
 				const floatType3 relativePositionB = moleculeB.getRotation() * ljCenterB.relativePosition;
 
 				LJParameters mixedParameters;
-				// TODO: add support for eta and xi!
 				mixedParameters.epsilon = xi * sqrt( ljCenterA.ljParameters.epsilon * ljCenterB.ljParameters.epsilon );
 				mixedParameters.sigma = eta * 0.5f * (ljCenterA.ljParameters.sigma + ljCenterB.ljParameters.sigma);
 

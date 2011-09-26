@@ -44,14 +44,14 @@ Most components implement one of the two \lstinline!CUDAComponent! interfaces:
 
 There are several components:
 \begin{compactdesc}
-\item[CellProcessor] contains logic to efficiently loop through the molecules of a single cell or a cell pair
-\item[ComponentDescriptor] manages the molecule component descriptions (eg the number of Lennard-Jones centers, their positions, etc)
-\item[MoleculeInteraction] links all components together and calculates the forces
-\item[GlobalStats] keeps track of potential and virial statistics
-\item[MoleculePairHandler] calculates the interactions between two given molecules
-\item[MoleculeStorage] manages all per-molecule data like positions, forces and orientations
-\item[DomainTraverser] enumerates all cell pairs in a way that allows for maximum parallelization
-\item[PotForce] calculates the force between Lennard-Jones centers, dipoles, etc
+\item[CellProcessor] contains logic to efficiently loop through the molecules of a single cell or a cell pair,
+\item[ComponentDescriptor] manages the molecule component descriptions (eg the number of Lennard-Jones centers, their positions, etc),
+\item[MoleculeInteraction] links all components together and calculates the forces,
+\item[GlobalStats] keeps track of potential and virial statistics,
+\item[MoleculePairHandler] calculates the interactions between two given molecules,
+\item[MoleculeStorage] manages all per-molecule data like positions, forces and orientations,
+\item[DomainTraverser] enumerates all cell pairs in a way that allows for maximum parallelization, and
+\item[PotForce] calculates the force between Lennard-Jones centers, dipoles, etc.
 \end{compactdesc}
 See \autoref{fig:component_dep} for an overview how the different components interact with each other.
 
@@ -144,7 +144,7 @@ The cells are flattened into a one-dimensional array and the CPU code calculates
 \end{compactitem}
 With these parameters, the \lstinline!processCellPair! kernel can be launched in a grid of $ \text{dimension} \times \text{number of layers} $ thread blocks, that is one thread block per cell pair.
 
-\subsubsection{Molecule Storage}
+\subsection{Molecule Storage}
 The molecule storage component manages everything related to molecule data. The molecules of all the cells are flattened into a one-dimensional array. For each cell the start index into this array is stored in a \lstinline!cellStartIndices! array. Since the start index of one cell is the end $ + 1 $ index of the cell before it, it is easy to extract all necessary information from this array.
 
 Molecule data such as position, orientation, total force and torque, and molecule type, are stored non-interleaved into different buffers: \lstinline!moleculePositions!, \lstinline!moleculeRotations!, \lstinline!moleculeForces!, \lstinline!moleculeTorque! and \lstinline!moleculeComponentTypes!.
@@ -155,16 +155,43 @@ The \cuda{} code wraps accesses to the data through a \lstinline!MoleculeStorage
 
 There is also a \lstinline!MoleculeLocalStorage<blockSize>! class. It provides a cache for frequently used molecules. Its objects are supposed to be instanciated as \lstinline!__shared__! objects and there are methods to load, merge and commit molecules from the cache to the regular storage.
 
-\subsubsection{Global Statistics}
+\subsection{Component Descriptors}
+Each molecule has a related \lstinline!moleculeComponentTypes! attribute, which specifies which component the molecule belongs to.
+
+The component descriptor specifies common properties of molecules:
+\begin{compactitem}
+\item number of sites: Lennard-Jones centers, charges and dipoles
+\item position of a site relative to the molecule centers
+\item site-specific properties like $\epsilon$ and $\sigma$ parameters for Lennard-Jones centers or $\left  | \mu \right | $ for dipoles.
+\end{compactitem}
+The properties of the different sites are stored in fixed-size arrays.
+Their sizes are set by the compile-time constants \lstinline!MAX_NUM_LJCENTERS!, \lstinline!MAX_NUM_CHARGES! and \lstinline!MAX_NUM_DIPOLES! respectively.
+The number of supported components is set by the compile-time constant \lstinline!MAX_NUM_COMPONENTS!.
+
+The mix coefficients $\xi$ and $\eta$ are stored in two 2D arrays.
+
+\subsection{Global Statistics}
 The potential and virial are calculated per cell on the GPU. For this the GPU code creates shared arrays for one potential and one virial value per thread in a threadblock, so the values can be updated by their threads without synchronization. The \lstinline!CellStatsCollector! class has a \lstinline!reduceAndStore! method which sum-reduces the two arrays into cell potential and cell virial values.
 
 It does this by first summing all potentials inside a warp without any locking. Then it loops over all warps and reduces them sequentially.
 
 The CPU code then reduces these per-cell values into per-domain values. Potentials and virials are calculated per molecule pair and added to the cells the molecules belong to. In the case of molecules from the same cell, the values are added to the same cell twice. Now the domain values, as sum of all cell values, count each potential and virial value twice, so the code halves the values.
 
-There is also a difference to the regular MarDyn code: the force interaction code in MarDyn defines \lstinline!distanceAtoB! as \lstinline!positionA - positionB!, while the \cuda{} code defines it as \lstinline!positionB - positionA!, which makes more sense sementically. Because of this sign change, the calculated GPU virial has to be sign inverted, too, to match the CPU virial value.
+There is also a difference compared to the regular MarDyn code: the force interaction code in MarDyn defines \lstinline!distanceAtoB! as \lstinline!positionA - positionB!, while the \cuda{} code defines it as \lstinline!positionB - positionA!, which makes more sense sementically. Because of this sign change, the calculated GPU virial has to be sign inverted, too, to match the CPU virial value.
 
-\subsubsection{Cell Processor}
+\subsection{PotForce}
+This component mostly mirrors the corresponding \filename{potforce.h} file in the CPU code except for sign changes as described in the previous paragraph. Only the dipole-dipole code has been refactored to use fewer operations.
+
+\subsection{Molecule Pair Handler}
+The molecule pair handler resolves the interactions of a molecule pair. All supported potential models are independent of the neighborhood of the two molecules, so only the two molecules are passed as paramaters.
+
+First the pair handler tests whether the molecule centers are within the cutoff radius. Otherwise no interactions are calculated.
+
+After that the molecule pair handler loads the component descriptors for each molecule and iterates through all sites as necessary to calculate the interactions. It also adds the calculated potential and virials to the global stats.
+
+To calculate the interactions it needs to know the distance between the sites of the molecules. For this it transforms the relative position of each site as specified in the component descriptors using the \lstinline!moleculeRotations! matrices that have been created from the quaternions. Once all needed values have been determined, it uses the methods in the PotForce component to determine the actual forces and torque.
+
+\subsection{Cell Processor}
 The cell processor processes all molecules in the same cell (intra-cell) or between two cells (intra-cell).
 The reference approach is to iterate through all molecule pairs in both cells and calculate the interactions between them:
 \begin{figure}
@@ -243,7 +270,7 @@ In the naive approach there would have to be a barrier after each interaction ca
 Threads in the same warp are synchronized by design, because they are executed in lockstep, so processing  molecule interactions warp-block by warp-block improves parallelism.
 Again there is a special case when interactions of molecules of the same warp-block are calculated.
 
-\subsubsection{Warp Block Cell Processor}
+\subsection{Warp Block Cell Processor}
 Another cell processor was adedd, because the performance of the thread block cell processor, which we have just looked at, does not scale well for sparsely populated cells. 
 
 The main problem is the sparse granularity of the thread block cell processor, which assigns the same amount of warps to each cell regardless of the number of molecules in it. The warp block cell processor fixes this.
@@ -334,7 +361,7 @@ if( indexA < cellA.endIndex ) {
 
 \subsection{MarDyn Integration}
 The \cuda{} code is intergrated into MarDyn by the \lstinline!LinkedCellsCUDADecorator! class. It implements the \lstinline!ParticleContainer! interface and decorates an internal \lstinline!LinkedCells! object to calculate the molecule interactions using the GPU instead of the CPU.
-The main assumption of the code is that the cut-off radius is exactly the size of a cell, so that only interactions between molecules of the same cell or between direct neighbors have to be calculated.
+The main assumption of the code is that the cut-off radius is less than or equal to the size of a cell, so that only interactions between molecules of the same cell or between direct neighbors have to be calculated.
 
 There are only few changes to MarDyn's code. The \lstinline!MoleculeStorage! class is a friend of \lstinline!Molecule!, a \lstinline!setStats! method has been added to \lstinline!ParticlePairs2PotForceAdapter! and additional accessor methods were needed in \lstinline!LinkedCell!.
 

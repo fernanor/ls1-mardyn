@@ -55,6 +55,7 @@ struct ComponentDescriptor {
 		floatType3 relativePosition;
 		floatType3 relativeE;
 
+		// TODO: rename to absMu 
 		floatType absMy;
 	};
 
