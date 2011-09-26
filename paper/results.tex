@@ -80,7 +80,7 @@ As you can see in \autoref{chart:wbcp_mode_comp_tesla} there are very mixed resu
 
 For the warp block cell processor, everything is inverse: shared memory performs better than the HW cache for the smallest cutoff radius and worse for bigger cutoff radii.
 
-The problem is that the additional synchronization due to locking outweighs any benefit of shared memory. When the cutoff radius is 5, only one warp is needed per cell, so no locking occurs. For bigger cutoff radii locking has a huge impact on performance\footnote{The current implementation worsens this because it tries to execute all warp blocks of a cell at once, so warps will almost always have to wait for each other.}
+The problem is that the additional synchronization due to locking outweighs any benefit of shared memory. When the cutoff radius is 5, only one warp is needed per cell, so no locking occurs. For bigger cutoff radii locking has a huge impact on performance. The current implementation worsens this because it tries to execute all warp blocks of a cell at once, so different warps processing the cell will almost always have to wait for each other.
 
 \begin{chart}
 \centering

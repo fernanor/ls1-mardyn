@@ -5,7 +5,7 @@ The simulations are sped up using sophisticated approximations and algorithms. I
 
 \subsection{Parallelization}
 Molecules only have strong interactions with molecules that are nearby. One of the first approximations is to take into account these strong interactions only and ignore weaker long-distance ones.
-This space locality of the calculations leads to the Linked Cell-algorithm. It divides the simluation space into a grid of cells. Only interactions between molecules inside each cell and with nearby cells have to be calculated. This reduces \footnote{assuming an upper density limit of the molecules}  
+This space locality of the calculations leads to the Linked Cell-algorithm. It divides the simluation space into a grid of cells. Only interactions between molecules inside each cell and with nearby cells have to be calculated. This reduces, assuming an upper density limit of the molecules,
  the complexity from $ \mathcal{O} \left( N^2 \right) $ to $ \mathcal{O} \left( N \right) $.
 Thus different cells that are not neighbors show a data inpendency which can be used for parallelization.
 
@@ -15,9 +15,9 @@ There are two programming frameworks for GPUs: \cuda{}\footnote{\url{http://deve
 \cite{orend10numerische} describes how to parallelize MarDyn on a GPU using OpenCL. I am using \cuda{}.
 
 \subsection{\cuda{}}
-In \cuda{}\footnote{this paper always talks about \cuda{} 2.x} the GPU is modeled as having multiple \textbf{streaming multiprocessors} (\textbf{SM}) which execute multiple threads of so-called kernels. A \textbf{kernel} is the term used in \cuda{} for a GPU program.
+In \cuda{} 2.x the GPU is modeled as having multiple \textbf{streaming multiprocessors} (\textbf{SM}) which execute multiple threads of so-called kernels. A \textbf{kernel} is the term used in \cuda{} for a GPU program.
 
-Each kernel can have many \textbf{threads} that are run in parallel. The threads are grouped in \textbf{thread blocks} of at most 1024 threads and launched in a \textbf{grid} of at most $65535^2$ thread blocks\footnote{which makes for a huge total possible number of threads per kernel}.
+Each kernel can have many \textbf{threads} that are run in parallel. The threads are grouped in \textbf{thread blocks} of at most 1024 threads and launched in a \textbf{grid} of at most $65535^2$ thread blocks.
 
 Each multiprocessor has at most 1536 \textbf{resident threads} which can be resumed with almost no overhead and runs up to 3 thread blocks. That is all threads of one thread block run on the same multiprocessor. 32 threads (belonging to the same thread block and kernel) constitute a warp. A \textbf{warp} is executed in real parallel by the multiprocessor. Internally the multiprocessor uses a principle called \textbf{SIMT} which stands for \textit{Single-Instruction Multiple-Thread}.
 

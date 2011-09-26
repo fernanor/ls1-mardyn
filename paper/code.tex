@@ -10,7 +10,7 @@ A \cuda{} application performs basically three steps:
 Different information has to be uploaded in MarDyn. Information about the different molecule types (\textbf{component descriptions}) has to be uploaded only once. The position and orientation of every molecule has to be uploaded for each time step. 
 Later the calculated forces and torque have to be downloaded, as well as the calculated potential and virial statistics.
 
-The Linked Cells-algorithm is used in MarDyn. The simulation space is divided into a grid of cells and the interaction between molecules of the same and of neighboring cells have to be calculated\footnote{the length of the cells is chosen equal to the cutoff radius of the potential functions to make sure that only interactions of direct neighbors have to be calculated}.
+The Linked Cells-algorithm is used in MarDyn. The simulation space is divided into a grid of cells and the interaction between molecules of the same and of neighboring cells have to be calculated. The length of the cells is chosen equal to the cutoff radius of the potential functions to make sure that only interactions of direct neighbors have to be calculated.
 This leads to a natural parallelization approach:
 \begin{compactitem}
 \item for \textbf{intra-cell molecule interactions} each thread can process the molecules of one cell, and
@@ -21,11 +21,11 @@ This leads to a natural parallelization approach:
 The \cuda{} code is made up of different components. Each component has exactly one responsibility.
 The intention is to make it clear where changes go and make it easier to navigate the code.
 
-A \textbf{component} usually consists of CPU and \cuda{} code which interact in a certain way. For this there usually are \filename{component.cpp} and \filename{component.h} files, which contain the CPU-side code, and a \filename{component.cum} file, which contains the \cuda{} code\footnote{\filename{.cum} stands for \textbf{cu}da \textbf{m}odule}.
+A \textbf{component} usually consists of CPU and \cuda{} code which interact in a certain way. For this there usually are \filename{component.cpp} and \filename{component.h} files, which contain the CPU-side code, and a \filename{component.cum} file, which contains the \cuda{} code. \filename{.cum} stands for \textbf{cu}da \textbf{m}odule.
 
 Normally you pass parameters as kernel parameters to \cuda{}. Separation of responsibilities is the main goal of having different components. Thus passing all paramaters as kernel parameters is not a good approach. The CPU code of each component needs a way to interact with the \cuda{} code and the 'glue' code should be part of the components and not be kept somewhere else\footnote{the first implementation used kernel parameters and the parameter count quickly became unacceptable}.
 
-The solution is simple: \cuda{} supports global variables and the CPU/\cuda{} interface in each component uses global variables to exchange data\footnote{using a different namespace for each component would be preferable to guarantee no name conflicts}. See \autoref{fig:component_architecture}.
+The solution is simple: \cuda{} supports global variables and the CPU/\cuda{} interface in each component uses global variables to exchange data. Different namespaces can be used for each component to avoid name conflicts. See \autoref{fig:component_architecture}.
 
 Moreover, instead of global memory variables constant memory variables could be used. Constant memory has its own on-chip cache, so this is desirable. Since only little data is stored in constant memory, cache misses are unlikely.
 
@@ -58,7 +58,7 @@ See \autoref{fig:component_dep} for an overview how the different components int
 \begin{figure}
 \centering
 \includegraphics{figures/component_dependencies.pdf}
-\caption{component dependencies}
+\caption{component dependencies (the arrows show which components each component uses, eg MoleculeInteraction uses GlobalStats)}
 \label{fig:component_dep}
 \end{figure}
 
@@ -67,7 +67,7 @@ All the \filename{.cum} files are included in \filename{kernel.cu}, which also c
 
 \subsection{\cuda{} Helper Classes and Functions}
 \filename{helpers.cpp/h} contains C++ wrappers for \cuda{} functionality that is used.
-It implements an in-language DSL\footnote{domain-specific language} to simplify working with the \cuda{} API. See \autoref{fig:helper_classes}.
+It implements an internal DSL (see \cite{fowlerDSL} for a definition) to simplify working with the \cuda{} API. See \autoref{fig:helper_classes}.
 
 \begin{figure}
 \includegraphics{figures/helpers_classes.pdf}
@@ -142,7 +142,7 @@ The cells are flattened into a one-dimensional array and the CPU code calculates
 \item offsets to move in x-, y- and z-direction in the one-dimensional cell array, whereas this constitutes a local coordinate system, such that the x- and y- span the two-dimensional grid and z- moves along the layers (\lstinline!gridOffsets!)
 \item offset to get the neighbor cell for a cell along the currently used direction(\lstinline!neighborOffset!)
 \end{compactitem}
-With these parameters, the \lstinline!processCellPair! kernel can be launched with a grid of $ \text{dimension} \times \text{number of layers} $ thread blocks\footnote{one thread block per cell pair}.
+With these parameters, the \lstinline!processCellPair! kernel can be launched in a grid of $ \text{dimension} \times \text{number of layers} $ thread blocks, that is one thread block per cell pair.
 
 \subsubsection{Molecule Storage}
 The molecule storage component manages everything related to molecule data. The molecules of all the cells are flattened into a one-dimensional array. For each cell the start index into this array is stored in a \lstinline!cellStartIndices! array. Since the start index of one cell is the end $ + 1 $ index of the cell before it, it is easy to extract all necessary information from this array.
@@ -160,9 +160,9 @@ The potential and virial are calculated per cell on the GPU. For this the GPU co
 
 It does this by first summing all potentials inside a warp without any locking. Then it loops over all warps and reduces them sequentially.
 
-The CPU code then reduces these per-cell values into per-domain values. Potentials and virials are calculated per molecule pair and added to the cells the molecules belong to\footnote{in the case of molecules from the same cell, the values are added to the same cell twice}. Now the domain values, as sum of all cell values, count each potential and virial value twice, so the code halves the values.
+The CPU code then reduces these per-cell values into per-domain values. Potentials and virials are calculated per molecule pair and added to the cells the molecules belong to. In the case of molecules from the same cell, the values are added to the same cell twice. Now the domain values, as sum of all cell values, count each potential and virial value twice, so the code halves the values.
 
-There is also a difference to the regular MarDyn code: the force interaction code in MarDyn defines \lstinline!distanceAtoB! as \lstinline!positionA - positionB!, while the \cuda{} code defines it as \lstinline!positionB - positionA!\footnote{which makes more sense sementically}. Because of this sign change, the calculated GPU virial has to be sign inverted, too, to match the CPU virial value.
+There is also a difference to the regular MarDyn code: the force interaction code in MarDyn defines \lstinline!distanceAtoB! as \lstinline!positionA - positionB!, while the \cuda{} code defines it as \lstinline!positionB - positionA!, which makes more sense sementically. Because of this sign change, the calculated GPU virial has to be sign inverted, too, to match the CPU virial value.
 
 \subsubsection{Cell Processor}
 The cell processor processes all molecules in the same cell (intra-cell) or between two cells (intra-cell).

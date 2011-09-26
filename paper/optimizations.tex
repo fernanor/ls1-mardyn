@@ -40,7 +40,7 @@ This is inefficient but total execution time still improves visibly. See \autore
 \end{chart}
 
 \subsection{Without Effect: Non-Interleaved Molecule Data}
-The \cite{cuda11bestpract} makes a strong point about the use of coalesced memory access\footnote{for additional insight on this, see \cite{volkov10}}. The initial and currently used molecule storage code keeps the molecules stored in a semi-interleaved format:
+The \cite{cuda11bestpract} makes a strong point about the use of coalesced memory access. For additional insight on this, see \cite{volkov10}. The initial and currently used molecule storage code keeps the molecules stored in a semi-interleaved format:
 \begin{lstlisting}[caption=Molecule Storage Declarations]
 __constant__ __device__ floatType3 *moleculePositions;
 __constant__ __device__ Quaternion *moleculeQuaternions;

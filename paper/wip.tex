@@ -36,7 +36,7 @@ Creating this cell/warp block pair array could be done on the GPU, too, given th
 \subsection{Memory Usage}
 My code uses way too little memory. The footprint is very small compared to the amount of available video RAM in today's workstation graphics cards. Thus finding a design that uses lots of scratch memory could well lead to a faster implementation.
 
-From benchmarking and profiling I suspect that my code is instruction limited instead of memory limited\footnote{because most changes regarding memory access patterns had very little effect} and the design idea is to have a scratch buffer for every warp/thread and to reduce all the interactions later on.
+From benchmarking and profiling I suspect that my code is instruction limited instead of memory limited because most changes regarding memory access patterns had very little effect. The alternative design consists of having a scratch buffer for every warp/thread and reducing all the interactions later on.
 
 Maybe it could even be possible to sort the interactions by magnitude to reduce them in a way that minimizes the floating-point error.
 
