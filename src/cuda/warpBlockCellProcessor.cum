@@ -14,7 +14,7 @@
 
 #define WBM_QUEUE_SIZE 4
 
-namespace WBDP {
+namespace WBCP {
 
 struct WarpBlockInfo {
 	CellInfo cell;

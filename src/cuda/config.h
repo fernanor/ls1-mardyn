@@ -29,8 +29,8 @@
 #	define CONFIG_NAME "cuda_float_unsorted"
 #endif
 
-#ifdef CONFIG_CUDA_FLOAT_SORTED_HWCACHEONLY
-#       define CONFIG_NAME "cuda_float_sorted"
+#ifdef CONFIG_CUDA_FLOAT_HWCACHEONLY
+#       define CONFIG_NAME "cuda_float"
 
 #       define CUDA_HW_CACHE_ONLY
 
@@ -38,8 +38,8 @@
 
 #endif
 
-#ifdef CONFIG_CUDA_FLOAT_SORTED_WBDP
-#       define CONFIG_NAME "cuda_float_sorted_wbdp"
+#ifdef CONFIG_CUDA_FLOAT_WBDP
+#       define CONFIG_NAME "cuda_float_wbdp"
 
 #       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 
@@ -47,88 +47,31 @@
 #       define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
-#ifdef CONFIG_CUDA_DOUBLE_UNSORTED
-#	define CONFIG_NAME "cuda_double_unsorted"
-#	define CUDA_DOUBLE_MODE
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_WBDP
-#	define CONFIG_NAME "cuda_double_unsorted_wbdp"
+#ifdef CONFIG_CUDA_DOUBLE_WBDP
+#	define CONFIG_NAME "cuda_double_wbdp"
 #	define CUDA_DOUBLE_MODE
 
 #	define CUDA_HW_CACHE_ONLY
 #	define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
-#ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP
-#       define CONFIG_NAME "cuda_double_sorted_wbdp"
-#       define CUDA_DOUBLE_MODE
-
-#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-
-#       define CUDA_HW_CACHE_ONLY
-#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_SORTED
-#	define CONFIG_NAME "cuda_double_sorted"
+#ifdef CONFIG_CUDA_DOUBLE
+#	define CONFIG_NAME "cuda_double"
 #	define CUDA_DOUBLE_MODE
-#	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 #endif
 
-#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_HWCACHEONLY
-#       define CONFIG_NAME "cuda_double_unsorted_hwcacheonly"
+#ifdef CONFIG_CUDA_DOUBLE_HWCACHEONLY
+#       define CONFIG_NAME "cuda_double_hwcacheonly"
 
 #       define CUDA_DOUBLE_MODE
 
 #       define CUDA_HW_CACHE_ONLY
 #endif
 
-#ifdef CONFIG_CUDA_DOUBLE_SORTED_HWCACHEONLY
-#	define CONFIG_NAME "cuda_double_sorted_hwcacheonly"
-
-#	define CUDA_DOUBLE_MODE
-#	define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-
-#	define CUDA_HW_CACHE_ONLY
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_UNPACKED_STORAGE
-#       define CONFIG_NAME "cuda_double_unsorted_unpacked_storage"
+#ifdef CONFIG_CUDA_DOUBLE_WBDP_WITH_CACHE
+#       define CONFIG_NAME "cuda_double_wbdp_with_cache"
 
 #       define CUDA_DOUBLE_MODE
-
-#       define CUDA_UNPACKED_STORAGE
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_UNSORTED_WBDP_UNPACKED_STORAGE
-#       define CONFIG_NAME "cuda_double_unsorted_wbdp_unpacked_storage"
-
-#       define CUDA_DOUBLE_MODE
-
-#       define CUDA_HW_CACHE_ONLY
-
-#       define CUDA_UNPACKED_STORAGE
-#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP
-#       define CONFIG_NAME "cuda_double_sorted_wbdp"
-
-#       define CUDA_DOUBLE_MODE
-
-#       define CUDA_HW_CACHE_ONLY
-
-#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-
-#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_SORTED_WBDP_WITH_CACHE
-#       define CONFIG_NAME "cuda_double_sorted_wbdp_with_cache"
-
-#       define CUDA_DOUBLE_MODE
-
 #       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
 
 #       define CUDA_WARP_BLOCK_CELL_PROCESSOR
@@ -139,8 +82,6 @@
 #endif
 
 //#define CUDA_WARP_BLOCK_CELL_PROCESSOR
-
-//#define CUDA_UNPACKED_STORAGE
 
 //#define CUDA_HW_CACHE_ONLY
 
@@ -184,8 +125,6 @@
 
 #	define make_floatType3 make_float3
 #endif
-
-//#define __restrict__
 
 // TODO: move this include into the referencing header files
 #include "sharedDecls.h"

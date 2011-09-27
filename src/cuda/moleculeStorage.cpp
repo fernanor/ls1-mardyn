@@ -42,17 +42,13 @@ void MoleculeStorage::uploadState() {
 		_cellStartIndices.push( numMolecules );
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		for( int componentType = 0 ; componentType < _domain.getComponents().size() ; componentType++ ) {
-#endif
 			for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 				Molecule &molecule = **iterator;
 
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 				if( molecule.componentid() != componentType ) {
 					continue;
 				}
-#endif
 
 				_moleculeComponentTypes.push( molecule.componentid() );
 
@@ -100,9 +96,7 @@ void MoleculeStorage::uploadState() {
 
 				numMolecules++;
 			}
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
-#endif
 
 		maxNumMoleculesPerCell = std::max<int>( maxNumMoleculesPerCell, numMolecules - _cellStartIndices.getHostBuffer().back() );
 	}
@@ -219,17 +213,13 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
 
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		for( int componentType = 0 ; componentType < _domain.getComponents().size() ; componentType++ ) {
-#endif
 			for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 				Molecule &molecule = **iterator;
 
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 				if( molecule.componentid() != componentType ) {
 					continue;
 				}
-#endif
 
 				const floatType3 &cudaForce = forces[currentIndex];
 				const floatType3 &cudaTorque = torque[currentIndex];
@@ -249,9 +239,7 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 				// clear the molecule after comparing the values to make sure that only the GPU values are applied
 				molecule.clearFM();
 			}
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
-#endif
 	}
 
 	forceErrorMeasure.report();
@@ -284,24 +272,18 @@ void MoleculeStorage::downloadResults() {
 		const Cell &cell = _linkedCells.getCells()[i];
 
 		const std::list<Molecule*> &particles = cell.getParticlePointers();
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		for( int componentType = 0 ; componentType < _domain.getComponents().size() ; componentType++ ) {
-#endif
 			for( std::list<Molecule*>::const_iterator iterator = particles.begin() ; iterator != particles.end() ; iterator++ ) {
 				Molecule &molecule = **iterator;
 
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 				if( molecule.componentid() != componentType ) {
 					continue;
 				}
-#endif
 
 				molecule.setF((floatType*) &forces[currentIndex]);
 				molecule.setM((floatType*) &torque[currentIndex]);
 				currentIndex++;
 			}
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
 		}
-#endif
 	}
 }

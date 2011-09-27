@@ -48,6 +48,9 @@ struct ThreadBlockCellProcessor {
 
 		// process block
 #if NUM_WARPS == 1
+#error only 1 warp is supported in this version
+#endif
+
 		for( uint moleculeShiftIndex = 0 ; moleculeShiftIndex < WARP_SIZE ; moleculeShiftIndex++ ) {
 			const uint localIndexB = (warpThreadIdx + moleculeShiftIndex) % WARP_SIZE;
 
@@ -64,87 +67,13 @@ struct ThreadBlockCellProcessor {
 				continue;
 			}
 
-#	ifndef CUDA_HW_CACHE_ONLY
+#ifndef CUDA_HW_CACHE_ONLY
 			processMoleculePair( threadIndex, localIndexB, moleculeA );
-#	else
-			processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
-#	endif
-		}
 #else
-#	if 1
-		/* divide the block into warp blocks
-		 * each warp of the thread block (corresponds to a warp block of block A) interacts with
-		 * one unique warp block of block B
-		 *
-		 * if there are more warp blocks in block B than block A,
-		 * we need to iterate #warp blocks many times in B
-		 *
-		 * if there are more warp blocks in block A than block B,
-		 * we need to iterate #warp blocks many time in A
-		 */
-		const uint numWarpBlocks = iceil( max( numMoleculesInBlockA, numMoleculesInBlockB ), WARP_SIZE );
-		const uint numWarpBlocksInBlockB = iceil( numMoleculesInBlockB, WARP_SIZE );
-
-		for( uint warpShiftIndex = 0 ; warpShiftIndex < numWarpBlocks ; warpShiftIndex++ ) {
-			const uint warpBlockIndexB = (warpIdx + warpShiftIndex) % numWarpBlocks;
-			const uint warpBlockOffsetB = warpBlockIndexB * WARP_SIZE;
-
-			for( uint moleculeShiftIndex = 0 ; moleculeShiftIndex < WARP_SIZE ; moleculeShiftIndex++ ) {
-				const uint localIndexB = warpBlockOffsetB + ((warpThreadIdx + moleculeShiftIndex) % WARP_SIZE);
-
-				// only do something when there is a molecule in A and a molecule in B to interact with
-				if( localIndexA >= numMoleculesInBlockA || localIndexB >= numMoleculesInBlockB ) {
-					continue;
-				}
-
-				// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside the warp
-				// otherwise only process the lower half
-				// indexA >= indexB <=> localIndexA + blockOffsetA >= localIndexB + blockOffsetB <=> localIndexA >= localIndexB
-				// (this only works for NUM_WARPS == NUM_LOCAL_STORAGE_WARPS!!!)
-				if( blockPairType == BPT_SAME_BLOCK && localIndexB >= localIndexA ) {
-					continue;
-				}
-
-#		ifndef CUDA_HW_CACHE_ONLY
-				processMoleculePair( threadIndex, localIndexB, moleculeA );
-#		else
-				processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
-#		endif
-			}
-
-			// sync all warps, so that no two different warps will try to access the same warp data block
-			__syncthreads();
-		}
-#	else
-		uint numMolecules = max( numMoleculesInBlockA, numMoleculesInBlockB );
-		for( uint shiftIndex = 0 ; shiftIndex < numMolecules ; shiftIndex++ ) {
-			uint localIndexB = (threadIndex + shiftIndex) % numMolecules;
-
-			__syncthreads();
-
-			// only do something when there is a molecule in A and a molecule in B to interact with
-			if( localIndexA >= numMoleculesInBlockA || localIndexB >= numMoleculesInBlockB ) {
-				continue;
-			}
-
-			// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside the warp
-			// otherwise only process the lower half
-			// indexA >= indexB <=> localIndexA + blockOffsetA >= localIndexB + blockOffsetB <=> localIndexA >= localIndexB
-			// (this only works for NUM_WARPS == NUM_LOCAL_STORAGE_WARPS!!!)
-			if( blockPairType == BPT_SAME_BLOCK && localIndexB >= localIndexA ) {
-				continue;
-			}
-
-#		ifndef CUDA_HW_CACHE_ONLY
-			processMoleculePair( threadIndex, localIndexB, moleculeA );
-#		else
 			processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
-#		endif
+#endif
 		}
 
-		__syncthreads();
-#	endif
-#endif
 		// write moleculeB back
 		if( threadIndex < numMoleculesInBlockB ) {
 			moleculeLocalStorage.commit( threadIndex, indexB );

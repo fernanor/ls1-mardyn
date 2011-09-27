@@ -62,22 +62,10 @@ __device__ __forceinline__ uint getThreadIndex() {
 #	warning using float precision
 #endif
 
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
-#	warning sorting cells by component type
-#else
-#	warning cells are *not* sorted by component type
-#endif
-
 #ifdef CUDA_HW_CACHE_ONLY
 #	warning no shared local storage cache
 #else
 #	warning shared local storage active
-#endif
-
-#ifdef NO_CONSTANT_MEMORY
-#	warning no constant memory
-#else
-#	warning constant memory used
 #endif
 
 extern "C" {
@@ -190,8 +178,8 @@ __device__ WBCP::CellScheduler *cellScheduler;
 __device__ WBCP::CellPairScheduler *cellPairScheduler;
 
 __global__ void createSchedulers() {
-	cellScheduler = new WBDP::CellScheduler();
-	cellPairScheduler = new WBDP::CellPairScheduler();
+	cellScheduler = new WBCP::CellScheduler();
+	cellPairScheduler = new WBCP::CellPairScheduler();
 }
 
 __global__ void destroySchedulers() {
