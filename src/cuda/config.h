@@ -33,16 +33,12 @@
 #       define CONFIG_NAME "cuda_float"
 
 #       define CUDA_HW_CACHE_ONLY
-
-#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-
 #endif
 
 #ifdef CONFIG_CUDA_FLOAT_WBDP
 #       define CONFIG_NAME "cuda_float_wbdp"
 
-#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-
+// this makes sure we get the bigger L1 cache because we dont need a lot of shared memory
 #       define CUDA_HW_CACHE_ONLY
 #       define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
@@ -51,6 +47,7 @@
 #	define CONFIG_NAME "cuda_double_wbdp"
 #	define CUDA_DOUBLE_MODE
 
+// this makes sure we get the bigger L1 cache because we dont need a lot of shared memory
 #	define CUDA_HW_CACHE_ONLY
 #	define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
@@ -58,23 +55,6 @@
 #ifdef CONFIG_CUDA_DOUBLE
 #	define CONFIG_NAME "cuda_double"
 #	define CUDA_DOUBLE_MODE
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_HWCACHEONLY
-#       define CONFIG_NAME "cuda_double_hwcacheonly"
-
-#       define CUDA_DOUBLE_MODE
-
-#       define CUDA_HW_CACHE_ONLY
-#endif
-
-#ifdef CONFIG_CUDA_DOUBLE_WBDP_WITH_CACHE
-#       define CONFIG_NAME "cuda_double_wbdp_with_cache"
-
-#       define CUDA_DOUBLE_MODE
-#       define CUDA_SORT_CELLS_BY_COMPONENTTYPE
-
-#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
 #ifndef CONFIG_NAME

@@ -225,7 +225,6 @@ public:
 			return true;
 		}
 
-#ifdef CUDA_HW_CACHE_ONLY
 		do {
 			jobIndex++;
 
@@ -250,20 +249,6 @@ public:
 			cellB = CellInfoEx( cellInfoFromCellIndex( cellIndexB ) );
 		}
 		while( cellA.length == 0 || cellB.length == 0 );
-#else
-		do {
-			if( ++jobIndex >= DomainTraverser::numJobs ) {
-				return false;
-			}
-
-			cellIndexA = DomainTraverser::getCellIndexFromJobIndex( jobIndex );
-			const int cellIndexB = DomainTraverser::getNeighborCellIndex( cellIndexA );
-
-			cellA = CellInfoEx( cellInfoFromCellIndex( cellIndexA ) );
-			cellB = CellInfoEx( cellInfoFromCellIndex( cellIndexB ) );
-		}
-		while( cellA.length == 0 || cellB.length == 0 );
-#endif
 
 		numWarpBlocksA = cellA.getWarpCount();
 		warpBlockIndexA = 0;
@@ -276,11 +261,9 @@ public:
 		  cellIndexA( 0 ), numWarpBlocksA( 0 ), warpBlockIndexA( 0 ) {}
 };
 
-template<MoleculeStorage &moleculeStorage,
-class ResultLocalStorage, ResultLocalStorage &resultLocalStorage>
+template<MoleculeStorage &moleculeStorage>
 struct CellProcessor {
 	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
-	typedef Molecule<ResultLocalStorage, resultLocalStorage> ResultStorageMolecule;
 
 	__device__ __noinline__ void processCellPair( WarpBlockPairInfo warpBlockPairInfo ) {
 		WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
@@ -306,64 +289,6 @@ struct CellProcessor {
 		}
 
 		moleculeA.store();
-	}
-
-	__device__ __noinline__ void processCellPairWithCache( WarpBlockPairInfo warpBlockPairInfo ) {
-		WARP_PRINTF( "processing cell %i block %i/%i and molecules %i - %i\n", warpBlockPairInfo.warpBlockA.cellIndex, warpBlockPairInfo.warpBlockA.warpBlockIndex, iceil( warpBlockPairInfo.warpBlockA.cell.endIndex - warpBlockPairInfo.warpBlockA.cell.startIndex, WARP_SIZE), warpBlockPairInfo.cellB.startIndex, warpBlockPairInfo.cellB.endIndex );
-
-		WarpBlockInfo warpBlockA = warpBlockPairInfo.warpBlockA;
-
-		const uint indexA = warpBlockA.cell.getWarpOffset(warpBlockA.warpBlockIndex) + warpThreadIdx;
-
-		StorageMolecule moleculeA;
-		moleculeA.init(indexA);
-
-		// now loop over all molecules in this cell
-		CellInfo cellB = warpBlockPairInfo.cellB;
-		for( int indexB = cellB.startIndex ; indexB < cellB.endIndex ; indexB += WARP_SIZE ) {
-			const uint threadIndex = getThreadIndex();
-			resultLocalStorage.reset( threadIndex );
-
-			if( indexA < warpBlockA.cell.endIndex ) {
-				for( int shift = 0 ; shift < WARP_SIZE ; shift++ ) {
-					const uint shiftedWarpThreadIdx = (warpThreadIdx + shift) % WARP_SIZE;
-					const uint moleculeIndex = indexB + shiftedWarpThreadIdx;
-
-					ResultStorageMolecule moleculeB;
-					moleculeB.init( moleculeIndex );
-
-					if( indexB + shiftedWarpThreadIdx < cellB.endIndex ) {
-						MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
-
-						const int targetIndex = warpIdx * WARP_SIZE + shiftedWarpThreadIdx;
-						moleculeB.store( targetIndex );
-
-						__threadfence_block();
-					}
-				}
-			}
-
-			// store the processed molecules
-			{
-				if( warpThreadIdx == 0 ) {
-					cellLocks[warpBlockPairInfo.warpBlockA.cellIndex].lock();
-				}
-
-				if( indexB + warpThreadIdx < cellB.endIndex ) {
-					resultLocalStorage.commit( threadIndex, indexB + warpThreadIdx );
-				}
-
-				__threadfence();
-
-				if( warpThreadIdx == 0 ) {
-					cellLocks[warpBlockPairInfo.warpBlockA.cellIndex].unlock();
-				}
-			}
-		}
-
-		if( indexA < warpBlockA.cell.endIndex ) {
-			moleculeA.store();
-		}
 	}
 
 	__device__ __noinline__ void processCell( WarpBlockPairInfo warpBlockPairInfo ) {

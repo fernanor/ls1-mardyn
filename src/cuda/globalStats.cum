@@ -103,28 +103,6 @@ namespace ThreadBlockCellStats {
 			cellLocks[cellIndex].unlock();
 		}
 	}
-
-	__device__ __noinline__ void reduceAndStoreWarpForPair(int threadIndex, int cellIndex) {
-		// no synchronization required since every warp is implicitly synchronized
-		reduceWarps( threadIndex );
-
-		if( warpThreadIdx == 0 ) {
-			floatType potential = threadPotential[ threadIndex ];
-			floatType virial = threadVirial[ threadIndex ];
-
-			const int neighborIndex = DomainTraverser::getNeighborCellIndex(cellIndex);
-			// use the neighbor lock
-			// the processor uses the cellIndex lock
-			// so there is less unnecessary inter-locking
-			cellLocks[neighborIndex].lock();
-
-			cellStats[cellIndex].add( potential, virial );
-			cellStats[neighborIndex].add( potential, virial );
-			__threadfence();
-
-			cellLocks[neighborIndex].unlock();
-		}
-	}
 #endif
 };
 

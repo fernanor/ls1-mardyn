@@ -188,8 +188,7 @@ __global__ void destroySchedulers() {
 }
 
 __device__ MoleculeStorage moleculeStorage;
-__shared__ ResultLocalStorage< moleculeStorage > resultLocalStorage;
-__device__ WBCP::CellProcessor< moleculeStorage, typeof(resultLocalStorage), resultLocalStorage > cellProcessor;
+__device__ WBCP::CellProcessor< moleculeStorage > cellProcessor;
 
 __global__ void processCellPair() {
 	const int threadIndex = getThreadIndex();
@@ -207,15 +206,9 @@ __global__ void processCellPair() {
 			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
 			WBCP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
-#ifdef CUDA_HW_CACHE_ONLY
 			cellProcessor.processCellPair( warpBlockPairInfo );
 
 			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
-#else
-			cellProcessor.processCellPairWithCache( warpBlockPairInfo );
-
-			ThreadBlockCellStats::reduceAndStoreWarpForPair( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
-#endif
 		}
 	} while( threadBlockInfo.hasMoreJobs );
 
