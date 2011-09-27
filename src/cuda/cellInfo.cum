@@ -22,6 +22,7 @@ struct CellInfo {
 	}
 };
 
+// TODO: what a volatile mess - only to support declarations like volatile CellInfoEx cell; ...
 struct CellInfoEx : CellInfo {
 	unsigned length;
 

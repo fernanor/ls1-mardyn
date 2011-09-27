@@ -382,7 +382,6 @@ public:
 		}
 	};
 
-	// TODO: rename *Vector to Global*Vector
 	template<typename DataType>
 	class PackedGlobalVector {
 	protected:
@@ -391,7 +390,6 @@ public:
 
 		friend class Module;
 
-		// TODO: rename to _hostBuffer
 		std::vector<DataType> _hostBuffer;
 
 	public:
@@ -438,7 +436,6 @@ public:
 			entry = _hostBuffer[index];
 		}
 
-		// TODO: rename to getBuffer
 		std::vector<DataType> & getHostBuffer() {
 			return _hostBuffer;
 		}
