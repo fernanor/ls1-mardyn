@@ -38,7 +38,9 @@ __device__ __forceinline__ uint getThreadIndex() {
 
 #include "domainTraverser.cum"
 
-#include "domainProcessor.cum"
+#include "referenceCellProcessor.cum"
+
+#include "threadBlockCellProcessor.cum"
 
 #include "globalStats.cum"
 
@@ -46,7 +48,7 @@ __device__ __forceinline__ uint getThreadIndex() {
 
 #include "molecule.cum"
 
-#include "warpBlockDomainProcessor.cum"
+#include "warpBlockCellProcessor.cum"
 
 #ifndef REFERENCE_IMPLEMENTATION
 #warning using fast cell processor
@@ -126,16 +128,16 @@ __shared__ SharedMoleculeLocalStorage< moleculeStorage > moleculeLocalStorage;
 #	else
 __device__ WriteThroughMoleculeLocalStorage< moleculeStorage > moleculeLocalStorage;
 #	endif
-__device__ HighDensityDomainProcessor<
+__device__ ThreadBlockCellProcessor<
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculeLocalStorage), moleculeLocalStorage>
-		domainProcessor;
+		cellProcessor;
 
 #else
 __device__ ReferenceCellProcessor<
 	typeof(moleculeStorage), moleculeStorage,
 	typeof(moleculePairHandler), moleculePairHandler>
-		domainProcessor;
+		cellProcessor;
 #endif
 
 __global__ void processCellPair() {
@@ -157,7 +159,7 @@ __global__ void processCellPair() {
 	}
 
 	ThreadBlockCellStats::initThreadLocal( threadIndex );
-	domainProcessor.processCellPair( threadIndex, cellA, cellB );
+	cellProcessor.processCellPair( threadIndex, cellA, cellB );
 
 	ThreadBlockCellStats::reduceAndStore( threadIndex, cellIndex, neighborIndex );
 }
@@ -178,14 +180,14 @@ __global__ void processCell() {
 	}
 
 	ThreadBlockCellStats::initThreadLocal( threadIndex );
-	domainProcessor.processCell( threadIndex, cell );
+	cellProcessor.processCell( threadIndex, cell );
 
 	ThreadBlockCellStats::reduceAndStore( threadIndex, cellIndex, cellIndex );
 }
 #else
 
-__device__ WBDP::CellScheduler *cellScheduler;
-__device__ WBDP::CellPairScheduler *cellPairScheduler;
+__device__ WBCP::CellScheduler *cellScheduler;
+__device__ WBCP::CellPairScheduler *cellPairScheduler;
 
 __global__ void createSchedulers() {
 	cellScheduler = new WBDP::CellScheduler();
@@ -199,12 +201,12 @@ __global__ void destroySchedulers() {
 
 __device__ MoleculeStorage moleculeStorage;
 __shared__ ResultLocalStorage< moleculeStorage > resultLocalStorage;
-__device__ WBDP::DomainProcessor< moleculeStorage, typeof(resultLocalStorage), resultLocalStorage > domainProcessor;
+__device__ WBCP::CellProcessor< moleculeStorage, typeof(resultLocalStorage), resultLocalStorage > cellProcessor;
 
 __global__ void processCellPair() {
 	const int threadIndex = getThreadIndex();
 
-	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
+	__shared__ WBCP::ThreadBlockInfo threadBlockInfo;
 	if( threadIndex == 0 ) {
 		threadBlockInfo.init();
 	}
@@ -216,13 +218,13 @@ __global__ void processCellPair() {
 		while( !threadBlockInfo.warpJobQueue[warpIdx].isEmpty() ) {
 			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
-			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
+			WBCP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
 #ifdef CUDA_HW_CACHE_ONLY
-			domainProcessor.processCellPair( warpBlockPairInfo );
+			cellProcessor.processCellPair( warpBlockPairInfo );
 
 			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 #else
-			domainProcessor.processCellPairWithCache( warpBlockPairInfo );
+			cellProcessor.processCellPairWithCache( warpBlockPairInfo );
 
 			ThreadBlockCellStats::reduceAndStoreWarpForPair( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 #endif
@@ -236,7 +238,7 @@ __global__ void processCell() {
 	// TODO: remove?
 	const int threadIndex = getThreadIndex();
 
-	__shared__ WBDP::ThreadBlockInfo threadBlockInfo;
+	__shared__ WBCP::ThreadBlockInfo threadBlockInfo;
 	if( threadIndex == 0 ) {
 		threadBlockInfo.init();
 	}
@@ -248,8 +250,8 @@ __global__ void processCell() {
 		while( !threadBlockInfo.warpJobQueue[warpIdx].isEmpty() ) {
 			ThreadBlockCellStats::initThreadLocal( threadIndex );
 
-			WBDP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
-			domainProcessor.processCell( warpBlockPairInfo );
+			WBCP::WarpBlockPairInfo warpBlockPairInfo = threadBlockInfo.warpJobQueue[warpIdx].pop();
+			cellProcessor.processCell( warpBlockPairInfo );
 
 			ThreadBlockCellStats::reduceAndStoreWarp( threadIndex, warpBlockPairInfo.warpBlockA.cellIndex );
 		}

@@ -164,14 +164,12 @@ public:
 	}
 };
 
-// TODO: fix this volatile mess somehow --- I had to make CellInfoEx's member fields volatile
-// because volatile is treated like const for methods (it has to be there for the method to be callable)
 class CellScheduler : public SchedulerTemplate<CellScheduler> {
 private:
 	volatile int jobIndex;
 
 	volatile int cellIndex;
-	CellInfoEx cell;
+	volatile CellInfoEx cell;
 	volatile uint numWarpBlocks;
 	volatile uint warpBlockIndex;
 
@@ -280,7 +278,7 @@ public:
 
 template<MoleculeStorage &moleculeStorage,
 class ResultLocalStorage, ResultLocalStorage &resultLocalStorage>
-struct DomainProcessor {
+struct CellProcessor {
 	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
 	typedef Molecule<ResultLocalStorage, resultLocalStorage> ResultStorageMolecule;
 

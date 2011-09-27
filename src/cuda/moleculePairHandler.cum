@@ -169,7 +169,7 @@ namespace MoleculePairHandler {
 				floatType3 torqueA;
 				floatType3 torqueB;
 
-				const floatType my2 = dipoleA.absMy * dipoleB.absMy;
+				const floatType my2 = dipoleA.absMu * dipoleB.absMu;
 				const floatType rffac = my2 * epsRFInvrc3;
 				calculateDipoleDipole( totalDistanceAtoB, totalDistanceSquared,
 						eA, eB, my2, rffac, forceAtoB, potential, myRF, torqueA, torqueB );
@@ -222,7 +222,7 @@ namespace MoleculePairHandler {
 				floatType potential;
 				floatType3 torqueA;
 
-				const floatType qMyPer4PiE0 = dipoleA.absMy * chargeB.q;
+				const floatType qMyPer4PiE0 = dipoleA.absMu * chargeB.q;
 				calculateDipoleCharge( totalDistanceAtoB, totalDistanceSquared, eA, qMyPer4PiE0, forceAtoB, potential, torqueA );
 
 				moleculeA.addForce( forceAtoB );

@@ -101,7 +101,7 @@ public:
 				dipole.relativePosition = make_floatType3( cDipole.rx(), cDipole.ry(), cDipole.rz() );
 				dipole.relativeE = make_floatType3( cDipole.ex(), cDipole.ey(), cDipole.ez() );
 
-				dipole.absMy = cDipole.absMy();
+				dipole.absMu = cDipole.absMy();
 			}
 #endif
 		}

@@ -60,7 +60,7 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 					j,
 					dipole.relativePosition.x, dipole.relativePosition.y, dipole.relativePosition.z,
 					dipole.relativeE.x, dipole.relativeE.y, dipole.relativeE.z,
-					dipole.absMy
+					dipole.absMu
 				);
 		}
 #endif
