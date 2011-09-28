@@ -92,25 +92,9 @@ case $1 in
 
 		CFGs=$(echo benchmark/lj_80000_10.cfg benchmark/lj3d1_50000_10.cfg benchmark/lj3d1_lj2d1_50000_10.cfg)
 		benchmark NO_CUDA "$CFGs"
-		benchmark CUDA_DOUBLE_WBDP "$CFGs"
-		benchmark CUDA_FLOAT_WBDP "$CFGs"
+		benchmark CUDA_DOUBLE_WBCP "$CFGs"
+		benchmark CUDA_FLOAT_WBCP "$CFGs"
 		
-		;;
-	"shared_vs_cache" )
-		log "Benchmarking shared memory vs a bigger L2 cache:"
-		
-		MAX_NUM_COMPONENTS=2
-		MAX_NUM_LJCENTERS=3
-		MAX_NUM_CHARGES=0
-		MAX_NUM_DIPOLES=1
-		
-		CFGs=$(echo benchmark/lj_80000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_50000{,_10,_15,_20,_30,_40}.cfg benchmark/lj3d1_lj2d1_50000{,_10,_15,_20,_30,_40}.cfg)
-		for NUM_WARPS in {4,8}; do
-			benchmark CUDA_DOUBLE "$CFGs" "${NUM_WARPS}_"
-		done
-		for NUM_WARPS in {4,8}; do
-			benchmark CUDA_DOUBLE_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
-		done
 		;;
 	"float_mode" )
 		log "Benchmarking float speed:"
@@ -121,10 +105,10 @@ case $1 in
 
 		CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40,50}.cfg)
 		for NUM_WARPS in {1,2,8,16}; do
-			benchmark CUDA_FLOAT_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_FLOAT "$CFGs" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
-			benchmark CUDA_FLOAT_WBDP "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_FLOAT_WBCP "$CFGs" "${NUM_WARPS}_"
 		done
 
 		MAX_NUM_COMPONENTS=1
@@ -134,10 +118,10 @@ case $1 in
 	
 		CFGs=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40,50}.cfg)
 		for NUM_WARPS in {1,2,8,16}; do
-			benchmark CUDA_FLOAT_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_FLOAT "$CFGs" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
-			benchmark CUDA_FLOAT_WBDP "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_FLOAT_WBCP "$CFGs" "${NUM_WARPS}_"
 		done
 	
 		MAX_NUM_COMPONENTS=2
@@ -147,10 +131,10 @@ case $1 in
 	
 		CFGs=$(echo benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40,50}.cfg)
 		for NUM_WARPS in {1,2,8,16}; do
-			benchmark CUDA_FLOAT_HWCACHEONLY "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_FLOAT "$CFGs" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
-			benchmark CUDA_FLOAT_WBDP "$CFGs" "${NUM_WARPS}_"
+			benchmark CUDA_FLOAT_WBCP "$CFGs" "${NUM_WARPS}_"
 		done
 	
 		;;
@@ -167,12 +151,12 @@ case $1 in
 			benchmark CUDA_DOUBLE "$CFGs_NORMAL" "${NUM_WARPS}_"
 		done
 		
-		CFGs_WBDP=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
+		CFGs_WBCP=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
 		for NUM_WARPS in {1,2,4,8,16}; do
-			benchmark CUDA_DOUBLE_WBDP "$CFGs_WBDP" "${NUM_WARPS}_"
+			benchmark CUDA_DOUBLE_WBCP "$CFGs_WBCP" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
-		    benchmark CUDA_DOUBLE_WBDP "benchmark/lj_80000_50.cfg" "${NUM_WARPS}_"
+		    benchmark CUDA_DOUBLE_WBCP "benchmark/lj_80000_50.cfg" "${NUM_WARPS}_"
 		done
 
 		NUM_WARPS=1
@@ -190,7 +174,7 @@ case $1 in
 		benchmark CUDA_DOUBLE "$CFGs" "${NUM_WARPS}_"
 				
 		NUM_WARPS=8
-		benchmark CUDA_DOUBLE_WBDP "$CFGs" "${NUM_WARPS}_"
+		benchmark CUDA_DOUBLE_WBCP "$CFGs" "${NUM_WARPS}_"
 
 		NUM_WARPS=1
 		CFGs_NO_CUDA=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40}.cfg)
@@ -207,7 +191,7 @@ case $1 in
 		benchmark CUDA_DOUBLE "$CFGs" "${NUM_WARPS}_"
 				
 		NUM_WARPS=8
-		benchmark CUDA_DOUBLE_WBDP "$CFGs" "${NUM_WARPS}_"
+		benchmark CUDA_DOUBLE_WBCP "$CFGs" "${NUM_WARPS}_"
 
 		NUM_WARPS=1
 		CFGs_NO_CUDA=$(echo benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40}.cfg)

@@ -5,23 +5,9 @@
 
 #include "util.cum"
 
-#include "molecule.cum"
 #include "cellInfo.cum"
 
-#ifndef CUDA_UNPACKED_STORAGE
-#	define DECL_FLOATTYPE3_PTR(stream) floatType3 *stream
-#	define DECL_QUATERNION_PTR(stream) Quaternion *stream
-#	define DECL_MATRIX3x3_PTR(stream) Matrix3x3 *stream
-
-#	define DECL_FLOATTYPE3_ARRAY(stream, size) floatType3 stream[size]
-#	define DECL_MATRIX3x3_ARRAY(stream, size) Matrix3x3 stream[size]
-
-#	define LOAD_FLOATTYPE3(stream, index) (stream[index])
-#	define LOAD_MATRIX3x3(stream, index) (stream[index])
-
-#	define STORE_FLOATTYPE3(stream, index, data) (stream[index] = (data))
-#	define STORE_MATRIX3x3(stream, index, data) (stream[index] = (data))
-#endif
+typedef Molecule_ComponentType ComponentType;
 
 // global shared data pointers
 __constant__ __device__ floatType3 *moleculePositions;
@@ -39,26 +25,25 @@ __device__ CellInfo cellInfoFromCellIndex( int index ) {
 	return CellInfo( cellStartIndices[index], cellStartIndices[index+1] );
 }
 
-
-struct MoleculeStorage {
+namespace MoleculeStorage {
 	// straight-forward getter/setter
-	__device__ floatType3 getPosition(uint index) const {
+	__device__ floatType3 getPosition(uint index) {
 		return moleculePositions[index];
 	}
 
-	__device__ Matrix3x3 getRotation(uint index) const {
+	__device__ Matrix3x3 getRotation(uint index) {
 		return moleculeRotations[index];
 	}
 
-	__device__ floatType3 getForce(uint index) const {
+	__device__ floatType3 getForce(uint index) {
 		return moleculeForces[index];
 	}
 
-	__device__ floatType3 getTorque(uint index) const {
+	__device__ floatType3 getTorque(uint index) {
 		return moleculeTorque[index];
 	}
 
-	__device__ ComponentType getComponentType(uint index) const {
+	__device__ ComponentType getComponentType(uint index) {
 		return moleculeComponentTypes[index];
 	}
 
@@ -68,95 +53,6 @@ struct MoleculeStorage {
 
 	__device__ void addTorque(uint index, const floatType3 &torque) {
 		moleculeTorque[index] += torque;
-	}
-};
-
-// caches molecule data locally
-template<MoleculeStorage &moleculeStorage>
-struct SharedMoleculeLocalStorage {
-	floatType3 positions[BLOCK_SIZE];
-	Matrix3x3 rotations[BLOCK_SIZE];
-
-	floatType3 forces[BLOCK_SIZE];
-	floatType3 torque[BLOCK_SIZE];
-
-	ComponentType componentTypes[BLOCK_SIZE];
-
-	__device__ void load(uint localIndex, uint index) {
-		positions[localIndex] = moleculeStorage.getPosition( index );
-		rotations[localIndex] = moleculeStorage.getRotation( index );
-		componentTypes[ localIndex ] = moleculeComponentTypes[ index ];
-
-		forces[localIndex] = make_floatType3( 0.0, 0.0, 0.0 );
-		torque[localIndex] = make_floatType3( 0.0, 0.0, 0.0 );
-	}
-
-	__device__ void commit(uint localIndex, uint index) const {
-		moleculeStorage.addForce( index, getCachedForce( localIndex ) );
-		moleculeStorage.addTorque( index, getCachedTorque( localIndex ) );
-	}
-
-	__device__ floatType3 getPosition(uint index) const {
-		return positions[index];
-	}
-
-	__device__ Matrix3x3 getRotation(uint index) const {
-		return rotations[index];
-	}
-
-	__device__ floatType3 getCachedForce(uint index) const {
-		return forces[index];
-	}
-
-	__device__ floatType3 getCachedTorque(uint index) const {
-		return torque[index];
-	}
-
-	__device__ ComponentType getComponentType(uint index) const {
-		return componentTypes[index];
-	}
-
-	__device__ void addForce(uint index, const floatType3 &force) {
-		forces[index] += force;
-	}
-
-	__device__ void addTorque(uint index, const floatType3 &torque) {
-		this->torque[index] += torque;
-	}
-};
-
-template<MoleculeStorage &moleculeStorage>
-struct WriteThroughMoleculeLocalStorage {
-	__device__ void load(uint localIndex, uint index) {}
-
-	__device__ void commit(uint localIndex, uint index) const {}
-
-	__device__ floatType3 getPosition(uint index) const {
-		return moleculeStorage.getPosition( index );
-	}
-
-	__device__ Matrix3x3 getRotation(uint index) const {
-		return moleculeStorage.getRotation( index );
-	}
-
-	__device__ floatType3 getForce(uint index) const {
-		return moleculeStorage.getForce( index );
-	}
-
-	__device__ floatType3 getTorque(uint index) const {
-		return moleculeStorage.getTorque( index );
-	}
-
-	__device__ ComponentType getComponentType(uint index) const {
-		return moleculeStorage.getComponentType( index );
-	}
-
-	__device__ void addForce(uint index, const floatType3 &force) {
-		moleculeStorage.addForce( index, force );
-	}
-
-	__device__ void addTorque(uint index, const floatType3 &torque) {
-		moleculeStorage.addTorque( index, torque );
 	}
 };
 

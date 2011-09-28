@@ -17,9 +17,7 @@ struct CellStats : CellStatsStorage {
 // should be: __device__ CellStats cellStats[CellCount]
 __constant__ __device__ CellStats * cellStats;
 
-#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
 __constant__ Lock::Mutex *cellLocks;
-#endif
 
 namespace ThreadBlockCellStats {
 	__shared__ volatile floatType threadPotential[BLOCK_SIZE];
@@ -42,7 +40,7 @@ namespace ThreadBlockCellStats {
 		// no synchronization required since every warp is automatically synchronized
 #	if 1
 #		if WARP_SIZE != 32
-#			error WARP_SIZE == 32 assumed
+#			error WARP_SIZE == 32 assumed (adapt index below please)
 #		endif
 
 #		pragma unroll 5
@@ -86,7 +84,6 @@ namespace ThreadBlockCellStats {
 		}
 	}
 
-#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
 	__device__ __noinline__ void reduceAndStoreWarp(int threadIndex, int cellIndex) {
 		// no synchronization required since every warp is implicitly synchronized
 		reduceWarps( threadIndex );
@@ -103,7 +100,6 @@ namespace ThreadBlockCellStats {
 			cellLocks[cellIndex].unlock();
 		}
 	}
-#endif
 };
 
 #endif

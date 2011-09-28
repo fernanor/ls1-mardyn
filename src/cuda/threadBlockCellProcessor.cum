@@ -3,27 +3,14 @@
 #include "util.cum"
 
 #include "cellInfo.cum"
+#include "molecule.cum"
+#include "moleculePairHandler.cum"
 
-template<class MoleculeStorage, MoleculeStorage &moleculeStorage,
-class MoleculeLocalStorage, MoleculeLocalStorage &moleculeLocalStorage>
-struct ThreadBlockCellProcessor {
-
+namespace ThreadBlockCellProcessor {
 	enum BlockPairType {
 		BPT_UNRELATED,
 		BPT_SAME_BLOCK   // implies same cell
 	};
-
-	typedef Molecule<MoleculeStorage, moleculeStorage> StorageMolecule;
-	typedef Molecule<MoleculeLocalStorage, moleculeLocalStorage> LocalStorageMolecule;
-
-	__device__ void processMoleculePair(int threadIndex, uint localIndexB, StorageMolecule & __restrict__ moleculeA) {
-		LocalStorageMolecule moleculeB;
-		moleculeB.init(localIndexB);
-
-		MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
-
-		moleculeB.store();
-	}
 
 	// componentLJCenterOffsetFromFirst is only used when blockPairType != BPT_UNRELATED
 	template< BlockPairType blockPairType >
@@ -32,14 +19,8 @@ struct ThreadBlockCellProcessor {
 			const uint numMoleculesInBlockA,
 			const uint numMoleculesInBlockB,
 			const uint blockOffsetB,
-			StorageMolecule & __restrict__ moleculeA
+			Molecule & __restrict__ moleculeA
 			) {
-		const uint indexB = blockOffsetB + threadIndex;
-		// load B data into cache
-		if( threadIndex < numMoleculesInBlockB ) {
-			moleculeLocalStorage.load( threadIndex, indexB );
-		}
-
 		// make sure all molecules have been written into the cache
 		// before any one thread tries to access the cache
 		// no __syncthreads() needed here, because at first we work on data from the current warp, so its automatically synched
@@ -47,7 +28,7 @@ struct ThreadBlockCellProcessor {
 		const uint localIndexA = threadIndex;
 
 		// process block
-#if NUM_WARPS == 1
+#if NUM_WARPS != 1
 #error only 1 warp is supported in this version
 #endif
 
@@ -67,17 +48,16 @@ struct ThreadBlockCellProcessor {
 				continue;
 			}
 
-#ifndef CUDA_HW_CACHE_ONLY
-			processMoleculePair( threadIndex, localIndexB, moleculeA );
-#else
-			processMoleculePair( threadIndex, blockOffsetB + localIndexB, moleculeA );
-#endif
+			const uint indexB = blockOffsetB + localIndexB;
+
+			Molecule moleculeB;
+			moleculeB.init(indexB);
+
+			MoleculePairHandler::process( threadIndex, moleculeA, moleculeB );
+
+			moleculeB.store();
 		}
 
-		// write moleculeB back
-		if( threadIndex < numMoleculesInBlockB ) {
-			moleculeLocalStorage.commit( threadIndex, indexB );
-		}
 		__syncthreads();
 	}
 
@@ -89,7 +69,7 @@ struct ThreadBlockCellProcessor {
 			const uint numMoleculesInBlockA = (blockIndexA < numBlocksA - 1) ? BLOCK_SIZE : cellA.getLastBlockSize();
 			const uint blockOffsetA = cellA.getBlockOffset(blockIndexA);
 
-			StorageMolecule moleculeA;
+			Molecule moleculeA;
 
 			const int indexA = blockOffsetA + threadIndex;
 			moleculeA.init( indexA );
@@ -121,7 +101,7 @@ struct ThreadBlockCellProcessor {
 			const uint numMoleculesInBlockA = (blockIndexA < numBlocks - 1) ? BLOCK_SIZE : cell.getLastBlockSize();
 			const uint blockOffsetA = cell.getBlockOffset(blockIndexA);
 
-			StorageMolecule moleculeA;
+			Molecule moleculeA;
 
 			const uint indexA = blockOffsetA + threadIndex;
 			moleculeA.init( indexA );

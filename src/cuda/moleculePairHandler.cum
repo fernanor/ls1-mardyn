@@ -4,40 +4,15 @@
 #include "potForce.cum"
 
 #include "globalStats.cum"
+#include "componentDescriptor.cum"
+#include "molecule.cum"
 
 __constant__ __device__ floatType cutOffRadiusSquared;
 __constant__ __device__ floatType epsRFInvrc3;
 
 namespace MoleculePairHandler {
-	template<typename MoleculeA, typename MoleculeB>
-	__device__ void process( int threadIndex, MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB ) {
-		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
-		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
-
-		if( distanceSquared >= cutOffRadiusSquared ) {
-			return;
-		}
-
-		const ComponentDescriptor &descriptorA = componentDescriptors[moleculeA.getComponentType()];
-		const ComponentDescriptor &descriptorB = componentDescriptors[moleculeB.getComponentType()];
-#if MAX_NUM_LJCENTERS > 0
-		processLJCenters( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-#endif
-#if MAX_NUM_CHARGES > 0
-		processCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-#endif
-#if MAX_NUM_DIPOLES > 0
-		processDipoles( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-#endif
-#if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
-		processDipolesCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
-		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
-#endif
-	}
-
-	template<typename MoleculeA, typename MoleculeB>
 	__device__ void processLJCenters( int threadIndex,
-			MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 			const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
 		) {
@@ -88,9 +63,8 @@ namespace MoleculePairHandler {
 	}
 
 #if MAX_NUM_CHARGES > 0
-	template<typename MoleculeA, typename MoleculeB>
 	__device__ void processCharges( int threadIndex,
-			MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+			Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 			const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 			const floatType3 & __restrict__ distanceAtoB
 		) {
@@ -134,9 +108,8 @@ namespace MoleculePairHandler {
 #endif
 
 #if MAX_NUM_DIPOLES > 0
-	template<typename MoleculeA, typename MoleculeB>
 	__device__ void processDipoles( int threadIndex,
-				MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
 			) {
@@ -190,9 +163,8 @@ namespace MoleculePairHandler {
 #endif
 
 #if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
-	template<typename MoleculeA, typename MoleculeB>
 	__device__ void processDipolesCharges( int threadIndex,
-				MoleculeA & __restrict__ moleculeA, MoleculeB & __restrict__ moleculeB,
+				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
 				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
 				const floatType3 & __restrict__ distanceAtoB
 			) {
@@ -237,6 +209,31 @@ namespace MoleculePairHandler {
 		}
 	}
 #endif
+
+	__device__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
+		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
+		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
+
+		if( distanceSquared >= cutOffRadiusSquared ) {
+			return;
+		}
+
+		const ComponentDescriptor &descriptorA = componentDescriptors[moleculeA.getComponentType()];
+		const ComponentDescriptor &descriptorB = componentDescriptors[moleculeB.getComponentType()];
+#if MAX_NUM_LJCENTERS > 0
+		processLJCenters( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+#endif
+#if MAX_NUM_CHARGES > 0
+		processCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+#endif
+#if MAX_NUM_DIPOLES > 0
+		processDipoles( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+#endif
+#if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
+		processDipolesCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
+#endif
+	}
 };
 
 #endif

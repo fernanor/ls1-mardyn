@@ -5,11 +5,8 @@
 
 #include "sharedDecls.h"
 
-#include "util.cum"
+#include "moleculeStorage.cum"
 
-typedef Molecule_ComponentType ComponentType;
-
-template<class MoleculeStorage, MoleculeStorage &moleculeStorage>
 struct Molecule {
 	floatType3 force;
 	floatType3 torque;
@@ -28,16 +25,16 @@ struct Molecule {
 	}
 
 	__device__ floatType3 getPosition() const {
-		return moleculeStorage.getPosition(dataIndex);
+		return MoleculeStorage::getPosition(dataIndex);
 	}
 
 	// relative->global coord system
 	__device__ Matrix3x3 getRotation() const {
-		return moleculeStorage.getRotation(dataIndex);
+		return MoleculeStorage::getRotation(dataIndex);
 	}
 
 	__device__ ComponentType getComponentType() const {
-		return moleculeStorage.getComponentType(dataIndex);
+		return MoleculeStorage::getComponentType(dataIndex);
 	}
 
 	__device__ void addForce(const floatType3 &other) {
@@ -57,13 +54,8 @@ struct Molecule {
 	}
 
 	__device__ void store() const {
-		moleculeStorage.addForce( dataIndex, force );
-		moleculeStorage.addTorque( dataIndex, torque );
-	}
-
-	__device__ void store(uint storeIndex) const {
-		moleculeStorage.addForce( storeIndex, force );
-		moleculeStorage.addTorque( storeIndex, torque );
+		MoleculeStorage::addForce( dataIndex, force );
+		MoleculeStorage::addTorque( dataIndex, torque );
 	}
 };
 

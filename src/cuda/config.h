@@ -25,30 +25,27 @@
 #	define NO_CUDA
 #endif
 
-#ifdef CONFIG_CUDA_FLOAT_UNSORTED
-#	define CONFIG_NAME "cuda_float_unsorted"
+#ifdef CONFIG_CUDA_DOUBLE_REFERENCE
+#	define CONFIG_NAME "cuda_double_ref"
+
+#	define CUDA_DOUBLE_MODE
+#	define REFERENCE_IMPLEMENTATION
 #endif
 
-#ifdef CONFIG_CUDA_FLOAT_HWCACHEONLY
-#       define CONFIG_NAME "cuda_float"
-
-#       define CUDA_HW_CACHE_ONLY
+#ifdef CONFIG_CUDA_FLOAT
+#	define CONFIG_NAME "cuda_float"
 #endif
 
-#ifdef CONFIG_CUDA_FLOAT_WBDP
-#       define CONFIG_NAME "cuda_float_wbdp"
+#ifdef CONFIG_CUDA_FLOAT_WBCP
+#	define CONFIG_NAME "cuda_float_wbcp"
 
-// this makes sure we get the bigger L1 cache because we dont need a lot of shared memory
-#       define CUDA_HW_CACHE_ONLY
-#       define CUDA_WARP_BLOCK_CELL_PROCESSOR
+#	define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
-#ifdef CONFIG_CUDA_DOUBLE_WBDP
-#	define CONFIG_NAME "cuda_double_wbdp"
+#ifdef CONFIG_CUDA_DOUBLE_WBCP
+#	define CONFIG_NAME "cuda_double_wbcp"
 #	define CUDA_DOUBLE_MODE
 
-// this makes sure we get the bigger L1 cache because we dont need a lot of shared memory
-#	define CUDA_HW_CACHE_ONLY
 #	define CUDA_WARP_BLOCK_CELL_PROCESSOR
 #endif
 
@@ -61,15 +58,18 @@
 #error no CONFIG_* specified!
 #endif
 
-//#define CUDA_WARP_BLOCK_CELL_PROCESSOR
-
-//#define CUDA_HW_CACHE_ONLY
-
-//#define REFERENCE_IMPLEMENTATION
-//#define TEST_QUATERNION_MATRIX_CONVERSION
+// uncomment this to measure the GPU error compared to CPU results
 #define COMPARE_TO_CPU
+
+// CPU/GPU quaternion calculation comparison
+//#define TEST_QUATERNION_MATRIX_CONVERSION
+
 //#define USE_BEHAVIOR_PROBE
+
+// dump all cell sizes (for creating histograms)
 //#define DUMP_CELL_LENGTHS
+
+// dump the component descriptors
 //#define DEBUG_COMPONENT_DESCRIPTORS
 
 //#define MAX_NUM_WARPS 6

@@ -37,21 +37,6 @@ void GlobalStats::postInteractionCalculation() {
 		_virial += cellStats[ boundaryCellIndex ].virial;
 	}
 
-	// to be used in conjunction with a different halo potential treatment
-#if 0
-	for( int i = 0 ; i < haloCellIndices.size() ; i++ ) {
-		int haloCellIndex = haloCellIndices[ i ];
-		if( _linkedCells.getCells()[haloCellIndex].haloOwnsInteractions() ) {
-			_potential += cellStats[ haloCellIndex ].potential;
-			_virial += cellStats[ haloCellIndex ].virial;
-		}
-		else {
-			_potential -= cellStats[ haloCellIndex ].potential;
-			_virial -= cellStats[ haloCellIndex ].virial;
-		}
-	}
-#endif
-
 	// every contribution is added twice so divide by 2
 	_potential /= 2.0f;
 	_virial /= 2.0f;

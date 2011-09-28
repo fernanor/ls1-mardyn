@@ -137,24 +137,8 @@ std::string getCompileFlags() {
 #	endif
 #endif
 
-#if defined( CUDA_HW_CACHE_ONLY ) && !defined( REFERENCE_IMPLEMENTATION )
-		flags << " CUDA_HW_CACHE_ONLY ";
-#endif
-
-#ifdef NO_CONSTANT_MEMORY
-	flags << " NO_CONSTANT_MEMORY ";
-#endif
-
-#ifdef CUDA_UNPACKED_STORAGE
-	flags << " CUDA_UNPACKED_STORAGE ";
-#endif
-
 #ifdef CUDA_DOUBLE_MODE
 	flags << " CUDA_DOUBLE_MODE ";
-#endif
-
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
-	flags << " CUDA_SORT_CELLS_BY_COMPONENTTYPE ";
 #endif
 
 #ifdef TEST_QUATERNION_MATRIX_CONVERSION
