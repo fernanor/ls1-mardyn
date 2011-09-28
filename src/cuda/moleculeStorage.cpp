@@ -250,16 +250,8 @@ void MoleculeStorage::compareResultsToCPURef( const std::vector<floatType3> &for
 }
 
 void MoleculeStorage::downloadResults() {
-#ifndef CUDA_UNPACKED_STORAGE
 	const std::vector<floatType3> &forces = _moleculeForces.copyToHost();
 	const std::vector<floatType3> &torque = _moleculeTorque.copyToHost();
-#else
-	std::vector<floatType3> forces;
-	std::vector<floatType3> torque;
-
-	_moleculeForces.copyToHost( forces );
-	_moleculeTorque.copyToHost( torque );
-#endif
 
 #ifdef COMPARE_TO_CPU
 	compareResultsToCPURef( forces, torque );
