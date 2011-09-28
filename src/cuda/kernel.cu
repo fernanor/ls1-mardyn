@@ -62,18 +62,10 @@ __global__ void convertQuaternionsToRotations( int numMolecules ) {
 		return;
 	}
 
-#ifndef CUDA_UNPACKED_STORAGE
 	const Quaternion quaternion = moleculeQuaternions[ moleculeIndex ];
-#else
-	const Quaternion quaternion = packQuaternion( moleculeQuaternions, moleculeIndex );
-#endif
 
 #ifndef TEST_QUATERNION_MATRIX_CONVERSION
-#	ifndef CUDA_UNPACKED_STORAGE
 	moleculeRotations[ moleculeIndex ] = quaternion.toRotMatrix3x3();
-#	else
-	unpackMatrix3x3( moleculeRotations, moleculeIndex, quaternion.toRotMatrix3x3() );
-#	endif
 #else
 #	warning CUDA: testing quaternion matrix conversion
 	const Matrix3x3 convertedQuaternion = quaternion.toRotMatrix3x3();
@@ -90,7 +82,6 @@ __global__ void convertQuaternionsToRotations( int numMolecules ) {
 }
 
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
-
 
 #ifndef REFERENCE_IMPLEMENTATION
 namespace CellProcessor = ThreadBlockCellProcessor;

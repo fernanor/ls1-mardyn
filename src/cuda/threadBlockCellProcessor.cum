@@ -29,7 +29,7 @@ namespace ThreadBlockCellProcessor {
 
 		// process block
 #if NUM_WARPS != 1
-#error only 1 warp is supported in this version
+#	error only 1 warp is supported in this version
 #endif
 
 		for( uint moleculeShiftIndex = 0 ; moleculeShiftIndex < WARP_SIZE ; moleculeShiftIndex++ ) {

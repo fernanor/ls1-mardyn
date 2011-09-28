@@ -21,7 +21,6 @@ public:
 			_numJobs( _module.getGlobal<int>("_ZN15DomainTraverser7numJobsE") )
 	{
 		initStages();
-		testStages();
 	}
 
 	int getInterCellStageCount() const {
@@ -205,7 +204,6 @@ protected:
 	}
 
 	void testStages() const {
-
 		struct InteractionLog {
 			int numInteractions;
 			int directionMask;

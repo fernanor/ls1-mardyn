@@ -7,7 +7,7 @@
 
 #include "sharedDecls.h"
 
-static __device__ void calculateLennardJones(
+__device__ void calculateLennardJones(
 		const floatType3 distanceAtoB,
 		const LJParameters ljParameters,
 		floatType3 & __restrict__ forceAtoB, floatType & __restrict__ potential
@@ -23,7 +23,7 @@ static __device__ void calculateLennardJones(
 	forceAtoB = -24.0f * ljParameters.epsilon * (lj12 + lj12m6) * invdr2 * distanceAtoB;
 }
 
-static __device__ void calculateCharges(
+__device__ void calculateCharges(
 		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
 		const floatType & __restrict__ Q1Q2Per4PiE0,
 		floatType3 & __restrict__ forceAtoB, floatType & __restrict__ potential
@@ -35,7 +35,7 @@ static __device__ void calculateCharges(
 	forceAtoB = -potential * invdr2 * distanceAtoB;
 }
 
-static __device__ void calculateDipoleCharge(
+__device__ void calculateDipoleCharge(
 		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
 		const floatType3 & __restrict__ eA, const floatType qMyPer4PiE0,
 		floatType3 & __restrict__ forceAtoB,
@@ -54,7 +54,7 @@ static __device__ void calculateDipoleCharge(
 	torqueA = partialTAInvdr1 * cross( distanceAtoB, eA );
 }
 
-static __device__ void calculateDipoleDipole(
+__device__ void calculateDipoleDipole(
 		const floatType3 & __restrict__ distanceAtoB, const floatType distanceSquared,
 		const floatType3 & __restrict__ eA, const floatType3 & __restrict__ eB,
 		const floatType my2, const floatType rffac,

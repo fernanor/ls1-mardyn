@@ -1,8 +1,6 @@
 #ifndef WARPBLOCKCELLPROCESSOR_CUM__
 #define WARPBLOCKCELLPROCESSOR_CUM__
 
-#ifdef CUDA_WARP_BLOCK_CELL_PROCESSOR
-
 #include <host_defines.h>
 
 #include "util.cum"
@@ -313,7 +311,5 @@ namespace WarpBlockCellProcessor {
 		moleculeA.store();
 	}
 }
-
-#endif
 
 #endif

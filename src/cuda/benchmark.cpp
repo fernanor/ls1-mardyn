@@ -42,7 +42,7 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 		fprintf( file, "timeSteps,moleculeCount,cutOffRadius,totalTime" );
 #ifndef NO_CUDA
 		fprintf( file, ",numWarps,maxRegisterCount,"
-				"warpBlockCellProcessor,sortCellsByComponent,hwCacheOnly,doubleMode,unpackedStorage,"
+				"warpBlockCellProcessor,doubleMode,"
 				"maxNumComponents,maxNumLJCenters,maxNumCharges,maxNumDipoles,"
 				"CUDA_totalTime,CUDA_preTime,CUDA_postTime,CUDA_singleTime,CUDA_pairTime,CUDA_processingTime" );
 #endif
@@ -62,22 +62,7 @@ void SimulationStats::writeRunStats( const std::string &buildFile ) {
 #else
 			0,
 #endif
-#ifdef CUDA_SORT_CELLS_BY_COMPONENTTYPE
-			1,
-#else
-			0,
-#endif
-#ifdef CUDA_HW_CACHE_ONLY
-			1,
-#else
-			0,
-#endif
 #ifdef CUDA_DOUBLE_MODE
-			1,
-#else
-			0,
-#endif
-#ifdef CUDA_UNPACKED_STORAGE
 			1,
 #else
 			0,

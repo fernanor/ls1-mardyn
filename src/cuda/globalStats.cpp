@@ -22,7 +22,6 @@ void GlobalStats::postInteractionCalculation() {
 
 	const std::vector<unsigned long> &innerCellIndices = _linkedCells.getInnerCellIndices();
 	const std::vector<unsigned long> &boundaryCellIndices = _linkedCells.getBoundaryCellIndices();
-	const std::vector<unsigned long> &haloCellIndices = _linkedCells.getHaloCellIndices();
 
 	_potential = 0.0f;
 	_virial = 0.0f;
