@@ -65,6 +65,7 @@ namespace ThreadBlockCellStats {
 #endif
 	}
 
+	// reduce potential and virial over the whole thread block
 	__device__ void reduceAndStore(int threadIndex, int cellIndexA, int cellIndexB) {
 		reduceWarps( threadIndex );
 
@@ -84,6 +85,7 @@ namespace ThreadBlockCellStats {
 		}
 	}
 
+	// reduce potential and virial only over the current warp
 	__device__ __noinline__ void reduceAndStoreWarp(int threadIndex, int cellIndex) {
 		// no synchronization required since every warp is implicitly synchronized
 		reduceWarps( threadIndex );

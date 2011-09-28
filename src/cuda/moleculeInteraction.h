@@ -71,6 +71,7 @@ public:
 #ifndef CUDA_WARP_BLOCK_CELL_PROCESSOR
 					executeAtLeast( _domainTraverser.getInterCellJobCount(stageIndex, subStageIndex) );
 #else
+					// TODO: replace 16 with the graphics card specific SM count
 					execute( 16 );
 #endif
 

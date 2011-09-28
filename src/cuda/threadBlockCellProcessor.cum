@@ -12,7 +12,7 @@ namespace ThreadBlockCellProcessor {
 		BPT_SAME_BLOCK   // implies same cell
 	};
 
-	// componentLJCenterOffsetFromFirst is only used when blockPairType != BPT_UNRELATED
+	// process a block pair from cell A and B
 	template< BlockPairType blockPairType >
 	__device__ __noinline__ void processBlock(
 			const int threadIndex,
@@ -40,10 +40,9 @@ namespace ThreadBlockCellProcessor {
 				continue;
 			}
 
-			// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pairs inside the warp
+			// if we're not inside the same warp, process all WARP_SIZE * WARP_SIZE pair
 			// otherwise only process the lower half
 			// indexA >= indexB <=> localIndexA + blockOffsetA >= localIndexB + blockOffsetB <=> localIndexA >= localIndexB
-			// (this only works for NUM_WARPS == NUM_LOCAL_STORAGE_WARPS!!!)
 			if( blockPairType == BPT_SAME_BLOCK && localIndexB >= localIndexA ) {
 				continue;
 			}
