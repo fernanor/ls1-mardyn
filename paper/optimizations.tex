@@ -13,10 +13,10 @@ Thus the compiler can better optimize the code and load more data directly into 
 \subsection{Molecule Proxies}
 The original code used a \lstinline!Molecule! structure to collection molecule data early on before calling the MoleculePairHandler. This was done to be independent of the actual molecule storage structures.
 However, the \lstinline!Molecule! structure used a lot of memory and this resulted in big stack frames.
-I rewrote it to use method accessor functions and act like a proxy to the molecule storage. It still wraps accesses and allows the moecule code to work without knowledge of the underlying storage but also uses less registers and local memory.
+I rewrote it to use method accessor functions and act like a proxy to the molecule storage. It still wraps accesses and allows the molecule code to work without knowledge of the underlying storage but also uses less registers and local memory.
 
 \subsection{Constant Memory}
-Constant memory has its own 8KB cache on each multiprocessor. Thus by moving constant data like the component descriptors, molecule interaction parameters and the storage buffer pointers into constant memory, global cache misses will be avoided and since this data is less than the size of the constant memory cache in total, it is likely that there will not be many constant memory cache misses.
+Constant memory has its own 8 KB cache on each multiprocessor. Thus by moving constant data like the component descriptors, molecule interaction parameters and the storage buffer pointers into constant memory, global cache misses will be avoided and since this data is less than the size of the constant memory cache in total, it is likely that there will not be many constant memory cache misses.
 Using constant memory results in a speed-up between 7 and 20 percent. See  \autoref{chart:no_constant_memory}.
 
 \begin{chart}

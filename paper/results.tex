@@ -45,7 +45,7 @@ As you can see, the higher the cutoff radius, the higher the average number of m
 Only for big cutoff radii the thread block cell processor starts scaling at all. For small radii $<= 20$ using only 1 warp per thread block always is fastest. Actually using many warps per thread block is significantly slower than just using 1 warp. The reason for this negative scaling is the low cell density for small cutoff radii. If many cells have less molecules than the warp size, even some threads of only one warp are already idling. Adding more warps just adds more idle threads that need to be scheduled. Since there is a limit for resident threads on an SM, this clogs the SMs.
 However, for big cutoff radii these threads will actually be put to use.
 
-The thread block cell processor is inflexible in this regard because it always uses a fixed amount of warps per thread block for each cell or cell pair. Thus high warp counts only really work well for domains with homogenously high molecule counts per cell, whereas a warp count of 1 works best for low molecule counts per cell.
+The thread block cell processor is inflexible in this regard because it always uses a fixed amount of warps per thread block for each cell or cell pair. Thus high warp counts only really work well for domains with homogeneously high molecule counts per cell, whereas a warp count of 1 works best for low molecule counts per cell.
 
 \paragraph{Warp Block Cell Processor}
 This cell processor scales as expected with increasing warp counts per thread block. However, for all but the highest cutoff radii, it runs faster with 8 warps than with 16. 16 warps win with very high molecule counts per cell though.
@@ -56,7 +56,7 @@ For low cutoff radii, the additional overhead in the scheduler negates the benef
 The thread block processor runs best for low to mid-range cutoff radii with only 1 warp. For high cutoff radii one can use more warps.
 Compared to the CPU the thread block cell processor always is faster---for mid-range cut off radii by one order of magnitude.
 
-The warp block cell processor scales better. For low densitities, it doesn't run that well compared to a thread block cell processor with only 1 warp, but already for a cutoff radius of 10 it runs faster than the thread block cell processor and it stays this way.
+The warp block cell processor scales better. For low densities, it does not run that well compared to a thread block cell processor with only 1 warp, but already for a cutoff radius of 10 it runs faster than the thread block cell processor and it stays this way.
 
 Compared to the CPU and the thread block cell processor this cell processor runs fastest and scales best except for very low molecule per cell counts.
 
@@ -100,7 +100,7 @@ All the observations hold for single precision mode. Using single instead of dou
 \end{chart}
 
 \subsection{Local and Global Error}
-See \autoref{chart:error_overview} for charts that show the local and global errors. GPU potential and virial are compared to CPU ones and show the global error, whereas the RMS values show the local error between CPU and GPU calculations.
+See \autoref{chart:error_overview} for charts that show the local and global errors. GPU potential and virial values are compared to CPU ones and show the global error, whereas the RMS values show the local error between CPU and GPU calculations.
 
 The error chart for the simple \filename{lj\_80000} dataset looks very good, but the global error is off for the more complex datasets.
 For one the GPU only has a precision of 64 bits, while the FPU uses 80 bits internally.
