@@ -104,7 +104,7 @@ case $1 in
 		MAX_NUM_DIPOLES=0
 
 		CFGs=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40,50}.cfg)
-		for NUM_WARPS in {1,2,8,16}; do
+		for NUM_WARPS in {1}; do
 			benchmark CUDA_FLOAT "$CFGs" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
@@ -117,7 +117,7 @@ case $1 in
 		MAX_NUM_DIPOLES=1
 	
 		CFGs=$(echo benchmark/lj3d1_50000.cfg benchmark/lj3d1_50000_{10,15,20,30,40,50}.cfg)
-		for NUM_WARPS in {1,2,8,16}; do
+		for NUM_WARPS in {1}; do
 			benchmark CUDA_FLOAT "$CFGs" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
@@ -147,12 +147,12 @@ case $1 in
 		MAX_NUM_DIPOLES=0
 		
 		CFGs_NORMAL=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
-		for NUM_WARPS in {1,2,4,8}; do
+		for NUM_WARPS in {1}; do
 			benchmark CUDA_DOUBLE "$CFGs_NORMAL" "${NUM_WARPS}_"
 		done
 		
 		CFGs_WBCP=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg)
-		for NUM_WARPS in {1,2,4,8,16}; do
+		for NUM_WARPS in {1,2,8,16}; do
 			benchmark CUDA_DOUBLE_WBCP "$CFGs_WBCP" "${NUM_WARPS}_"
 		done
 		for NUM_WARPS in {8,16}; do
@@ -204,9 +204,13 @@ case $1 in
 		NUM_WARPS=1		
 		benchmark NO_CUDA "$CFGs"
 		;;
+    	"test_results" )
+		CFGs_WBCP=$(echo benchmark/lj_80000.cfg benchmark/lj_80000_{10,15,20,30,40}.cfg benchmark/lj3d1_lj2d1_50000.cfg benchmark/lj3d1_lj2d1_50000_{10,15,20,30,40}.cfg)
+		NUM_WARPS=8
+                benchmark CUDA_DOUBLE_WBCP "$CFGs_WBCP" "${NUM_WARPS}_"
+		;;
 	* )
 		log "No benchmark specified---see the source code!"
-
 		;;
 esac
 

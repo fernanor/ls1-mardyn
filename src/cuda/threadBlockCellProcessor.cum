@@ -28,7 +28,7 @@ namespace ThreadBlockCellProcessor {
 		const uint localIndexA = threadIndex;
 
 		// process block
-#if NUM_WARPS != 1
+#if NUM_WARPS != 1 && !defined(CUDA_WARP_BLOCK_CELL_PROCESSOR)
 #	error only 1 warp is supported in this version
 #endif
 
