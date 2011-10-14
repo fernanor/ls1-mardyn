@@ -261,13 +261,14 @@ The molecules of block B (of the inner loop) can be stored in shared memory, sin
 \centering
 \includegraphics{figures/cellprocessor_block_iteration_1.pdf}
 \caption{schematic of one block iteration (with a thread blocks of size 8 and warps of size 4, and all 8 parallel molecule pair iterations are shown for the block pair)}
+\label{fig:tbcp_block_iteration}
 \end{figure}
 
 A straight-forward algorithm would simply loop over all molecules in block B and each thread would calculate the interactions of its fixed molecule from block A with one molecule from block B.
 This is not the best solution however. Instead a block is divided into \textbf{warp blocks}. Each warp block contains 32 molecules (exactly the warp size).
 The aim here is not to improve cache usage, but to require less explicit synchronization.
 In the naive approach there would have to be a barrier after each interaction calculation to make sure that each thread is done with processing its molecule pair because another thread will access the molecule from block B in shared memory next.
-Threads in the same warp are synchronized by design, because they are executed in lock-step, so processing  molecule interactions warp-block by warp-block improves parallelism.
+Threads in the same warp are synchronized by design, because they are executed in lock-step, so processing  molecule interactions warp-block by warp-block improves parallelism. See \ref{fig:tbcp_block_iteration} for an example.
 Again there is a special case when interactions of molecules of the same warp-block are calculated.
 
 \subsection{Warp Block Cell Processor}

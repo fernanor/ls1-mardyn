@@ -1,6 +1,6 @@
 \subsection{Cell Processor Comparison}
 \label{subsec:dataset_info}
-See \autoref{chart:cell_density_A} and \autoref{chart:cell_density_B} for the results\footnote{All benchmarks were run with double precision. The thread block cell processor was run with dedicated shared memory, the warp block cell processor without.}. The specified warp count always refers to the used warps per thread block.
+See \autoref{chart:cell_density_A} and \autoref{chart:cell_density_B} for the results\footnote{All benchmarks were run with double precision. The thread block cell processor was run with dedicated shared memory, the warp block cell processor without.}. The specified warp count always refers to the used warps per thread block, that is how many threads each thread block runs ($ 32 \times \text{warp count} $).
 
 \begin{sidewaysfigure}
 \centering
@@ -12,10 +12,10 @@ See \autoref{chart:cell_density_A} and \autoref{chart:cell_density_B} for the re
 \end{sidewaysfigure}
 \begin{sidewaysfigure}
 \centering
-\subfloat[warp block processor]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla_wbdp.pdf}}
-\subfloat[thread block processor]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla_dp.pdf}}\\
+\subfloat[warp block processor (dataset: \filename{lj\_80000})]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla_wbdp.pdf}}
+\subfloat[thread block processor (dataset: \filename{lj\_80000})]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla_dp.pdf}}\\
 \subfloat[summary chart for \filename{lj3d1\_lj2d1\_50000}]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla_mix.pdf}}
-\subfloat[summary chart for \filename{lj\_80000}) ]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla.pdf}}
+\subfloat[summary chart for \filename{lj\_80000} ]{\includegraphics[width=0.5\textwidth]{plots/cell_density_tesla.pdf}}
 \caption{benchmark results for different cutoff radii on workstation B}
 \label{chart:cell_density_B}
 \end{sidewaysfigure}
