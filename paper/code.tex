@@ -1,6 +1,6 @@
 The code resides in \filename{src/cuda/} and only minor changes have been made to the original MarDyn code. These changes will be described in detail later as well.
 
-The \cuda{} code shifts the molecule interaction calculation to the GPU. It calculates the interactions between different molecules using different potential models as specified in the component description\TODO{reference to Mardyn docs}.
+The \cuda{} code shifts the molecule interaction calculation to the GPU. It calculates the interactions between different molecules using different potential models as specified in the component description, see \cite{buchholz10framework}.
 A \cuda{} application performs basically three steps:
 \begin{compactenum}
 \item upload data to the GPU
