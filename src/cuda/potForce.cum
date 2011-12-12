@@ -85,4 +85,89 @@ __device__ void calculateDipoleDipole(
 	torqueB = partialTBInvdr * cross( distanceAtoB, eB ) - eAxeB;
 }
 
+__device__ void calculateQuadrupoleQuardrupole(
+		const floatType3 & __restrict__ distanceAtoB, const floatType& distanceSquared,
+		const floatType3 & __restrict__ eA, const floatType3 & __restrict__ eB,
+		const floatType& q2075,
+		floatType3 & __restrict__ forceAtoB,
+		floatType3 & __restrict__ torqueA, floatType3 & __restrict__ torqueB,
+		floatType & __restrict__ potential
+	) {
+	floatType invdr2 = 1. / distanceSquared;
+	floatType invdr = sqrt(invdr2);
+	floatType qfac = q2075 * invdr2 * invdr2 * invdr;
+
+	floatType costA = dot( eA, distanceAtoB ) * invdr;
+	floatType costB = dot( eB, distanceAtoB ) * invdr;
+	floatType cosgAB = dot( eA, eB );
+
+	floatType costA2 = costA * costA;
+	floatType costB2 = costB * costB;
+	floatType term = (cosgAB - 5. * costA * costB);
+	potential = qfac * (1. - 5. * (costA2 + costB2) - 15. * costA2 * costB2 + 2. * term * term);
+
+	const floatType partialRABInvdr = -5. * potential * invdr2;
+	const floatType partialTAInvdr = -qfac * 10. * (costA + 3. * costA * costB2 + 2. * costB * term) * invdr;
+	const floatType partialTBInvdr = -qfac * 10. * (costB + 3. * costA2 * costB + 2. * costA * term) * invdr;
+	const floatType partialGAB = qfac * 4. * term;
+	const floatType fac = -partialRABInvdr + (costA*partialTAInvdr + costB*partialTBInvdr) * invdr;
+	forceAtoB = fac * distanceAtoB - partialTAInvdr * eA - partialTBInvdr * eB;
+
+	const floatType3 eAxeB = cross( eA, eB );
+	torqueA = partialTAInvdr * cross( distanceAtoB, eA) - partialGAB * eAxeB;
+	torqueB = partialTBInvdr * cross( distanceAtoB, eB ) + partialGAB * eAxeB;
+}
+
+__device__ void calculateDipoleQuadrupole(
+		const floatType3 & __restrict__ distanceAtoB, const floatType & __restrict__ distanceSquared,
+		const floatType3 & __restrict__ eA, const floatType3 __restrict__ eB,
+		const floatType & __restrict__ myq15,
+		floatType3 & __restrict__ forceAtoB,
+		floatType3 & __restrict__ torqueA, floatType3 & __restrict__ torqueB,
+		floatType & __restrict__ potential
+	) {
+	floatType invdr2 = 1. / distanceSquared;
+	floatType invdr = sqrt(invdr2);
+	floatType myqfac = myq15 * invdr2 * invdr2;
+
+	floatType costA = dot( eA, distanceAtoB ) * invdr;
+	floatType costB = dot( eB, distanceAtoB ) * invdr;
+	floatType cosgAB = dot( eA, eB );
+
+
+	floatType costB2 = costB * costB;
+	potential = myqfac * (-costA * (5. * costB2 - 1.) + 2. * cosgAB * costB);
+	const floatType partialRABInvdr = -4. * potential * invdr2;
+	const floatType partialTAInvdr = myqfac * (-5. * costB2 + 1.) * invdr;
+	const floatType partialTBInvdr = myqfac * 2. * (-5. * costA * costB + cosgAB) * invdr;
+	const floatType partialGAB = myqfac * 2. * costB;
+	const floatType fac = -partialRABInvdr + (costA*partialTAInvdr + costB*partialTBInvdr) * invdr;
+	forceAtoB = fac * distanceAtoB - partialTAInvdr*eA - partialTBInvdr*eB;
+
+	const floatType3 eAxeB = cross( eA, eB );
+	torqueA = partialTAInvdr * cross( distanceAtoB, eA ) - partialGAB * eAxeB;
+	torqueB = partialTBInvdr * cross( distanceAtoB, eB ) + partialGAB * eAxeB;
+}
+
+__device__ void calculateChargeQuadrupole(
+		const floatType3 & __restrict__ distanceAtoB, const floatType & __restrict__ distanceSquared,
+		const floatType3 & __restrict__ eB,
+		const floatType & __restrict__ qQ025per4pie0,
+		floatType3 & __restrict__ forceAtoB, floatType3 & __restrict__ torqueB,
+		floatType & __restrict__ potential
+	) {
+	floatType invdr2 = 1.0 / distanceSquared;
+	floatType invdr = sqrt(invdr2);
+	floatType costB = dot( eB, distanceAtoB ) * invdr;
+	floatType qQinv4dr3 = qQ025per4pie0 * invdr * invdr2;
+	potential = qQinv4dr3 * (3.0 * costB * costB - 1);
+
+	const floatType partialRABInvdr = -3.0 * potential * invdr2;
+	const floatType partialTBInvdr = 6.0 * costB * qQinv4dr3 * invdr;
+	const floatType fac = costB * partialTBInvdr * invdr - partialRABInvdr;
+	forceAtoB = fac*distanceAtoB - partialTBInvdr * eB;
+
+	torqueB = partialTBInvdr * cross( distanceAtoB, eB );
+}
+
 #endif
