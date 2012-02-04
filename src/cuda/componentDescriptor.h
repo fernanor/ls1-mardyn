@@ -50,6 +50,7 @@ public:
 			componentDescriptor.numLJCenters = component.numLJcenters();
 			componentDescriptor.numCharges = component.numCharges();
 			componentDescriptor.numDipoles = component.numDipoles();
+			componentDescriptor.numQuadrupoles = component.numQuadrupoles();
 
 			if( componentDescriptor.numLJCenters > MAX_NUM_LJCENTERS ) {
 				// error
@@ -67,6 +68,12 @@ public:
 				// error
 				Log::global_log->fatal() << "A component has " << componentDescriptor.numDipoles <<
 						" dipoles, but MAX_NUM_DIPOLES = " << MAX_NUM_DIPOLES << std::endl;
+				exit(-1);
+			}
+			if( componentDescriptor.numQuadrupoles > MAX_NUM_QUADRUPOLES ) {
+				// error
+				Log::global_log->fatal() << "A component has " << componentDescriptor.numQuadrupoles <<
+						" quadrupoles, but MAX_NUM_QUADRUPOLES = " << MAX_NUM_QUADRUPOLES << std::endl;
 				exit(-1);
 			}
 
@@ -102,6 +109,18 @@ public:
 				dipole.relativeE = make_floatType3( cDipole.ex(), cDipole.ey(), cDipole.ez() );
 
 				dipole.absMu = cDipole.absMy();
+			}
+#endif
+
+#if MAX_NUM_QUADRUPOLES > 0
+			for( int quadrupoleIndex = 0 ; quadrupoleIndex < componentDescriptor.numQuadrupoles ; quadrupoleIndex++ ) {
+				ComponentDescriptor::Quadrupole &quadrupole = componentDescriptor.quadrupoles[quadrupoleIndex];
+
+				const Quadrupole &cQuadrupole = component.quadrupole(quadrupoleIndex);
+				quadrupole.relativePosition = make_floatType3( cQuadrupole.rx(), cQuadrupole.ry(), cQuadrupole.rz() );
+				quadrupole.relativeE = make_floatType3( cQuadrupole.ex(), cQuadrupole.ey(), cQuadrupole.ez() );
+
+				quadrupole.absQ = cQuadrupole.absQ();
 			}
 #endif
 		}

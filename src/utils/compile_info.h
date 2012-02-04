@@ -158,7 +158,8 @@ std::string getCompileFlags() {
 			" MAX_NUM_COMPONENTS=" << MAX_NUM_COMPONENTS <<
 			" MAX_NUM_LJCENTERS=" << MAX_NUM_LJCENTERS <<
 			" MAX_NUM_DIPOLES=" << MAX_NUM_DIPOLES <<
-			" MAX_NUM_CHARGES=" << MAX_NUM_CHARGES;
+			" MAX_NUM_CHARGES=" << MAX_NUM_CHARGES <<
+			" MAX_NUM_QUADRUPOLES=" << MAX_NUM_QUADRUPOLES;
 
 	return flags.str();
 }

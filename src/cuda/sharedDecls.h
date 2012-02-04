@@ -40,28 +40,34 @@ struct ComponentDescriptor {
 	int numLJCenters;
 	int numCharges;
 	int numDipoles;
+	int numQuadrupoles;
 
 	// double3 has a 4byte alignment in gcc x86 and an 8 byte alignment in nvcc
 	// it is defined in vector_types.h and its alignment can't be changed easily.
 	// FIXME: manual padding required!
-	int padding;
-	struct LJCenter {
-		floatType3 relativePosition;
 
+	struct Site {
+		floatType3 relativePosition;
+	};
+
+	struct LJCenter : Site {
 		LJParameters ljParameters;
 	};
 
-	struct Dipole {
-		floatType3 relativePosition;
+	struct OrientedSite : Site {
 		floatType3 relativeE;
+	};
 
+	struct Dipole : OrientedSite {
 		floatType absMu;
 	};
 
-	struct Charge {
-		floatType3 relativePosition;
-
+	struct Charge : Site {
 		floatType q;
+	};
+
+	struct Quadrupole : OrientedSite {
+		floatType absQ;
 	};
 
 #if MAX_NUM_LJCENTERS > 0
@@ -74,6 +80,10 @@ struct ComponentDescriptor {
 
 #if MAX_NUM_DIPOLES > 0
 	Dipole dipoles[MAX_NUM_DIPOLES];
+#endif
+
+#if MAX_NUM_QUADRUPOLES > 0
+	Quadrupole quadrupoles[MAX_NUM_QUADRUPOLES];
 #endif
 };
 

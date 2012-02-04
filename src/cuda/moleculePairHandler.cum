@@ -210,6 +210,162 @@ namespace MoleculePairHandler {
 	}
 #endif
 
+#if MAX_NUM_QUADRUPOLES > 0
+	__device__ void processQuadrupoles( int threadIndex,
+				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
+				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
+				const floatType3 & __restrict__ distanceAtoB
+			) {
+		for( int indexA = 0 ; indexA < MAX_NUM_QUADRUPOLES ; indexA++ ) {
+			if( indexA >= descriptorA.numQuadrupoles ) {
+				continue;
+			}
+
+			const ComponentDescriptor::Quadrupole &quadrupoleA = descriptorA.quadrupoles[indexA];
+			const Matrix3x3 rotationA = moleculeA.getRotation();
+			const floatType3 relativePositionA = rotationA * quadrupoleA.relativePosition;
+			const floatType3 eA = rotationA * quadrupoleA.relativeE;
+
+			for( int indexB = 0 ; indexB < MAX_NUM_QUADRUPOLES ; indexB++ ) {
+				if( indexB >= descriptorB.numQuadrupoles ) {
+					continue;
+				}
+
+				const ComponentDescriptor::Quadrupole &quadrupoleB = descriptorB.quadrupoles[indexB];
+				const Matrix3x3 rotationB = moleculeB.getRotation();
+				const floatType3 relativePositionB = rotationB * quadrupoleB.relativePosition;
+				const floatType3 eB = rotationB * quadrupoleB.relativeE;
+
+				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
+				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
+
+				floatType3 forceAtoB;
+				floatType potential;
+				floatType3 torqueA;
+				floatType3 torqueB;
+
+				const floatType q2075 = 0.75 * quadrupoleA.absQ * quadrupoleB.absQ;
+
+				calculateQuadrupoleQuardrupole( totalDistanceAtoB, totalDistanceSquared,
+						eA, eB, q2075, forceAtoB, torqueA, torqueB, potential );
+
+				moleculeA.addForce( forceAtoB );
+				moleculeB.addForce( -forceAtoB );
+
+				moleculeA.addTorque( torqueA );
+				moleculeB.addTorque( torqueB );
+
+				const floatType virial = dot( distanceAtoB, forceAtoB );
+
+				ThreadBlockCellStats::add( threadIndex, potential, virial );
+			}
+		}
+	}
+#endif
+
+#if MAX_NUM_QUADRUPOLES > 0 && MAX_NUM_DIPOLES > 0
+	__device__ void processDipolesQuadrupoles( int threadIndex,
+				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
+				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
+				const floatType3 & __restrict__ distanceAtoB
+			) {
+		// dipole as outer loop because charges are more light-weight (no rotation of e)
+		for( int dipoleIndexA = 0 ; dipoleIndexA < MAX_NUM_DIPOLES ; dipoleIndexA++ ) {
+			if( dipoleIndexA >= descriptorA.numDipoles ) {
+				continue;
+			}
+
+			const ComponentDescriptor::Dipole &dipoleA = descriptorA.dipoles[dipoleIndexA];
+			const Matrix3x3 rotationA = moleculeA.getRotation();
+			const floatType3 relativePositionA = rotationA * dipoleA.relativePosition;
+			const floatType3 eA = rotationA * dipoleA.relativeE;
+
+			for( int quadrupoleIndexB = 0 ; quadrupoleIndexB < MAX_NUM_QUADRUPOLES ; quadrupoleIndexB++ ) {
+				if( quadrupoleIndexB >= descriptorB.numQuadrupoles ) {
+					continue;
+				}
+
+				const ComponentDescriptor::Quadrupole &quadrupoleB = descriptorB.quadrupoles[quadrupoleIndexB];
+				const Matrix3x3 rotationB = moleculeB.getRotation();
+				const floatType3 relativePositionB = rotationB * quadrupoleB.relativePosition;
+				const floatType3 eB = rotationB * quadrupoleB.relativeE;
+
+				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
+				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
+
+				floatType3 forceAtoB;
+				floatType potential;
+				floatType3 torqueA;
+				floatType3 torqueB;
+
+				const floatType qMy15 = 1.5 * quadrupoleB.absQ * dipoleA.absMu;
+				calculateDipoleQuadrupole( totalDistanceAtoB, totalDistanceSquared,
+						eA, eB, qMy15, forceAtoB, torqueA, torqueB, potential );
+
+				moleculeA.addForce( forceAtoB );
+				moleculeB.addForce( -forceAtoB );
+
+				moleculeA.addTorque( torqueA );
+				moleculeB.addTorque( torqueB );
+
+				const floatType virial = dot( distanceAtoB, forceAtoB );
+
+				ThreadBlockCellStats::add( threadIndex, potential, virial );
+			}
+		}
+	}
+#endif
+
+#if MAX_NUM_QUADRUPOLES > 0 && MAX_NUM_CHARGES > 0
+	__device__ void processQuadrupolesCharges( int threadIndex,
+				Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB,
+				const ComponentDescriptor & __restrict__ descriptorA, const ComponentDescriptor & __restrict__ descriptorB,
+				const floatType3 & __restrict__ distanceAtoB
+			) {
+		// dipole as outer loop because charges are more light-weight (no rotation of e)
+		for( int quadrupoleIndexA = 0 ; quadrupoleIndexA < MAX_NUM_QUADRUPOLES ; quadrupoleIndexA++ ) {
+			if( quadrupoleIndexA >= descriptorA.numQuadrupoles ) {
+				continue;
+			}
+
+			const ComponentDescriptor::Quadrupole &quadrupoleA = descriptorA.quadrupoles[quadrupoleIndexA];
+			const Matrix3x3 rotationA = moleculeA.getRotation();
+			const floatType3 relativePositionA = rotationA * quadrupoleA.relativePosition;
+			const floatType3 eA = rotationA * quadrupoleA.relativeE;
+
+			for( int chargeIndexB = 0 ; chargeIndexB < MAX_NUM_CHARGES ; chargeIndexB++ ) {
+				if( chargeIndexB >= descriptorB.numCharges ) {
+					continue;
+				}
+
+				const ComponentDescriptor::Charge &chargeB = descriptorB.charges[chargeIndexB];
+				const floatType3 relativePositionB = moleculeB.getRotation() * chargeB.relativePosition;
+
+				const floatType3 totalDistanceAtoB = distanceAtoB + relativePositionB - relativePositionA;
+				const floatType totalDistanceSquared = dot( totalDistanceAtoB, totalDistanceAtoB );
+
+				floatType3 forceBtoA;
+				floatType potential;
+				floatType3 torqueA;
+
+				const floatType qMy025Per4PiE0 = 0.25 * quadrupoleA.absQ * chargeB.q;
+				// NOTE: -totalDistanceAtoB because A is the quadrupole and B is the charge and not vice-versa
+				calculateChargeQuadrupole( -totalDistanceAtoB, totalDistanceSquared, eA, qMy025Per4PiE0, forceBtoA, torqueA, potential );
+
+				moleculeA.addForce( -forceBtoA );
+				moleculeB.addForce( forceBtoA );
+
+				moleculeA.addTorque( torqueA );
+
+				// NOTE: -dot(...) for the same reason as above
+				const floatType virial = -dot( distanceAtoB, forceBtoA );
+
+				ThreadBlockCellStats::add( threadIndex, potential, virial );
+			}
+		}
+	}
+#endif
+
 	__device__ void process( int threadIndex, Molecule & __restrict__ moleculeA, Molecule & __restrict__ moleculeB ) {
 		const floatType3 distanceAtoB = moleculeB.getPosition() - moleculeA.getPosition();
 		const floatType distanceSquared = dot( distanceAtoB, distanceAtoB );
@@ -232,6 +388,20 @@ namespace MoleculePairHandler {
 #if MAX_NUM_DIPOLES > 0 && MAX_NUM_CHARGES > 0
 		processDipolesCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
 		processDipolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
+#endif
+
+#if MAX_NUM_QUADRUPOLES > 0
+		processQuadrupoles( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+
+#if MAX_NUM_CHARGES > 0
+		processQuadrupolesCharges( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+		processQuadrupolesCharges( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
+#endif
+
+#if MAX_NUM_DIPOLES > 0
+		processDipolesQuadrupoles( threadIndex, moleculeA, moleculeB, descriptorA, descriptorB, distanceAtoB );
+		processDipolesQuadrupoles( threadIndex, moleculeB, moleculeA, descriptorB, descriptorA, -distanceAtoB );
+#endif
 #endif
 	}
 };

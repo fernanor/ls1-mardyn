@@ -20,7 +20,7 @@ TESTS ?= 0
 
 VTK ?= 0
 
-CUDA_CONFIG ?= CUDA_DOUBLE_SORTED
+CUDA_CONFIG ?= CUDA_DOUBLE_WBCP
 NUM_WARPS ?= 4
 
 MAX_REGISTER_COUNT ?= 63 
@@ -29,6 +29,7 @@ MAX_NUM_COMPONENTS ?= 2
 MAX_NUM_LJCENTERS ?= 3
 MAX_NUM_DIPOLES ?= 3
 MAX_NUM_CHARGES ?= 0
+MAX_NUM_QUADRUPOLES ?= 0
 
 CURDIR ?= $(realpath $(PWD) )
 ifeq ($(findstring src,$(CURDIR)),)
@@ -103,6 +104,8 @@ make_config:
 	@echo "#define MAX_NUM_LJCENTERS $(MAX_NUM_LJCENTERS)" >> current_make_config.h
 	@echo "#define MAX_NUM_DIPOLES $(MAX_NUM_DIPOLES)" >> current_make_config.h
 	@echo "#define MAX_NUM_CHARGES $(MAX_NUM_CHARGES)" >> current_make_config.h
+	@echo "#define MAX_NUM_QUADRUPOLES $(MAX_NUM_QUADRUPOLES)" >> current_make_config.h
+	
 	@echo "created temporary current_make_config.h:"
 	@cat current_make_config.h
 	

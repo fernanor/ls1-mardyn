@@ -64,6 +64,21 @@ __global__ void debugComponentDescriptors( int numDescriptors ) {
 				);
 		}
 #endif
+#if MAX_NUM_QUADRUPOLES > 0
+		for( int j = 0 ; j < descriptor.numQuadrupoles ; j++ ) {
+			const ComponentDescriptor::Quadrupole &quadrupole = descriptor.quadrupoles[j];
+			printf( "\tquadrupole #%i\n"
+					"\t\trelative position:%f %f %f\n"
+					"\t\trelative e: %f %f %f\n"
+					"\t\tabsQ: %f\n",
+					j,
+					quadrupole.relativePosition.x, quadrupole.relativePosition.y, quadrupole.relativePosition.z,
+					quadrupole.relativeE.x, quadrupole.relativeE.y, quadrupole.relativeE.z,
+					quadrupole.absQ
+				);
+		}
+#endif
+
 		printf( "\n" );
 	}
 
