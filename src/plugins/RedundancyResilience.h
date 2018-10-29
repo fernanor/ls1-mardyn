@@ -234,11 +234,6 @@ public:
 		void clearMolecules() {
 			_molecules.clear();
 		}
-
-		std::vector<char> serializeMoleculeData() {
-
-		}
-
 	private:
 		// snapshot data
 		std::vector<Molecule> _molecules;        ///< the molecule data should be backed up in here
