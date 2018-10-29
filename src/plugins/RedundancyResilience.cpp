@@ -336,12 +336,14 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 
 	size_t const rSizeTotal = _snapshot.getMolecules().size()*3*sizeof(RType);
 	size_t const vSizeTotal = _snapshot.getMolecules().size()*3*sizeof(VType);
+	global_log->info() << "    RR: rSizeTotal(bytes): " << rSizeTotal << " vSizeTotal(bytes): " << vSizeTotal << std::endl;
 	size_t const byteDataSize = 
 			+ sizeof(rank) 
 			+ sizeof(currentTime) 
 			+ rSizeTotal
 			+ vSizeTotal;
-	std::vector<char> byteData;
+	global_log->info() << "    RR: byteDataSize(bytes): " << byteDataSize << std::endl;
+	std::vector<char> byteData(byteDataSize);
 	byteData.insert(byteData.end(), 
 			reinterpret_cast<char const*>(&rank), 
 			reinterpret_cast<char const*>(&rank)+sizeof(rank));
@@ -352,8 +354,6 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 	mardyn_assert(byteData.size() == sizeof(rank)+sizeof(currentTime));
 
 	// the molecule data type should probably be templated. Times 3 for each component
-	std::vector<char> rbyteData(_snapshot.getMolecules().size()*3*sizeof(RType));
-	std::vector<char> vbyteData(_snapshot.getMolecules().size()*3*sizeof(VType));
 	auto rbDCurrentPos = byteData.begin()+sizeof(rank)+sizeof(currentTime);
 	auto vbDCurrentPos = rbDCurrentPos+rSizeTotal;
 	for (auto m : _snapshot.getMolecules()) {
@@ -368,13 +368,13 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 			vbDCurrentPos += sizeof(VType);
 		}
 	}
+	return byteData;
 	//append 0,...,rank as char to generate different sized data for each rank while encoding some info
 // #warning serializing and deserializing is generating fake data
 // 	for (char fakeData = 0; fakeData<rank+1; ++fakeData) {
 // 		byteData.push_back(fakeData);
 // 	}
 // 	mardyn_assert(byteData.size() == sizeof(rank)+sizeof(currentTime)+static_cast<size_t>(rank)+1);
-	return byteData;
 }
 
 void RedundancyResilience::_storeSnapshots(std::vector<int>& backupDataSizes, std::vector<char>& backupData) {
