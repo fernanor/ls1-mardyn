@@ -327,7 +327,7 @@ void RedundancyResilience::_saveLocalSnapshot(ParticleContainer* particleContain
 	_snapshot.setRank(domainDecomp->getRank());
 }
 
-std::vector<char> RedundancyResilience::_serializeSnapshot(void) const {
+std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* particleContainer) const {
 	auto const rank = _snapshot.getRank();
 	auto const currentTime = _snapshot.getCurrentTime();
 
@@ -340,12 +340,17 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(void) const {
 	        reinterpret_cast<char const*>(&currentTime), 
 			reinterpret_cast<char const*>(&currentTime)+sizeof(currentTime));
 	mardyn_assert(byteData.size() == sizeof(rank)+sizeof(currentTime));
-	//append 0,...,rank as char to generate different sized data for each rank while encoding some info
-#warning serializing and deserializing is generating fake data
-	for (char fakeData = 0; fakeData<rank+1; ++fakeData) {
-		byteData.push_back(fakeData);
+	for(auto pP = particleContainer->begin();
+			partPtr != particleContinue->end();
+			partPtr = particleContainer->next()) {
+   		partPtr->doSomething();
 	}
-	mardyn_assert(byteData.size() == sizeof(rank)+sizeof(currentTime)+static_cast<size_t>(rank)+1);
+	//append 0,...,rank as char to generate different sized data for each rank while encoding some info
+// #warning serializing and deserializing is generating fake data
+// 	for (char fakeData = 0; fakeData<rank+1; ++fakeData) {
+// 		byteData.push_back(fakeData);
+// 	}
+// 	mardyn_assert(byteData.size() == sizeof(rank)+sizeof(currentTime)+static_cast<size_t>(rank)+1);
 	return byteData;
 }
 

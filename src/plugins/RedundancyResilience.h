@@ -283,7 +283,7 @@ private:
 	 * This function transforms the local snapshot data to an array of char, to be used for MPI calls.
 	 * @return A shared pointer to the byte array containing the converted data
 	 */
-	std::vector<char> _serializeSnapshot(void) const;
+	std::vector<char> _serializeSnapshot(ParticleContainer* particleContainer) const;
 	/**
 	 * @brief Stores received data to snapshots
 	 * This method transforms the data received as bytes from the ResilienceComm::_exchangeSnapshots() call.
