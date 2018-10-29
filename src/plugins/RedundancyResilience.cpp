@@ -291,7 +291,7 @@ void RedundancyResilience::endStep(ParticleContainer* particleContainer,
 	}
 	global_log->info() << "    RR: Creating in-memory backups... " << std::endl;
 	_saveLocalSnapshot(particleContainer, domainDecomp, domain, simstep);
-	std::vector<char> snapshotDataAsBytes = _serializeSnapshot();
+	std::vector<char> snapshotDataAsBytes = _serializeSnapshot(particleContainer);
 	std::vector<int> backupDataSizes(_numberOfBackups);
 	std::vector<char> backupData;
 	_comm->exchangeSnapshotSizes(
@@ -328,9 +328,19 @@ void RedundancyResilience::_saveLocalSnapshot(ParticleContainer* particleContain
 }
 
 std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* particleContainer) const {
+	using RType = decltype (_snapshot.getMolecules().begin()->r(0));
+	using VType = decltype (_snapshot.getMolecules().begin()->v(0));
+
 	auto const rank = _snapshot.getRank();
 	auto const currentTime = _snapshot.getCurrentTime();
 
+	size_t const rSizeTotal = _snapshot.getMolecules().size()*3*sizeof(RType);
+	size_t const vSizeTotal = _snapshot.getMolecules().size()*3*sizeof(VType);
+	size_t const byteDataSize = 
+			+ sizeof(rank) 
+			+ sizeof(currentTime) 
+			+ rSizeTotal
+			+ vSizeTotal;
 	std::vector<char> byteData;
 	byteData.insert(byteData.end(), 
 			reinterpret_cast<char const*>(&rank), 
@@ -340,10 +350,23 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 	        reinterpret_cast<char const*>(&currentTime), 
 			reinterpret_cast<char const*>(&currentTime)+sizeof(currentTime));
 	mardyn_assert(byteData.size() == sizeof(rank)+sizeof(currentTime));
-	for(auto pP = particleContainer->begin();
-			partPtr != particleContinue->end();
-			partPtr = particleContainer->next()) {
-   		partPtr->doSomething();
+
+	// the molecule data type should probably be templated. Times 3 for each component
+	std::vector<char> rbyteData(_snapshot.getMolecules().size()*3*sizeof(RType));
+	std::vector<char> vbyteData(_snapshot.getMolecules().size()*3*sizeof(VType));
+	auto rbDCurrentPos = byteData.begin()+sizeof(rank)+sizeof(currentTime);
+	auto vbDCurrentPos = rbDCurrentPos+rSizeTotal;
+	for (auto m : _snapshot.getMolecules()) {
+		mardyn_assert(rbDCurrentPos-byteData.begin()-sizeof(rank)-sizeof(currentTime) < rSizeTotal);
+		mardyn_assert(vbDCurrentPos-byteData.begin()-sizeof(rank)-sizeof(currentTime)-rSizeTotal < vSizeTotal);
+		for (auto d = 0; d<3; ++d) {
+			RType rValue = m.r(d);
+			VType vValue = m.v(d);
+			std::copy(reinterpret_cast<char*>(&rValue), reinterpret_cast<char*>(&rValue)+sizeof(RType), rbDCurrentPos);
+			std::copy(reinterpret_cast<char*>(&vValue), reinterpret_cast<char*>(&vValue)+sizeof(VType), vbDCurrentPos);
+			rbDCurrentPos += sizeof(RType);
+			vbDCurrentPos += sizeof(VType);
+		}
 	}
 	//append 0,...,rank as char to generate different sized data for each rank while encoding some info
 // #warning serializing and deserializing is generating fake data
