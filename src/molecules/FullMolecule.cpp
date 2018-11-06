@@ -472,6 +472,42 @@ void FullMolecule::writeBinary(std::ostream& ostrm) const {
 	ostrm.write(reinterpret_cast<const char*>(&(_L[2])), 8);
 }
 
+std::vector<char>::iterator FullMolecule::serialize(std::vector<char>::iterator first) const {
+	unsigned int cid = _component->ID() + 1;
+	double qw = _q.qw();
+	double qx = _q.qx();
+	double qy = _q.qy();
+	double qz = _q.qz();
+	// copy
+	auto sDpos = first;
+	sDpos = std::copy(reinterpret_cast<const char*>(&_id), reinterpret_cast<const char*>(&_id)+sizeof(_id), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&cid), reinterpret_cast<const char*>(&cid)+sizeof(cid), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_r[0]), reinterpret_cast<const char*>(&_r[0])+sizeof(_r[0]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_r[1]), reinterpret_cast<const char*>(&_r[1])+sizeof(_r[1]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_r[2]), reinterpret_cast<const char*>(&_r[2])+sizeof(_r[2]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_v[0]), reinterpret_cast<const char*>(&_v[0])+sizeof(_v[0]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_v[1]), reinterpret_cast<const char*>(&_v[1])+sizeof(_v[1]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_v[2]), reinterpret_cast<const char*>(&_v[2])+sizeof(_v[2]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&qw), reinterpret_cast<const char*>(&qw)+sizeof(qw), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&qx), reinterpret_cast<const char*>(&qx)+sizeof(qx), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&qy), reinterpret_cast<const char*>(&qy)+sizeof(qy), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&qz), reinterpret_cast<const char*>(&qz)+sizeof(qz), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_L[0]), reinterpret_cast<const char*>(&_L[0])+sizeof(_L[0]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_L[1]), reinterpret_cast<const char*>(&_L[1])+sizeof(_L[1]), sDpos);
+	sDpos = std::copy(reinterpret_cast<const char*>(&_L[2]), reinterpret_cast<const char*>(&_L[2])+sizeof(_L[2]), sDpos);
+	mardyn_assert(sDpos-first == serializedSize());
+	return sDpos;
+}
+
+size_t FullMolecule::serializedSize(void) const {
+	constexpr auto totalDataSize = 
+			sizeof(_id)+sizeof(_component->ID())
+			+sizeof(_r[0])+sizeof(_r[1])+sizeof(_r[2])
+			+sizeof(_v[0])+sizeof(_v[1])+sizeof(_v[2])
+			+sizeof(_q.qw())+sizeof(_q.qx())+sizeof(_q.qy())+sizeof(_q.qz())
+			+sizeof(_L[0])+sizeof(_L[1])+sizeof(_L[2]);
+	return totalDataSize;
+}
 
 // private functions
 // these are only used when compiling molecule.cpp and therefore might be inlined without any problems

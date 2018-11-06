@@ -316,6 +316,12 @@ public:
 	/** write binary information to stream */
 	void writeBinary(std::ostream& ostrm) const override;
 
+	/** store molecule information to byte buffer. Arguments are first and last element of destination*/
+	std::vector<char>::iterator serialize(std::vector<char>::iterator first) const override;
+
+	/** returns the (fixed) size of a molecule's data in bytes. should be changed to constexpr in c++20*/
+	size_t serializedSize(void) const override;
+
 	/** clear forces and moments */
 	void clearFM();
 	/** calculate forces and moments for already given site forces */
