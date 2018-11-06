@@ -339,34 +339,20 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 
 	auto const snapshotRank = _snapshot.getRank();
 	auto const currentTime = _snapshot.getCurrentTime();
-	size_t const rSizeTotal = _snapshot.getMolecules().size()*3*sizeof(RType);
-	size_t const vSizeTotal = _snapshot.getMolecules().size()*3*sizeof(VType);
-	global_log->info() << "    RR: rSizeTotal: " << rSizeTotal << " vSizeTotal: " << vSizeTotal << std::endl;
+
 	size_t const byteDataSize = 
-			+ sizeof(snapshotRank) 
-			+ sizeof(currentTime) 
-			+ rSizeTotal
-			+ vSizeTotal;
+			sizeof(snapshotRank)
+			+sizeof(currentTime)
+			+_snapshot.getMolecules().size()*_snapshot.getMolecules()[0].serializedSize();
 	std::vector<char> byteData(byteDataSize);
 	auto byteDataPos = byteData.begin();
 	// rank and time first
 	byteDataPos = std::copy(reinterpret_cast<char const*>(&snapshotRank), reinterpret_cast<char const*>(&snapshotRank)+sizeof(&snapshotRank), byteDataPos);
 	byteDataPos = std::copy(reinterpret_cast<char const*>(&currentTime), reinterpret_cast<char const*>(&currentTime)+sizeof(&currentTime), byteDataPos);
-	// the molecule data type should probably be templated. Times 3 for each component
-	auto rbDCurrentPos = byteDataPos;
-	auto vbDCurrentPos = rbDCurrentPos+rSizeTotal;
-	for (auto m : _snapshot.getMolecules()) {
-		mardyn_assert(rbDCurrentPos-byteData.begin()-sizeof(snapshotRank)-sizeof(currentTime) < rSizeTotal);
-		mardyn_assert(vbDCurrentPos-byteData.begin()-sizeof(snapshotRank)-sizeof(currentTime)-rSizeTotal < vSizeTotal);
-		for (auto d = 0; d<3; ++d) {
-			RType rValue = m.r(d);
-			VType vValue = m.v(d);
-			std::copy(reinterpret_cast<char*>(&rValue), reinterpret_cast<char*>(&rValue)+sizeof(RType), rbDCurrentPos);
-			std::copy(reinterpret_cast<char*>(&vValue), reinterpret_cast<char*>(&vValue)+sizeof(VType), vbDCurrentPos);
-			rbDCurrentPos += sizeof(RType);
-			vbDCurrentPos += sizeof(VType);
-		}
+	for (auto& m : _snapshot.getMolecules()) {
+		byteDataPos = m.serialize(byteDataPos);
 	}
+	mardyn_assert(byteDataPos-byteData.begin() == byteDataSize);
 	return byteData;
 }
 
