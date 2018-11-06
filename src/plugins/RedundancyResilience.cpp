@@ -347,8 +347,8 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 	std::vector<char> byteData(byteDataSize);
 	auto byteDataPos = byteData.begin();
 	// rank and time first
-	byteDataPos = std::copy(reinterpret_cast<char const*>(&snapshotRank), reinterpret_cast<char const*>(&snapshotRank)+sizeof(&snapshotRank), byteDataPos);
-	byteDataPos = std::copy(reinterpret_cast<char const*>(&currentTime), reinterpret_cast<char const*>(&currentTime)+sizeof(&currentTime), byteDataPos);
+	byteDataPos = std::copy(reinterpret_cast<char const*>(&snapshotRank), reinterpret_cast<char const*>(&snapshotRank)+sizeof(snapshotRank), byteDataPos);
+	byteDataPos = std::copy(reinterpret_cast<char const*>(&currentTime), reinterpret_cast<char const*>(&currentTime)+sizeof(currentTime), byteDataPos);
 	for (auto& m : _snapshot.getMolecules()) {
 		byteDataPos = m.serialize(byteDataPos);
 	}
