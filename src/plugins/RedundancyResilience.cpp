@@ -380,17 +380,19 @@ std::vector<char>::iterator RedundancyResilience::_deserializeSnapshot(std::vect
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&snapshotRank));
 	newSnapshot.setRank(snapshotRank);
 	valueStart = valueEnd;
-	global_log->info() << "    RR: Deserializing backup rank #" << snapshotRank << std::endl;
 	valueEnd = valueStart+sizeof(currentTime);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&currentTime));
 	valueStart = valueEnd;
 	valueEnd = snapshotEnd;
+
+	// recreate the molecules from the serialized data
+	
+
 	// deserialize the fake data, used for debug purposes
-	std::vector<char> fakeData(valueEnd - valueStart);
-	std::copy(valueStart, valueEnd, fakeData.begin());
-	global_log->info() << "    RR: data attached has " << fakeData.size() << " bytes. Validating now." << std::endl;
-	_validateFakeData(snapshotRank, fakeData);
-	mardyn_assert(valueEnd == snapshotEnd);
+	// std::vector<char> fakeData(valueEnd - valueStart);
+	// std::copy(valueStart, valueEnd, fakeData.begin());
+	// _validateFakeData(snapshotRank, fakeData);
+	// mardyn_assert(valueEnd == snapshotEnd);
 	return snapshotEnd;
 }
 
