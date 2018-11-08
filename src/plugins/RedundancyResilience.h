@@ -26,6 +26,7 @@
 
 #include <stddef.h>
 #include <mpi.h>
+#include "compression.h"
 
 class Snapshot;
 // do not uncomment the if, it will break halo copies of the kddecomposition!

@@ -327,20 +327,27 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 
 	auto const snapshotRank = _snapshot.getRank();
 	auto const currentTime = _snapshot.getCurrentTime();
+	auto const numLocalMolecules = _snapshot.getMolecules().size();
 
 	size_t const byteDataSize = 
 			sizeof(snapshotRank)
 			+sizeof(currentTime)
+			+sizeof(numLocalMolecules)
 			+_snapshot.getMolecules().size()*_snapshot.getMolecules()[0].serializedSize();
 	std::vector<char> byteData(byteDataSize);
 	auto byteDataPos = byteData.begin();
 	// rank and time first
 	byteDataPos = std::copy(reinterpret_cast<char const*>(&snapshotRank), reinterpret_cast<char const*>(&snapshotRank)+sizeof(snapshotRank), byteDataPos);
 	byteDataPos = std::copy(reinterpret_cast<char const*>(&currentTime), reinterpret_cast<char const*>(&currentTime)+sizeof(currentTime), byteDataPos);
+	byteDataPos = std::copy(reinterpret_cast<char const*>(&numLocalMolecules), reinterpret_cast<char const*>(&numLocalMolecules)+sizeof(numLocalMolecules), byteDataPos);
 	for (auto& m : _snapshot.getMolecules()) {
 		byteDataPos = m.serialize(byteDataPos);
 	}
 	mardyn_assert(byteDataPos-byteData.begin() == byteDataSize);
+	CompressionInterface* ci = new Lz4Compression();
+	std::vector<char> compressedData(sizeof(size_t)+byteDataSize);
+	// ci.compress(byteData.begin(), byteData.end(), 
+	delete ci;
 	return byteData;
 }
 
@@ -364,21 +371,31 @@ void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator cons
         std::vector<char>::iterator const snapshotEnd, Snapshot& newSnapshot) {
 	int snapshotRank;
 	double currentTime;
+	size_t numLocalMolecules;
+	CompressionInterface* ci = new Lz4Compression();
+	delete ci;
+	// MPI rank the snapshot is representing
 	auto valueStart = snapshotStart;
 	auto valueEnd = snapshotStart+sizeof(snapshotRank);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&snapshotRank));
 	newSnapshot.setRank(snapshotRank);
 	valueStart = valueEnd;
+	// current simulation time
 	valueEnd = valueStart+sizeof(currentTime);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&currentTime));
 	valueStart = valueEnd;
-	valueEnd = snapshotEnd;
+	// number of molecules in snapshot
+	valueEnd = valueStart+sizeof(numLocalMolecules);
+	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&numLocalMolecules));
+	valueStart = valueEnd;
 	// recreate the molecules from the serialized data
+	valueEnd = snapshotEnd;
 	while (valueStart < valueEnd) {
 		Molecule m;
 		valueStart = m.deserialize(valueStart);
 		newSnapshot.addMolecule(m);
 	}
+	mardyn_assert(newSnapshot.getMolecules().size() == numLocalMolecules);
 	mardyn_assert(valueStart == snapshotEnd);
 }
 
