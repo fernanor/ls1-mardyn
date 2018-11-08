@@ -181,8 +181,6 @@ int ResilienceComm::exchangeSnapshots(
 	for (size_t ib=0; ib<backedBy.size(); ++ib) {
 		dest = backedBy[ib];
 		tag = backedByTags[ib];
-		// global_log->info() << "    RR: Sending " << sendData.size()
-		// 		<< " bytes to: " << dest << " using tag: " << tag << std::endl;
 		status = MPI_Bsend(sendData.data(), sendData.size(), MPI_CHAR, dest, tag, MPI_COMM_WORLD);
 		mardyn_assert(status == MPI_SUCCESS);
 	}
@@ -192,10 +190,6 @@ int ResilienceComm::exchangeSnapshots(
 		src = backing[ib];
 		tag = backingTags[ib];
 		size_t const recvIndex = recvIndices[ib];
-		// global_log->info() << "    RR: Receiving " 
-		// 		<< backupDataSizes[ib] << " bytes from " 
-		// 		<< src << " at " 
-		// 		<< recvIndices[ib] << " using tag: " << tag << std::endl;
 		status = MPI_Recv(&recvData.data()[recvIndex], backupDataSizes[ib], MPI_CHAR, src, tag, MPI_COMM_WORLD, &recvStatus);
 		mardyn_assert(status == MPI_SUCCESS);
 		//verify a bunch of stuff
@@ -214,12 +208,6 @@ int ResilienceComm::exchangeSnapshots(
 	mardyn_assert(status == MPI_SUCCESS);
 	mardyn_assert(address == mpiAttachBuffer.data());
 	mardyn_assert(size == mpiAttachBuffer.size());
-	for (auto rDIt = recvData.begin(); rDIt < recvData.begin()+4; ++rDIt) {
-		global_log->info() << " RR: recv: " << int(*rDIt) << std::endl;
-	}
-	for (auto rDIt = recvData.begin(); rDIt < recvData.begin()+4; ++rDIt) {
-		global_log->info() << " RR: send: " << int(*rDIt) << std::endl;
-	}
 	return 0;
 }
 
