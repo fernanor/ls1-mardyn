@@ -299,9 +299,9 @@ private:
 	 * @param[in] snapshotEnd Iterator to the end of the the snapshot's byte data. snapshotEnd itself is not part of the snapshot
 	 * @param[out] snapshot Target for the incoming data
 	 */
-	std::vector<char>::iterator _deserializeSnapshot(std::vector<char>::iterator const snapshotStart,
-                                                     std::vector<char>::iterator const snapshotEnd,
-													 Snapshot& snapshot);
+	void _deserializeSnapshot(std::vector<char>::iterator const snapshotStart,
+                              std::vector<char>::iterator const snapshotEnd,
+							  Snapshot& snapshot);
 	/**
 	 * @brief Validate the fake data to be correct for debugging
 	 * The fake data for a snapshot is just an array of ints going from 0 to the snapshots rank

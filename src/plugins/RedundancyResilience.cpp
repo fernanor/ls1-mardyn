@@ -364,14 +364,15 @@ void RedundancyResilience::_storeSnapshots(std::vector<int>& backupDataSizes, st
 		Snapshot newSnapshot;
 		assert(snapshotSizeIt != backupDataSizes.end());
 		auto snapshotEndIt = snapshotStartIt+*snapshotSizeIt;
-		snapshotStartIt = _deserializeSnapshot(snapshotStartIt, snapshotEndIt, newSnapshot);
+		_deserializeSnapshot(snapshotStartIt, snapshotEndIt, newSnapshot);
+		snapshotStartIt = snapshotEndIt;
 		++snapshotSizeIt;
 		_backupSnapshots.push_back(newSnapshot);
 	}
 	mardyn_assert(_backupSnapshots.size() == static_cast<size_t>(_numberOfBackups));
 }
 
-std::vector<char>::iterator RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator const snapshotStart,
+void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator const snapshotStart,
         std::vector<char>::iterator const snapshotEnd, Snapshot& newSnapshot) {
 	int snapshotRank;
 	double currentTime;
@@ -393,7 +394,6 @@ std::vector<char>::iterator RedundancyResilience::_deserializeSnapshot(std::vect
 	// std::copy(valueStart, valueEnd, fakeData.begin());
 	// _validateFakeData(snapshotRank, fakeData);
 	// mardyn_assert(valueEnd == snapshotEnd);
-	return snapshotEnd;
 }
 
 bool RedundancyResilience::_validateFakeData(int const rank, std::vector<char>& fakeData) {
