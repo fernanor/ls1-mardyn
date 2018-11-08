@@ -386,38 +386,12 @@ void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator cons
 	valueStart = valueEnd;
 	valueEnd = snapshotEnd;
 	// recreate the molecules from the serialized data
-	int myrank;
-	MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
-	if (myrank == 0) {
+	while (valueStart < valueEnd) {
 		Molecule m;
-		std::cout << "m.serializedSize(): " << m.serializedSize() << std::endl;
 		valueStart = m.deserialize(valueStart);
-		std::cout << "m.getID(): " << m.getID() << std::endl;
-		std::cout << "m.r(0): " << m.r(0) << std::endl;
-		std::cout << "m.r(1): " << m.r(1) << std::endl;
-		std::cout << "m.r(2): " << m.r(2) << std::endl;
-		std::cout << "m.v(0): " << m.v(0) << std::endl;
-		std::cout << "m.v(1): " << m.v(1) << std::endl;
-		std::cout << "m.v(2): " << m.v(2) << std::endl;
-		std::cout << "m.q().qw(): " << m.q().qw() << std::endl;
-		std::cout << "m.q().qx(): " << m.q().qx() << std::endl;
-		std::cout << "m.q().qy(): " << m.q().qy() << std::endl;
-		std::cout << "m.q().qz(): " << m.q().qz() << std::endl;
-		std::cout << "m.D(0): " << m.D(0) << std::endl;
-		std::cout << "m.D(1): " << m.D(1) << std::endl;
-		std::cout << "m.D(2): " << m.D(2) << std::endl;
-		MPI_Abort(MPI_COMM_WORLD, 666);
-		while (valueStart < valueEnd) {
-			newSnapshot.addMolecule(m);
-		}
-		mardyn_assert(valueStart == snapshotEnd);
+		newSnapshot.addMolecule(m);
 	}
-
-	// deserialize the fake data, used for debug purposes
-	// std::vector<char> fakeData(valueEnd - valueStart);
-	// std::copy(valueStart, valueEnd, fakeData.begin());
-	// _validateFakeData(snapshotRank, fakeData);
-	// mardyn_assert(valueEnd == snapshotEnd);
+	mardyn_assert(valueStart == snapshotEnd);
 }
 
 bool RedundancyResilience::_validateFakeData(int const rank, std::vector<char>& fakeData) {
