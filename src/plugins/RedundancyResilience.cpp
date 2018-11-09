@@ -232,6 +232,8 @@ void RedundancyResilience::init(ParticleContainer* particleContainer,
 			_backedBy,
 			_backingTags,
 			_backedByTags);
+	// construct the compression algorithm object
+	_compression = Compression::create(_encodingTag);
 }
 
 void RedundancyResilience::readXML(XMLfileUnits& xmlconfig) {
@@ -242,6 +244,10 @@ void RedundancyResilience::readXML(XMLfileUnits& xmlconfig) {
 	_numberOfBackups = 1;
 	xmlconfig.getNodeValue("numberOfBackups", _numberOfBackups);
 	global_log->info() << "    RR: Number of ranks to back up: " << _numberOfBackups << std::endl;
+
+	_encodingTag.assign("None");
+	xmlconfig.getNodeValue("encodingTag", _encodingTag);
+	global_log->info() << "    RR: Compression encoding using: " << _encodingTag << std::endl;
 }
 
 ///reset the particle container with a saved snapshot
@@ -344,11 +350,9 @@ std::vector<char> RedundancyResilience::_serializeSnapshot(ParticleContainer* pa
 		byteDataPos = m.serialize(byteDataPos);
 	}
 	mardyn_assert(byteDataPos-byteData.begin() == byteDataSize);
-	// zomg no RAII. Fix with factory.
-	CompressionInterface* ci = new Lz4Compression();
+	// compress the data using the chosen compression algorithm
 	std::vector<char> compressedData;
-	ci->compress(byteData.begin(), byteData.end(), compressedData);
-	delete ci;
+	_compression->compress(byteData.begin(), byteData.end(), compressedData);
 	return compressedData;
 }
 
@@ -374,10 +378,8 @@ void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator cons
 	double currentTime;
 	size_t numLocalMolecules;
 	// zomg no RAII. Fix with factory.
-	CompressionInterface* ci = new Lz4Compression();
 	std::vector<char> decompressedData;
-	ci->decompress(snapshotStart, snapshotEnd, decompressedData);
-	delete ci;
+	_compression->decompress(snapshotStart, snapshotEnd, decompressedData);
 	// MPI rank the snapshot is representing
 	auto valueStart = decompressedData.begin();
 	auto valueEnd = decompressedData.begin()+sizeof(snapshotRank);
@@ -387,6 +389,7 @@ void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator cons
 	// current simulation time
 	valueEnd = valueStart+sizeof(currentTime);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&currentTime));
+	newSnapshot.setCurrentTime(currentTime);
 	valueStart = valueEnd;
 	// number of molecules in snapshot
 	valueEnd = valueStart+sizeof(numLocalMolecules);
