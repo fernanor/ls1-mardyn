@@ -372,22 +372,6 @@ void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator cons
         std::vector<char>::iterator const snapshotEnd, Snapshot& newSnapshot) {
 	int snapshotRank;
 	double currentTime;
-<<<<<<< Updated upstream
-	size_t numLocalMolecules;
-	CompressionInterface* ci = new Lz4Compression();
-	delete ci;
-	// MPI rank the snapshot is representing
-	auto valueStart = snapshotStart;
-	auto valueEnd = snapshotStart+sizeof(snapshotRank);
-	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&snapshotRank));
-	newSnapshot.setRank(snapshotRank);
-=======
-<<<<<<< Updated upstream
-	auto valueStart = snapshotStart;
-	auto valueEnd = snapshotStart+sizeof(rank);
-	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&rank));
-	newSnapshot.setRank(rank);
-=======
 	size_t numLocalMolecules;
 	// zomg no RAII. Fix with factory.
 	CompressionInterface* ci = new Lz4Compression();
@@ -399,49 +383,24 @@ void RedundancyResilience::_deserializeSnapshot(std::vector<char>::iterator cons
 	auto valueEnd = decompressedData.begin()+sizeof(snapshotRank);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&snapshotRank));
 	newSnapshot.setRank(snapshotRank);
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 	valueStart = valueEnd;
 	// current simulation time
 	valueEnd = valueStart+sizeof(currentTime);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&currentTime));
 	valueStart = valueEnd;
-<<<<<<< Updated upstream
-	// number of molecules in snapshot
-	valueEnd = valueStart+sizeof(numLocalMolecules);
-	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&numLocalMolecules));
-	valueStart = valueEnd;
-	// recreate the molecules from the serialized data
-	valueEnd = snapshotEnd;
-=======
-<<<<<<< Updated upstream
-	valueEnd = snapshotEnd;
-	// deserialize the fake data, used for debug purposes
-	std::vector<char> fakeData(valueEnd - valueStart);
-	std::copy(valueStart, valueEnd, fakeData.begin());
-	_validateFakeData(rank, fakeData);
-	mardyn_assert(valueEnd == snapshotEnd);
-	return snapshotEnd;
-=======
 	// number of molecules in snapshot
 	valueEnd = valueStart+sizeof(numLocalMolecules);
 	std::copy(valueStart, valueEnd, reinterpret_cast<char*>(&numLocalMolecules));
 	valueStart = valueEnd;
 	// recreate the molecules from the serialized data
 	valueEnd = decompressedData.end();
->>>>>>> Stashed changes
 	while (valueStart < valueEnd) {
 		Molecule m;
 		valueStart = m.deserialize(valueStart);
 		newSnapshot.addMolecule(m);
 	}
 	mardyn_assert(newSnapshot.getMolecules().size() == numLocalMolecules);
-<<<<<<< Updated upstream
-	mardyn_assert(valueStart == snapshotEnd);
-=======
 	mardyn_assert(valueStart == decompressedData.end());
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 }
 
 bool RedundancyResilience::_validateFakeData(int const rank, std::vector<char>& fakeData) {
