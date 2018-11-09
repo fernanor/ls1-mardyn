@@ -66,6 +66,12 @@ include(bhfmm)
 # ----- third: include autopas
 include(autopas)
 
+<<<<<<< Updated upstream
+=======
+# ----- resilience plugin dependencies are set here
+include(resilience)
+include(lz4)
+>>>>>>> Stashed changes
 
 # add mardyn
 ADD_SUBDIRECTORY(src)
