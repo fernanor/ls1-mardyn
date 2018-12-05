@@ -16,6 +16,11 @@
 
 using Log::global_log;
 
+//define the precision to store jiffy count
+using JiffyPrecision = unsigned int;
+//define the precision to store the time stamp. affects time quantization.
+using TimeStampPrecision = unsigned int;
+
 Events::Events() {
 
 }
@@ -80,22 +85,16 @@ void Events::endStep(ParticleContainer* particleContainer,
 void Events::_addEvent(int rank, unsigned int event) {
     std::stringstream fname;
     fname << "events." << std::setfill('0') << std::setw(6) << rank << ".dat";
-    static std::vector<unsigned int> eventData;
-    static unsigned int eventCount = 0;
-    constexpr long bitMask = 0xFFFFFFFFFFFFFFFF >> ((sizeof(Duration::rep)-sizeof(unsigned int))*8);
-    auto timeStamp = Duration(Clock::now().time_since_epoch()).count();
-    timeStamp >>= (sigByte*8);
-    timeStamp &= bitMask;
-    unsigned int timeStampQuantized = static_cast<unsigned int>(timeStamp);
-    eventData.push_back(timeStamp);
-    eventData.push_back(event);
-    if ((eventCount % 100) == 0) {
-        global_log->info() << "    ISM: Dumping events, total event count: " << eventCount << std::endl;
+    unsigned int timeStampQuantized = ResProbe<JiffyPrecision, TimeStampPrecision>::getQuantizedTime();
+    _eventData.push_back(timeStampQuantized);
+    _eventData.push_back(event);
+    if ((_eventCount % 100) == 0) {
+        global_log->info() << "    ISM: Dumping events, total event count: " << _eventCount << std::endl;
         std::ofstream events;
         events.open(fname.str(), std::ios::ate);
-        events.write(reinterpret_cast<char*>(eventData.data()), sizeof(unsigned int)*eventData.size());
+        events.write(reinterpret_cast<char*>(_eventData.data()), sizeof(unsigned int)*_eventData.size());
         events.close();
-        eventData.clear();
+        _eventData.clear();
     }
-    ++eventCount;
+    ++_eventCount;
 }

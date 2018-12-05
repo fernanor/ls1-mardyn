@@ -77,7 +77,8 @@ public:
 private:
     // plugin-internal timer
     // stores pairs of time_stamp and event for comparison to resource probe
-    std::vector<unsigned int> _events;
+    std::vector<unsigned int> _eventData;
+    unsigned int _eventCount = 0;
     void _addEvent(int rank, unsigned int event);
 };
 #endif /* SRC_PLUGINS_EVENTS_H_ */
