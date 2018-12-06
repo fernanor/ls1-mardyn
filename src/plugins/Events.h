@@ -16,6 +16,7 @@
 #include "PluginBase.h"
 #include "molecules/MoleculeForwardDeclaration.h"
 
+#include <cstdlib>
 #include <chrono>
 #include <string>
 #include <sstream>
@@ -79,6 +80,9 @@ private:
     // stores pairs of time_stamp and event for comparison to resource probe
     std::vector<unsigned int> _eventData;
     unsigned int _eventCount = 0;
+    unsigned int _dumpInterval;
+    std::string _fnamePrefix;
+    std::stringstream _fname;
     void _addEvent(int rank, unsigned int event);
 };
 #endif /* SRC_PLUGINS_EVENTS_H_ */
