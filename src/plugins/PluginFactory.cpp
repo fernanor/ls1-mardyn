@@ -48,6 +48,8 @@
 #include "plugins/VectorizationTuner.h"
 #include "plugins/WallPotential.h"
 
+#include "plugins/RedundancyResilience.h"
+
 #ifdef VTK
 #include "io/vtk/VTKMoleculeWriter.h"
 #include "io/vtk/VTKGridWriter.h"
@@ -96,6 +98,7 @@ void PluginFactory<PluginBase>::registerDefaultPlugins(){
     REGISTER_PLUGIN(VTKMoleculeWriter);
     REGISTER_PLUGIN(VTKGridWriter);
 #endif
+    REGISTER_PLUGIN(RedundancyResilience);
 }
 
 /** @brief Enable selected plugins */
